@@ -43,9 +43,9 @@ export class DatabaseFactory {
         // Dynamic import to avoid circular dependencies
         return this.createPostgresAdapter(config as PostgresConfig);
 
-      case "mysql":
-        // Dynamic import to avoid circular dependencies
-        return this.createMySQLAdapter(config as MySQLConfig);
+    //   case "mysql":
+    //     // Dynamic import to avoid circular dependencies
+    //     return this.createMySQLAdapter(config as MySQLConfig);
 
       default:
         throw new Error(`Unsupported database type: ${databaseType}`);
@@ -89,12 +89,12 @@ export class DatabaseFactory {
    * @param config MySQL configuration
    * @returns MySQL adapter instance
    */
-  private static createMySQLAdapter(config: MySQLConfig): DatabaseAdapter {
-    // Dynamically import the MySQLAdapter to avoid circular dependencies
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { MySQLAdapter } = require("../adapters/mysql-adapter");
-    return new MySQLAdapter(config.connection);
-  }
+//   private static createMySQLAdapter(config: MySQLConfig): DatabaseAdapter {
+//     // Dynamically import the MySQLAdapter to avoid circular dependencies
+//     // eslint-disable-next-line @typescript-eslint/no-var-requires
+//     const { MySQLAdapter } = require("../adapters/mysql-adapter");
+//     return new MySQLAdapter(config.connection);
+//   }
 
   /**
    * Register a custom adapter factory
