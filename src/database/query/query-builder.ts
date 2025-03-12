@@ -3,7 +3,7 @@
  * Defines interfaces for constructing SQL queries
  */
 
-import { WhereCondition } from "../core/types";
+import { WhereCondition, JoinOptions } from "../core/types";
 
 /**
  * Base query builder interface
@@ -74,7 +74,7 @@ export interface QueryBuilder {
    * @returns Query builder instance for chaining
    */
   join(
-    type: "INNER" | "LEFT" | "RIGHT",
+    type: "INNER" | "LEFT" | "RIGHT" | "FULL",
     table: string,
     alias: string,
     condition: string,
@@ -125,6 +125,28 @@ export interface QueryBuilder {
     condition: string,
     ...params: unknown[]
   ): QueryBuilder;
+  
+  /**
+   * Add a FULL OUTER JOIN clause
+   * @param table Table to join
+   * @param alias Table alias
+   * @param condition Join condition
+   * @param params Optional parameters for parameterized conditions
+   * @returns Query builder instance for chaining
+   */
+  fullOuterJoin(
+    table: string,
+    alias: string,
+    condition: string,
+    ...params: unknown[]
+  ): QueryBuilder;
+
+  /**
+   * Add a JOIN clause with an object
+   * @param options Join options
+   * @returns Query builder instance for chaining
+   */
+  joinWith(options: JoinOptions): QueryBuilder;
 
   /**
    * Add an ORDER BY clause
@@ -162,6 +184,52 @@ export interface QueryBuilder {
    * @returns Query builder instance for chaining
    */
   offset(offset: number): QueryBuilder;
+  
+  /**
+   * Add a UNION with another query
+   * @param queryBuilder The query to union with
+   * @returns Query builder instance for chaining
+   */
+  union(queryBuilder: QueryBuilder): QueryBuilder;
+  
+  /**
+   * Add a UNION ALL with another query
+   * @param queryBuilder The query to union with
+   * @returns Query builder instance for chaining
+   */
+  unionAll(queryBuilder: QueryBuilder): QueryBuilder;
+  
+  /**
+   * Add an EXISTS subquery condition
+   * @param queryBuilder The subquery
+   * @param not Whether to negate the condition (NOT EXISTS)
+   * @returns Query builder instance for chaining
+   */
+  exists(queryBuilder: QueryBuilder, not?: boolean): QueryBuilder;
+  
+  /**
+   * Add an IN subquery condition
+   * @param field The field to check
+   * @param queryBuilder The subquery providing values
+   * @param not Whether to negate the condition (NOT IN)
+   * @returns Query builder instance for chaining
+   */
+  inSubquery(field: string, queryBuilder: QueryBuilder, not?: boolean): QueryBuilder;
+  
+  /**
+   * Use an aggregate function in the query
+   * @param func The aggregate function name (COUNT, SUM, AVG, etc.)
+   * @param field The field to aggregate
+   * @param alias Optional alias for the result
+   * @param distinct Whether to use DISTINCT
+   * @returns Query builder instance for chaining
+   */
+  aggregate(
+    func: string, 
+    field: string, 
+    alias?: string,
+    distinct?: boolean
+  ): QueryBuilder;
 
   /**
    * Get the generated SQL query
@@ -202,119 +270,6 @@ export interface QueryBuilder {
 }
 
 /**
- * Union query builder interface
- * For creating UNION queries
- */
-export interface UnionQueryBuilder {
-  /**
-   * Add a UNION clause
-   * @param queryBuilder Query builder for the union
-   * @returns Union query builder instance for chaining
-   */
-  union(queryBuilder: QueryBuilder): UnionQueryBuilder;
-
-  /**
-   * Add a UNION ALL clause
-   * @param queryBuilder Query builder for the union
-   * @returns Union query builder instance for chaining
-   */
-  unionAll(queryBuilder: QueryBuilder): UnionQueryBuilder;
-
-  /**
-   * Add an ORDER BY clause to the union query
-   * @param field Field to order by
-   * @param direction Sort direction
-   * @returns Union query builder instance for chaining
-   */
-  orderBy(field: string, direction?: "ASC" | "DESC"): UnionQueryBuilder;
-
-  /**
-   * Set a LIMIT clause for the union query
-   * @param limit Maximum number of rows to return
-   * @returns Union query builder instance for chaining
-   */
-  limit(limit: number): UnionQueryBuilder;
-
-  /**
-   * Set an OFFSET clause for the union query
-   * @param offset Number of rows to skip
-   * @returns Union query builder instance for chaining
-   */
-  offset(offset: number): UnionQueryBuilder;
-
-  /**
-   * Get the generated SQL query
-   * @returns SQL query string
-   */
-  getQuery(): string;
-
-  /**
-   * Get the parameters for the query
-   * @returns Array of parameter values
-   */
-  getParameters(): unknown[];
-
-  /**
-   * Execute the union query and return multiple results
-   * @returns Promise resolving to an array of results
-   */
-  execute<T>(): Promise<T[]>;
-}
-
-/**
- * Insert query builder interface
- * For constructing INSERT queries
- */
-export interface InsertQueryBuilder {
-  /**
-   * Set the table to insert into
-   * @param table Table name
-   * @returns Insert query builder instance for chaining
-   */
-  into(table: string): InsertQueryBuilder;
-
-  /**
-   * Set the values to insert
-   * @param values Record with column values or array of records for bulk insert
-   * @returns Insert query builder instance for chaining
-   */
-  values(
-    values: Record<string, unknown> | Record<string, unknown>[]
-  ): InsertQueryBuilder;
-
-  /**
-   * Set the columns to return after insert
-   * @param columns Columns to return
-   * @returns Insert query builder instance for chaining
-   */
-  returning(columns: string | string[]): InsertQueryBuilder;
-
-  /**
-   * Get the generated SQL query
-   * @returns SQL query string
-   */
-  getQuery(): string;
-
-  /**
-   * Get the parameters for the query
-   * @returns Array of parameter values
-   */
-  getParameters(): unknown[];
-
-  /**
-   * Execute the insert query
-   * @returns Promise resolving to the insert result
-   */
-  execute(): Promise<number>;
-
-  /**
-   * Execute the insert query and return inserted rows
-   * @returns Promise resolving to the inserted rows
-   */
-  executeAndReturn<T>(): Promise<T[]>;
-}
-
-/**
  * Update query builder interface
  * For constructing UPDATE queries
  */
@@ -322,9 +277,10 @@ export interface UpdateQueryBuilder {
   /**
    * Set the table to update
    * @param table Table name
+   * @param alias Optional table alias
    * @returns Update query builder instance for chaining
    */
-  table(table: string): UpdateQueryBuilder;
+  table(table: string, alias?: string): UpdateQueryBuilder;
 
   /**
    * Set the values to update
@@ -365,6 +321,23 @@ export interface UpdateQueryBuilder {
     condition: WhereCondition | string,
     ...params: unknown[]
   ): UpdateQueryBuilder;
+  
+  /**
+   * Add a JOIN clause
+   * @param type Join type
+   * @param table Table to join
+   * @param alias Table alias
+   * @param condition Join condition
+   * @param params Optional parameters for parameterized conditions
+   * @returns Update query builder instance for chaining
+   */
+  join(
+    type: "INNER" | "LEFT" | "RIGHT" | "FULL",
+    table: string,
+    alias: string,
+    condition: string,
+    ...params: unknown[]
+  ): UpdateQueryBuilder;
 
   /**
    * Set a LIMIT clause
@@ -393,6 +366,12 @@ export interface UpdateQueryBuilder {
   getParameters(): unknown[];
 
   /**
+   * Convert the query to a SQL string with parameters
+   * @returns SQL query with parameter placeholders
+   */
+  toSql(): string;
+
+  /**
    * Execute the update query
    * @returns Promise resolving to the number of affected rows
    */
@@ -406,6 +385,78 @@ export interface UpdateQueryBuilder {
 }
 
 /**
+ * Insert query builder interface
+ * For constructing INSERT queries
+ */
+export interface InsertQueryBuilder {
+  /**
+   * Set the table to insert into
+   * @param table Table name
+   * @returns Insert query builder instance for chaining
+   */
+  into(table: string): InsertQueryBuilder;
+
+  /**
+   * Set the values to insert
+   * @param values Record with column values or array of records for bulk insert
+   * @returns Insert query builder instance for chaining
+   */
+  values(
+    values: Record<string, unknown> | Record<string, unknown>[]
+  ): InsertQueryBuilder;
+
+  /**
+   * Set the columns to return after insert
+   * @param columns Columns to return
+   * @returns Insert query builder instance for chaining
+   */
+  returning(columns: string | string[]): InsertQueryBuilder;
+  
+  /**
+   * Add ON CONFLICT clause (for SQLite/PostgreSQL) or ON DUPLICATE KEY UPDATE (for MySQL)
+   * @param columns Columns that may conflict
+   * @param action Action to take on conflict ('ignore' or 'update')
+   * @param updateValues Values to update on conflict (only with 'update' action)
+   * @returns Insert query builder instance for chaining
+   */
+  onConflict(
+    columns: string | string[],
+    action: 'ignore' | 'update',
+    updateValues?: Record<string, unknown>
+  ): InsertQueryBuilder;
+
+  /**
+   * Get the generated SQL query
+   * @returns SQL query string
+   */
+  getQuery(): string;
+
+  /**
+   * Get the parameters for the query
+   * @returns Array of parameter values
+   */
+  getParameters(): unknown[];
+
+  /**
+   * Convert the query to a SQL string with parameters
+   * @returns SQL query with parameter placeholders
+   */
+  toSql(): string;
+
+  /**
+   * Execute the insert query
+   * @returns Promise resolving to the insert ID
+   */
+  execute(): Promise<number>;
+
+  /**
+   * Execute the insert query and return inserted rows
+   * @returns Promise resolving to the inserted rows
+   */
+  executeAndReturn<T>(): Promise<T[]>;
+}
+
+/**
  * Delete query builder interface
  * For constructing DELETE queries
  */
@@ -413,9 +464,10 @@ export interface DeleteQueryBuilder {
   /**
    * Set the table to delete from
    * @param table Table name
+   * @param alias Optional table alias
    * @returns Delete query builder instance for chaining
    */
-  from(table: string): DeleteQueryBuilder;
+  from(table: string, alias?: string): DeleteQueryBuilder;
 
   /**
    * Add a WHERE condition
@@ -449,6 +501,23 @@ export interface DeleteQueryBuilder {
     condition: WhereCondition | string,
     ...params: unknown[]
   ): DeleteQueryBuilder;
+  
+  /**
+   * Add a JOIN clause
+   * @param type Join type
+   * @param table Table to join
+   * @param alias Table alias
+   * @param condition Join condition
+   * @param params Optional parameters for parameterized conditions
+   * @returns Delete query builder instance for chaining
+   */
+  join(
+    type: "INNER" | "LEFT",
+    table: string,
+    alias: string,
+    condition: string,
+    ...params: unknown[]
+  ): DeleteQueryBuilder;
 
   /**
    * Set a LIMIT clause
@@ -477,6 +546,12 @@ export interface DeleteQueryBuilder {
   getParameters(): unknown[];
 
   /**
+   * Convert the query to a SQL string with parameters
+   * @returns SQL query with parameter placeholders
+   */
+  toSql(): string;
+
+  /**
    * Execute the delete query
    * @returns Promise resolving to the number of affected rows
    */
@@ -496,9 +571,11 @@ export interface DeleteQueryBuilder {
 export interface QueryBuilderFactory {
   /**
    * Create a SELECT query builder
+   * @param fields Optional fields to select
+   * @param params Optional parameters for field expressions
    * @returns Query builder instance
    */
-  select(fields?: string | string[]): QueryBuilder;
+  select(fields?: string | string[], ...params: unknown[]): QueryBuilder;
 
   /**
    * Create an INSERT query builder
@@ -520,11 +597,113 @@ export interface QueryBuilderFactory {
    * @returns Delete query builder instance
    */
   delete(table?: string): DeleteQueryBuilder;
+}
+
+/**
+ * Helper functions for query building
+ */
+export const queryHelpers = {
+  /**
+   * Create a placeholder string for prepared statements
+   * @param count Number of placeholders
+   * @returns Comma-separated placeholder string
+   */
+  createPlaceholders: (count: number): string => {
+    return Array(count).fill("?").join(", ");
+  },
 
   /**
-   * Create a UNION query builder
-   * @param queryBuilders Query builders to union
-   * @returns Union query builder instance
+   * Escape a column name for use in SQL queries
+   * @param column Column name
+   * @returns Escaped column name
    */
-  union(...queryBuilders: QueryBuilder[]): UnionQueryBuilder;
-}
+  escapeColumn: (column: string): string => {
+    return `"${column.replace(/"/g, '""')}"`;
+  },
+
+  /**
+   * Create a LIKE pattern with wildcards
+   * @param value Value to search for
+   * @param position Where to add wildcards (start, end, both, or none)
+   * @returns LIKE pattern
+   */
+  createLikePattern: (
+    value: string,
+    position: "start" | "end" | "both" | "none" = "both"
+  ): string => {
+    switch (position) {
+      case "start":
+        return `%${value}`;
+      case "end":
+        return `${value}%`;
+      case "both":
+        return `%${value}%`;
+      case "none":
+        return value;
+    }
+  },
+  
+  /**
+   * Format a value for use in SQL
+   * @param value The value to format
+   * @returns SQL-formatted value string
+   */
+  formatValue: (value: unknown): string => {
+    if (value === null) {
+      return 'NULL';
+    }
+    
+    if (typeof value === 'boolean') {
+      return value ? '1' : '0';
+    }
+    
+    if (typeof value === 'number') {
+      return value.toString();
+    }
+    
+    if (typeof value === 'string') {
+      // Escape single quotes
+      return `'${value.replace(/'/g, "''")}'`;
+    }
+    
+    if (value instanceof Date) {
+      return `'${value.toISOString()}'`;
+    }
+    
+    // For arrays or objects, convert to JSON string
+    if (typeof value === 'object') {
+      return `'${JSON.stringify(value).replace(/'/g, "''")}'`;
+    }
+    
+    return `'${String(value)}'`;
+  },
+  
+  /**
+   * Create a WHERE condition string
+   * @param field Field name
+   * @param operator Operator (=, >, <, etc.)
+   * @param value Value
+   * @returns WHERE condition string
+   */
+  createCondition: (field: string, operator: string, value: unknown): string => {
+    if (value === null) {
+      if (operator === '=') {
+        return `${field} IS NULL`;
+      }
+      if (operator === '!=') {
+        return `${field} IS NOT NULL`;
+      }
+    }
+    
+    if (Array.isArray(value)) {
+      if (operator === '=') {
+        return `${field} IN (${value.map(() => '?').join(', ')})`;
+      }
+      if (operator === '!=') {
+        return `${field} NOT IN (${value.map(() => '?').join(', ')})`;
+      }
+    }
+    
+    return `${field} ${operator} ?`;
+  }
+};
