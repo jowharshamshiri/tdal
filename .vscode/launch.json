@@ -1,0 +1,67 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Frontend",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}/src",
+            "sourceMapPathOverrides": {
+                "webpack:///src/*": "${webRoot}/*"
+            }
+        },
+        {
+            "name": "Debug Backend Functions",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/netlify",
+            "runtimeArgs": ["dev"],
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/dist/functions/**/*.js"],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/dist/functions/**",
+                "!**/node_modules/**"
+            ],
+            "console": "integratedTerminal",
+            "env": {
+                "NODE_ENV": "development"
+            },
+            "skipFiles": ["<node_internals>/**"]
+        },
+        {
+            "name": "Debug Full Stack",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/netlify",
+            "runtimeArgs": ["dev"],
+            "sourceMaps": true,
+            "outFiles": ["${workspaceFolder}/dist/functions/**/*.js"],
+            "console": "integratedTerminal",
+            "serverReadyAction": {
+                "pattern": "Local: (https?://.+:\\d+)",
+                "uriFormat": "%s",
+                "action": "debugWithChrome"
+            }
+        },
+        {
+            "name": "Debug Tests",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/react-scripts",
+            "args": ["test", "--runInBand", "--no-cache", "--watchAll=false"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "env": {
+                "CI": "true"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Full Stack Debug",
+            "configurations": ["Debug Backend Functions", "Debug Frontend"]
+        }
+    ]
+}
