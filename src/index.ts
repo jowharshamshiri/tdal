@@ -31,9 +31,3 @@ export * from './database/orm/date-functions';
 
 // Export schema loader
 export * from './database/schema/schema-loader';
-
-// Export repositories
-export * from './repositories';
-
-// Export models
-export * from './models';

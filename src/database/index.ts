@@ -29,14 +29,26 @@ export * from "./schema/schema-loader";
 // Export configureDatabase, getDatabase, and closeDatabase helper functions
 import { DatabaseContext } from "./core/database-context";
 export const configureDatabase =
-  DatabaseContext.configure.bind(DatabaseContext);
+	DatabaseContext.configure.bind(DatabaseContext);
 export const getDatabase = DatabaseContext.getDatabase.bind(DatabaseContext);
 export const closeDatabase =
-  DatabaseContext.closeDatabase.bind(DatabaseContext);
+	DatabaseContext.closeDatabase.bind(DatabaseContext);
 
 // Type functions
 export function isRecord<T extends object>(
-  value: unknown
+	value: unknown
 ): value is Record<string, T> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+// // Common types
+// export interface PaginationParams {
+// 	page?: number;
+// 	limit?: number;
+// }
+
+// // Base record type with timestamps
+// export interface BaseRecord {
+// 	created_at?: string;
+// 	updated_at?: string;
+// }
