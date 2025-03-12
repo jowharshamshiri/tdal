@@ -206,17 +206,17 @@ describe("SQLiteAdapter", () => {
     expect(users).toHaveLength(2);
   });
 
-  test("should find all records with options", async () => {
-    const users = await db.findAll<User>("users", {
-      fields: ["name", "email"],
-      orderBy: [{ field: "name", direction: "DESC" }],
-      limit: 1,
-    });
-
-    expect(users).toHaveLength(1);
-    expect(users[0].name).toBe("Dog Lover"); // DESC order
-    expect(users[0].email).toBe("doggy@example.com");
-    expect(users[0].password).toBeUndefined(); // Not selected
+	test("should find all records with options", async () => {
+	const users = await db.findAll<User>("users", {
+	  fields: ["name", "email"],
+	  orderBy: [{ field: "name", direction: "DESC" }],
+	  limit: 1,
+	});
+  
+	expect(users).toHaveLength(1);
+	expect(users[0].name).toBe("Pet Store Owner"); 
+	expect(users[0].email).toBe("owner@dogfoodstore.com"); 
+	expect(users[0].password).toBeUndefined(); 
   });
 
   test("should find records by conditions", async () => {

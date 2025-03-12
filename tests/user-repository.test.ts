@@ -70,15 +70,19 @@ describe("UserRepository", () => {
   });
 
   test("should find all users with credit balance", async () => {
-    const users = await userRepo.findAllWithCreditBalance();
-
-    expect(users).toHaveLength(2);
-
-    // Admin should have 0 balance
-    expect(users[0].credit_balance).toBe(0);
-
-    // Regular user should have 60 (10 + 50) balance
-    expect(users[1].credit_balance).toBe(60);
+	const users = await userRepo.findAllWithCreditBalance();
+  
+	expect(users).toHaveLength(2);
+  
+	// Users are sorted by name, so "Dog Lover" (regular user) comes first
+	expect(users[0].name).toBe("Dog Lover");
+	expect(users[1].name).toBe("Pet Store Owner");
+  
+	// Regular user has 60 (10 + 50) balance
+	expect(users[0].credit_balance).toBe(60);
+	
+	// Admin should have 0 balance
+	expect(users[1].credit_balance).toBe(0);
   });
 
   test("should get user credit balance", async () => {

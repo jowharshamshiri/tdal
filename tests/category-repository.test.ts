@@ -146,12 +146,12 @@ describe("ProductCategoryRepository", () => {
     );
     expect(hasProduct).toBe(false);
   });
-
+	
   test("should search categories by name", async () => {
-    const categories = await productCategoryRepo.searchByName("Alg");
-
-    expect(categories).toHaveLength(1);
-    expect(categories[0].category_name).toBe("Dry Food");
+	const categories = await productCategoryRepo.searchByName("Dry");
+  
+	expect(categories).toHaveLength(1);
+	expect(categories[0].category_name).toBe("Dry Food");
   });
 
   test("should get category hierarchy", async () => {
