@@ -323,17 +323,37 @@ export class SQLiteAdapter
 		}
 
 		if (this.dbInstance) {
-			const result = this.dbInstance.prepare(query).run(...params);
-			return {
-				lastInsertRowid:
-					typeof result.lastInsertRowid === "bigint"
-						? Number(result.lastInsertRowid)
-						: (result.lastInsertRowid as number),
-				changes: result.changes,
-			};
+			// Process params to ensure they are compatible with SQLite
+			const processedParams = this.processParams(params);
+
+			try {
+				const result = this.dbInstance.prepare(query).run(...processedParams);
+				return {
+					lastInsertRowid:
+						typeof result.lastInsertRowid === "bigint"
+							? Number(result.lastInsertRowid)
+							: (result.lastInsertRowid as number),
+					changes: result.changes,
+				};
+			} catch (error) {
+				this.logDebug(`[SQLite Error] ${error}`);
+				throw error;
+			}
 		}
 
 		return { changes: 0 };
+	}
+
+	private processParams(params: unknown[]): unknown[] {
+		return params.map(param => {
+			if (typeof param === 'boolean') {
+				return param ? 1 : 0;
+			} else if (param === undefined) {
+				return null;
+			} else {
+				return param;
+			}
+		});
 	}
 
 	/**
