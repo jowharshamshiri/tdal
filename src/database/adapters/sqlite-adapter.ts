@@ -740,7 +740,6 @@ export class SQLiteAdapter
 		query: string,
 		...params: unknown[]
 	): Promise<T | undefined> {
-		console.log(query, params);
 		this.ensureConnection();
 
 		if (this.config.debug) {

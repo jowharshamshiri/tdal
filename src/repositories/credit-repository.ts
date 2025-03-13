@@ -237,20 +237,16 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 
 
 
-	/**
-	 * Fix for findForUser method in UserCreditRepository
-	 * Avoids issues with DateExpressions in WHERE clauses
-	 */
-	async findForUser(
-		userId: number,
-		includeExpired = false
-	): Promise<UserCredit[]> {
+	async findForUser(userId: number, includeExpired = false): Promise<UserCredit[]> {
 		const qb = this.createQueryBuilder();
 
 		// Select all fields
 		qb.select(["*"]);
 
-		// Add days remaining calculation - use subquery approach to avoid parameter issues
+		// Specify the table name - THIS IS THE MISSING LINE
+		qb.from("user_credits");
+
+		// Add days remaining calculation
 		const currentDateTimeExpr = DateExpressions.currentDateTime();
 		qb.selectRaw(
 			`(CAST((julianday(expiry_date) - julianday(${currentDateTimeExpr})) AS INTEGER)) as days_remaining`
@@ -270,18 +266,14 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 		return qb.execute<UserCredit>();
 	}
 
-	/**
-	 * Fix for getExpiringCredits method in UserCreditRepository
-	 * Avoids issues with DateExpressions and complex WHERE clauses
-	 */
-	async getExpiringCredits(
-		userId: number,
-		daysThreshold: number
-	): Promise<UserCredit[]> {
+	async getExpiringCredits(userId: number, daysThreshold: number): Promise<UserCredit[]> {
 		const qb = this.createQueryBuilder();
 
 		// Select all fields
 		qb.select(["*"]);
+
+		// Specify the table name - THIS IS THE MISSING LINE
+		qb.from("user_credits");
 
 		// Add days remaining calculation using raw SQL 
 		const currentDateTimeExpr = DateExpressions.currentDateTime();
@@ -306,8 +298,6 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 
 		return qb.execute<UserCredit>();
 	}
-
-
 
 
 }
@@ -535,38 +525,6 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		return qb.execute<CreditPackage>();
 	}
 
-	// 2. Fix for UserCreditRepository.findForUser()
-	// Use the enhanced query builder date functions
-	async findForUser(userId: number, includeExpired = false): Promise<UserCredit[]> {
-		// Create a query builder
-		const qb = this.createQueryBuilder();
-
-		// Select all fields
-		qb.select(["*"]);
-
-		// Add days remaining calculation
-		// Using the query builder's date expression capabilities
-		const dateFunctions = this.db.getDateFunctions();
-		qb.selectExpression(
-			dateFunctions.dateDiff("expiry_date", dateFunctions.currentDateTime(), "day"),
-			"days_remaining"
-		);
-
-		// Filter by user ID using parameter binding
-		qb.where("user_id = ?", userId);
-
-		// Filter out expired credits if requested
-		if (!includeExpired) {
-			// Use the whereDateExpression method for date conditions
-			qb.andWhereDateExpression(`expiry_date >= ${dateFunctions.currentDateTime()}`);
-		}
-
-		// Order by expiry date
-		qb.orderBy("expiry_date");
-
-		// Execute the query
-		return qb.execute<UserCredit>();
-	}
 
 	// 3. Fix for UserCreditRepository.getExpiringCredits()
 	// Use the enhanced query builder date functions
@@ -600,5 +558,19 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 
 		// Execute the query
 		return qb.execute<UserCredit>();
+	}
+
+	async findForUser(userId: number): Promise<PaymentTransaction[]> {
+		const qb = this.createQueryBuilder();
+
+		qb.select(["*"]);
+
+		// Specify the table name - THIS IS THE MISSING LINE
+		qb.from("payment_transactions");
+
+		qb.where("user_id = ?", userId);
+		qb.orderBy("transaction_date", "DESC");
+
+		return qb.execute<PaymentTransaction>();
 	}
 }
