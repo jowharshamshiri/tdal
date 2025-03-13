@@ -511,63 +511,75 @@ export class ProductRepository extends EntityDao<Product> {
    * @param creditCost Credit cost
    * @returns Whether the operation succeeded
    */
-  async grantAccess(
-    productId: number,
-    userId: number,
-    creditCost: number
+  /**
+ * Grant access to a product
+ * @param productId Product ID
+ * @param userId User ID
+ * @param creditCost Credit cost
+ * @returns Whether the operation succeeded
+ */
+async grantAccess(
+	productId: number,
+	userId: number,
+	creditCost: number
   ): Promise<boolean> {
-    return this.transaction(async (db) => {
-      try {
-        // Step 1: Record the access
-        const now = new Date().toISOString();
-
-        await db.insert("user_resource_access", {
-          user_id: userId,
-          resource_type: "product",
-          resource_id: productId,
-          credit_cost: creditCost,
-          access_date: now,
-          created_at: now,
-        });
-
-        // Step 2: Deduct credits from the user's balance
-        // Get credits that expire soonest first
-        const creditsQb = db.createQueryBuilder();
-        creditsQb.from("user_credits")
-          .whereColumn("user_id", "=", userId)
-          .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
-          .orderBy("expiry_date", "ASC");
-
-        const creditsToUse = await creditsQb.execute<{
-          credit_id: number;
-          amount: number;
-        }>();
-
-        let remainingCost = creditCost;
-
-        for (const credit of creditsToUse) {
-          if (remainingCost <= 0) break;
-
-          const amountToUse = Math.min(credit.amount, remainingCost);
-          remainingCost -= amountToUse;
-
-          if (amountToUse === credit.amount) {
-            // Use the entire credit
-            await db.delete("user_credits", "credit_id", credit.credit_id);
-          } else {
-            // Use part of the credit
-            await db.update("user_credits", "credit_id", credit.credit_id, {
-              amount: credit.amount - amountToUse,
-            });
-          }
-        }
-
-        return true;
-      } catch (error) {
-        console.error("Error granting access:", error);
-        return false;
-      }
-    });
+	return this.transaction(async (txDao) => {
+	  try {
+		// Step 1: Record the access
+		const now = new Date().toISOString();
+  
+		await this.db.insert("user_resource_access", {
+		  user_id: userId,
+		  resource_type: "product",
+		  resource_id: productId,
+		  credit_cost: creditCost,
+		  access_date: now,
+		  created_at: now,
+		});
+  
+		// Step 2: Deduct credits from the user's balance
+		// Get credits that expire soonest first
+		const creditsQb = this.createQueryBuilder();
+		creditsQb.from("user_credits")
+		  .whereColumn("user_id", "=", userId)
+		  .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
+		  .orderBy("expiry_date", "ASC");
+  
+		const creditsToUse = await creditsQb.execute<{
+		  credit_id: number;
+		  amount: number;
+		}>();
+  
+		let remainingCost = creditCost;
+  
+		for (const credit of creditsToUse) {
+		  if (remainingCost <= 0) break;
+  
+		  const amountToUse = Math.min(credit.amount, remainingCost);
+		  remainingCost -= amountToUse;
+  
+		  if (amountToUse === credit.amount) {
+			// Use the entire credit - delete it
+			await this.db.execute(
+			  "DELETE FROM user_credits WHERE credit_id = ?", 
+			  credit.credit_id
+			);
+		  } else {
+			// Use part of the credit - update it
+			await this.db.execute(
+			  "UPDATE user_credits SET amount = ? WHERE credit_id = ?", 
+			  credit.amount - amountToUse, 
+			  credit.credit_id
+			);
+		  }
+		}
+  
+		return true;
+	  } catch (error) {
+		console.error("Error granting access:", error);
+		return false;
+	  }
+	});
   }
 
   /**
