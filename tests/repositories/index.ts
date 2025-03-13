@@ -14,24 +14,24 @@ export { ProductRepository } from "./product-repository";
 
 // Credit repositories
 export {
-  CreditPackageRepository,
-  UserCreditRepository,
-  PaymentTransactionRepository,
+	CreditPackageRepository,
+	UserCreditRepository,
+	PaymentTransactionRepository,
 } from "./credit-repository";
 
 // Shopping session repository
 export { ShoppingSessionRepository } from "./shopping-session-repository";
 
 // Factory functions to create repositories
-import { DatabaseAdapter } from "../database/core/types";
-import { DatabaseContext } from "../database/core/database-context";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { DatabaseContext } from "../../src/database/core/database-context";
 import { UserRepository } from "./user-repository";
 import { ProductCategoryRepository } from "./category-repository";
 import { ProductRepository } from "./product-repository";
 import {
-  CreditPackageRepository,
-  UserCreditRepository,
-  PaymentTransactionRepository,
+	CreditPackageRepository,
+	UserCreditRepository,
+	PaymentTransactionRepository,
 } from "./credit-repository";
 import { ShoppingSessionRepository } from "./shopping-session-repository";
 
@@ -41,7 +41,7 @@ import { ShoppingSessionRepository } from "./shopping-session-repository";
  * @returns User repository instance
  */
 export function createUserRepository(db?: DatabaseAdapter): UserRepository {
-  return new UserRepository(db || DatabaseContext.getDatabase());
+	return new UserRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -50,9 +50,9 @@ export function createUserRepository(db?: DatabaseAdapter): UserRepository {
  * @returns ProductCategory repository instance
  */
 export function createProductCategoryRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): ProductCategoryRepository {
-  return new ProductCategoryRepository(db || DatabaseContext.getDatabase());
+	return new ProductCategoryRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -61,9 +61,9 @@ export function createProductCategoryRepository(
  * @returns Product repository instance
  */
 export function createProductRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): ProductRepository {
-  return new ProductRepository(db || DatabaseContext.getDatabase());
+	return new ProductRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -72,9 +72,9 @@ export function createProductRepository(
  * @returns Credit package repository instance
  */
 export function createCreditPackageRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): CreditPackageRepository {
-  return new CreditPackageRepository(db || DatabaseContext.getDatabase());
+	return new CreditPackageRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -83,9 +83,9 @@ export function createCreditPackageRepository(
  * @returns User credit repository instance
  */
 export function createUserCreditRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): UserCreditRepository {
-  return new UserCreditRepository(db || DatabaseContext.getDatabase());
+	return new UserCreditRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -94,9 +94,9 @@ export function createUserCreditRepository(
  * @returns Payment transaction repository instance
  */
 export function createPaymentTransactionRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): PaymentTransactionRepository {
-  return new PaymentTransactionRepository(db || DatabaseContext.getDatabase());
+	return new PaymentTransactionRepository(db || DatabaseContext.getDatabase());
 }
 
 /**
@@ -105,7 +105,7 @@ export function createPaymentTransactionRepository(
  * @returns Shopping session repository instance
  */
 export function createShoppingSessionRepository(
-  db?: DatabaseAdapter
+	db?: DatabaseAdapter
 ): ShoppingSessionRepository {
-  return new ShoppingSessionRepository(db || DatabaseContext.getDatabase());
+	return new ShoppingSessionRepository(db || DatabaseContext.getDatabase());
 }

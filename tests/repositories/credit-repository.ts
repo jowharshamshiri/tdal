@@ -3,7 +3,7 @@
  * Data access for credit-related operations
  */
 
-import { EntityDao } from "../database/orm/entity-dao";
+import { EntityDao } from "../../src/database/orm/entity-dao";
 import {
 	CreditPackage,
 	UserCredit,
@@ -12,11 +12,11 @@ import {
 	UserCreditMapping,
 	PaymentTransactionMapping,
 	CreditSource,
-} from "../models";
-import { DateExpressions } from "../database/orm/date-functions";
-import { EntityQueryBuilder } from "../database/query/entity-query-builder";
-import { Relation, ManyToOneRelation } from "../database/orm/relation-types";
-import { DatabaseAdapter } from "@/database";
+} from "../../tests/models";
+import { DateExpressions } from "../../src/database/orm/date-functions";
+import { EntityQueryBuilder } from "../../src/database/query/entity-query-builder";
+import { Relation, ManyToOneRelation } from "../../src/database/orm/relation-types";
+import { DatabaseAdapter } from "../../src/database";
 
 /**
  * Convert string type relations to proper Relation objects

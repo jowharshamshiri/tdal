@@ -3,7 +3,7 @@
  * Data access for shopping session-related operations
  */
 
-import { EntityDao } from "../database/orm/entity-dao";
+import { EntityDao } from "../../src/database/orm/entity-dao";
 import {
 	ProductShoppingSession,
 	ProductViewRecord,
@@ -11,13 +11,13 @@ import {
 	ProductShoppingSessionMapping,
 	ProductPage,
 	ShoppingSessionWithRecords,
-} from "../models";
-import { EntityQueryBuilder } from "../database/query/entity-query-builder";
+} from "../../tests/models";
+import { EntityQueryBuilder } from "../../src/database/query/entity-query-builder";
 import {
 	Relation,
 	ManyToOneRelation,
 	OneToManyRelation,
-} from "../database/orm/relation-types";
+} from "../../src/database/orm/relation-types";
 
 /**
  * Convert string type relations to proper Relation objects

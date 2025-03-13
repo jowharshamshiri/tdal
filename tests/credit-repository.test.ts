@@ -11,7 +11,7 @@ import {
 	CreditPackageRepository,
 	UserCreditRepository,
 	PaymentTransactionRepository,
-} from "../src/repositories/credit-repository";
+} from "./repositories/credit-repository";
 
 describe("CreditRepository", () => {
 	let db: DatabaseAdapter;

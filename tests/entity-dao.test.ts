@@ -9,7 +9,7 @@ import {
 import { DatabaseAdapter } from "../src/database/core/types";
 import { EntityDao } from "../src/database/orm/entity-dao";
 import { EntityMapping } from "../src/database/orm/entity-mapping";
-import { User, UserMapping } from "../src/models/user";
+import { User, UserMapping } from "./models/user";
 import { Relation } from "../src/database/orm/relation-types";
 
 // Create a concrete implementation of EntityDao for testing

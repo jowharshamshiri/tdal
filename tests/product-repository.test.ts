@@ -7,7 +7,7 @@ import {
 	cleanupDatabase,
 } from "./test-setup";
 import { DatabaseAdapter } from "../src/database/core/types";
-import { ProductRepository } from "../src/repositories/product-repository";
+import { ProductRepository } from "./repositories/product-repository";
 
 describe("ProductRepository", () => {
 	let db: DatabaseAdapter;

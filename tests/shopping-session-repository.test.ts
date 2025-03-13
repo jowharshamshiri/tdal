@@ -7,8 +7,8 @@ import {
 	cleanupDatabase,
 } from "./test-setup";
 import { DatabaseAdapter } from "../src/database/core/types";
-import { ShoppingSessionRepository } from "../src/repositories/shopping-session-repository";
-import { ShoppingSessionStatus } from "../src/models/shopping-session";
+import { ShoppingSessionRepository } from "./repositories/shopping-session-repository";
+import { ShoppingSessionStatus } from "./models/shopping-session";
 
 // Define ProductSide enum
 enum ProductSide {
