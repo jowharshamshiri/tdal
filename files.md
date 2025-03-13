@@ -86,3 +86,41 @@ Testing and Deployment
 
 src/test/test-executor.ts - YAML-defined test executor
 src/deploy/environment-config.ts - Environment configuration manager
+
+Phase 1: Foundation
+
+Extended Configuration Loader - The first component to build, connecting to your existing YAML entity definitions while supporting enhanced schemas
+Entity Schema Enhancement - Extend schemas while maintaining compatibility with your ORM
+Hook System Core - Add lifecycle hooks to your entities
+
+Phase 2: API Layer
+
+API Route Generator - Generate REST endpoints from entity definitions
+Action System - Support custom business logic actions
+Request Processing Pipeline - Complete middleware chain for request handling
+
+Phase 3: Security
+
+Authentication Provider - JWT-based user authentication
+Authorization System - Role-based and field-level access control
+Input Validation & Security - Comprehensive validation engine
+
+Phase 4: Business Logic
+
+Computed Properties - Dynamic property calculation
+Workflow Engine - State machines for entities
+Event System - Event publishing and subscription
+
+Phase 5: Advanced Features
+
+Query Enhancement - Advanced filtering and relation handling
+Caching & Performance - Optimize for production use
+Plugin System - Extension architecture
+
+Getting Started - First Step
+The roadmap suggests starting with the Extended Configuration Loader since it directly connects to your existing entity generator and ORM. This component will:
+
+Read your existing YAML files while supporting new schema elements
+Validate configurations against JSON schemas
+Maintain backward compatibility
+Set up extension points for future schema types like auth, UI, etc.
