@@ -18,7 +18,8 @@ import {
   QueryOptions,
   UpdateOptions,
   DeleteOptions,
-  RelationOptions
+  RelationOptions,
+  ConditionOperator
 } from "../core/types";
 import { DbConnection, SQLiteConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
@@ -353,7 +354,7 @@ export class SQLiteAdapter
     };
     
     (builder as any).whereColumn = (column: string, operator: string, value: unknown) => {
-      return builder.where({ field: column, operator, value });
+      return builder.where({ field: column, operator: operator as ConditionOperator, value });
     };
     
     (builder as any).whereDateColumn = (column: string, operator: string, value: Date | string) => {
