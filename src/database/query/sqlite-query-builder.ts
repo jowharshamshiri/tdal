@@ -6,7 +6,8 @@ import {
 	DatabaseAdapter,
 	WhereCondition,
 	ConditionOperator,
-	JoinOptions
+	JoinOptions,
+	AggregateFunction
   } from "../core/types";
   import {
 	QueryBuilder,
@@ -38,6 +39,14 @@ import {
 	 * @param adapter Database adapter
 	 */
 	constructor(private adapter: DatabaseAdapter) {}
+	
+	/**
+	 * Get access to the select fields array
+	 * Used by the aggregate method to save/restore state
+	 */
+	getSelect(): string[] {
+	  return this.selectFields;
+	}
   
 	/**
 	 * Set the SELECT clause fields
@@ -65,6 +74,22 @@ import {
 	selectRaw(expression: string, ...params: unknown[]): QueryBuilder {
 	  this.selectFields.push(expression);
 	  this.queryParams.push(...params);
+	  return this;
+	}
+	
+	/**
+	 * Select a calculated expression and assign it an alias
+	 * @param expression SQL expression
+	 * @param alias Column alias
+	 * @param params Optional parameters for the expression
+	 * @returns Query builder instance for chaining
+	 */
+	selectExpression(
+	  expression: string,
+	  alias: string,
+	  ...params: unknown[]
+	): QueryBuilder {
+	  this.selectRaw(`${expression} AS ${alias}`, ...params);
 	  return this;
 	}
   
@@ -145,6 +170,114 @@ import {
 	  }
   
 	  return this;
+	}
+	
+	/**
+	 * Add a WHERE condition on a specific column
+	 * @param column Column name
+	 * @param operator Condition operator
+	 * @param value Value to compare against
+	 * @returns Query builder instance for chaining
+	 */
+	whereColumn(
+	  column: string,
+	  operator: ConditionOperator,
+	  value: unknown
+	): QueryBuilder {
+	  return this.where({ field: column, operator, value });
+	}
+  
+	/**
+	 * Add a WHERE condition with raw SQL expression
+	 * @param expression SQL expression
+	 * @param params Optional parameters for the expression
+	 * @returns Query builder instance for chaining
+	 */
+	whereExpression(
+	  expression: string,
+	  ...params: unknown[]
+	): QueryBuilder {
+	  return this.where(expression, ...params);
+	}
+  
+	/**
+	 * Add a WHERE condition for a date column
+	 * @param column Date column name
+	 * @param operator Condition operator
+	 * @param value Date value to compare against
+	 * @returns Query builder instance for chaining
+	 */
+	whereDateColumn(
+	  column: string,
+	  operator: ConditionOperator,
+	  value: Date | string
+	): QueryBuilder {
+	  const dateValue = value instanceof Date ? value.toISOString() : value;
+	  return this.where(`${column} ${operator} ?`, dateValue);
+	}
+  
+	/**
+	 * Add a LIKE condition with automatic wildcards
+	 * @param column Column name
+	 * @param searchText Text to search for
+	 * @param position Where to add wildcards (start, end, both, or none)
+	 * @returns Query builder instance for chaining
+	 */
+	whereLike(
+	  column: string,
+	  searchText: string,
+	  position: "start" | "end" | "both" | "none" = "both"
+	): QueryBuilder {
+	  let pattern: string;
+	  switch (position) {
+		case "start":
+		  pattern = `%${searchText}`;
+		  break;
+		case "end":
+		  pattern = `${searchText}%`;
+		  break;
+		case "both":
+		  pattern = `%${searchText}%`;
+		  break;
+		case "none":
+		  pattern = searchText;
+		  break;
+		default:
+		  pattern = `%${searchText}%`;
+	  }
+	  return this.where(`${column} LIKE ?`, pattern);
+	}
+  
+	/**
+	 * Add an OR LIKE condition with automatic wildcards
+	 * @param column Column name
+	 * @param searchText Text to search for
+	 * @param position Where to add wildcards (start, end, both, or none)
+	 * @returns Query builder instance for chaining
+	 */
+	orWhereLike(
+	  column: string,
+	  searchText: string,
+	  position: "start" | "end" | "both" | "none" = "both"
+	): QueryBuilder {
+	  let pattern: string;
+	  switch (position) {
+		case "start":
+		  pattern = `%${searchText}`;
+		  break;
+		case "end":
+		  pattern = `${searchText}%`;
+		  break;
+		case "both":
+		  pattern = `%${searchText}%`;
+		  break;
+		case "none":
+		  pattern = searchText;
+		  break;
+		default:
+		  pattern = `%${searchText}%`;
+	  }
+	  return this.orWhere(`${column} LIKE ?`, pattern);
 	}
   
 	/**
@@ -236,7 +369,7 @@ import {
 	): QueryBuilder {
 	  return this.join("RIGHT", table, alias, condition, ...params);
 	}
-	
+	  
 	/**
 	 * Add a FULL OUTER JOIN clause
 	 * @param table Table to join
@@ -253,7 +386,7 @@ import {
 	): QueryBuilder {
 	  return this.join("FULL", table, alias, condition, ...params);
 	}
-	
+	  
 	/**
 	 * Add a JOIN clause with an options object
 	 * @param options Join options
@@ -325,7 +458,7 @@ import {
 	  this.offsetValue = offset;
 	  return this;
 	}
-	
+	  
 	/**
 	 * Add a UNION with another query
 	 * @param queryBuilder The query to union with
@@ -335,7 +468,7 @@ import {
 	  this.unionQueries.push({ builder: queryBuilder, all: false });
 	  return this;
 	}
-	
+	  
 	/**
 	 * Add a UNION ALL with another query
 	 * @param queryBuilder The query to union with
@@ -345,7 +478,7 @@ import {
 	  this.unionQueries.push({ builder: queryBuilder, all: true });
 	  return this;
 	}
-	
+	  
 	/**
 	 * Add an EXISTS subquery condition
 	 * @param queryBuilder The subquery
@@ -366,7 +499,7 @@ import {
 	  this.queryParams.push(...queryBuilder.getParameters());
 	  return this;
 	}
-	
+	  
 	/**
 	 * Add an IN subquery condition
 	 * @param field The field to check
@@ -388,33 +521,37 @@ import {
 	  this.queryParams.push(...queryBuilder.getParameters());
 	  return this;
 	}
-	
+	  
 	/**
-	 * Use an aggregate function in the query
-	 * @param func The aggregate function name (COUNT, SUM, AVG, etc.)
+	 * Calculate an aggregate value
+	 * @param func The aggregate function (COUNT, SUM, AVG, etc.)
 	 * @param field The field to aggregate
-	 * @param alias Optional alias for the result
+	 * @param alias Column alias for the result
 	 * @param distinct Whether to use DISTINCT
-	 * @returns Query builder instance for chaining
+	 * @returns Promise resolving to the aggregate results
 	 */
-	aggregate(
-	  func: string, 
+	async aggregate(
+	  func: AggregateFunction | string, 
 	  field: string, 
-	  alias?: string,
+	  alias: string,
 	  distinct: boolean = false
-	): QueryBuilder {
-	  let expr = func + '(';
-	  if (distinct) {
-		expr += 'DISTINCT ';
-	  }
-	  expr += field + ')';
+	): Promise<any[]> {
+	  // Save the current select fields
+	  const prevSelect = [...this.selectFields];
 	  
-	  if (alias) {
-		expr += ` AS ${alias}`;
-	  }
+	  // Create aggregate expression
+	  const expression = distinct ? `${func}(DISTINCT ${field})` : `${func}(${field})`;
 	  
-	  this.selectFields.push(expr);
-	  return this;
+	  // Replace select with aggregate
+	  this.selectFields = [`${expression} AS ${alias}`];
+	  
+	  // Execute the query
+	  const result = await this.execute();
+	  
+	  // Restore the original select
+	  this.selectFields = prevSelect;
+	  
+	  return result;
 	}
   
 	/**
@@ -435,7 +572,7 @@ import {
 	  
 	  return query;
 	}
-	
+	  
 	/**
 	 * Build the basic SELECT query without unions
 	 * @returns SELECT query string

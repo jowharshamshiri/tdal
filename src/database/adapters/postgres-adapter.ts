@@ -9,11 +9,11 @@ import {
   DatabaseAdapter,
   DbQueryResult,
   DateFunctions,
-  QueryBuilder,
   JoinOptions,
 } from "../core/types";
 import { DbConnection, PostgresConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
+import { QueryBuilder } from "../query";
 // Remove import for PostgresQueryBuilder since it doesn't exist yet
 
 /**

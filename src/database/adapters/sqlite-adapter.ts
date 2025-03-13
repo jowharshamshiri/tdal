@@ -10,7 +10,6 @@ import {
   DatabaseAdapter,
   DbQueryResult,
   DateFunctions,
-  QueryBuilder,
   JoinOptions,
   AggregateFunction,
   AggregateOptions,
@@ -24,6 +23,7 @@ import {
 import { DbConnection, SQLiteConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
 import { SQLiteQueryBuilder } from "../query/sqlite-query-builder";
+import { QueryBuilder } from "../query";
 
 /**
  * SQLite date functions implementation

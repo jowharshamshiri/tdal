@@ -7,7 +7,6 @@ import {
 	DatabaseAdapter,
 	DbQueryResult,
 	QueryOptions,
-	QueryBuilder,
 	WhereCondition,
 	DateFunctions,
 	JoinOptions,
@@ -21,6 +20,7 @@ import {
   } from "../core/types";
   import { DbConnection } from "../core/connection-types";
   import { EntityMapping } from "../orm/entity-mapping";
+import { QueryBuilder } from "../query";
   
   /**
    * Abstract base class for database adapters

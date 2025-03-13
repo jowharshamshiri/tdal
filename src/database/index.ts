@@ -2,11 +2,6 @@
  * Core database components index file
  * Exports all database core interfaces, types, and classes
  */
-
-// Type definitions - important to explicitly export the specific type to avoid ambiguity
-import { QueryBuilder as CoreQueryBuilder } from "./core/types";
-export type { CoreQueryBuilder };
-
 // Now export everything else from core
 export * from "./core/types";
 export * from "./core/connection-types";

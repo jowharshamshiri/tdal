@@ -5,10 +5,9 @@
 
 import { 
 	ConditionOperator, 
-	QueryBuilder, 
 	DatabaseAdapter,
 	JoinOptions,
-	AggregateFunction, 
+	AggregateFunction,
 	WhereCondition
   } from "../core/types";
   import { 
@@ -26,6 +25,7 @@ import {
 	isRelationType 
   } from "../orm/relation-types";
   import { DateExpressions } from "../orm/date-functions";
+  import { QueryBuilder } from "./query-builder";
   
   /**
    * Entity-aware query builder
@@ -205,7 +205,7 @@ import {
 	 * @returns Query builder instance for chaining
 	 */
 	selectAggregate(
-	  func: AggregateFunction, 
+	  func: AggregateFunction | string, 
 	  logicalColumnName: string, 
 	  alias: string, 
 	  distinct?: boolean
@@ -213,7 +213,6 @@ import {
 	
 	/**
 	 * Add a condition to check if a value exists in a subquery
-	 * @param logicalColumnName Logical column name
 	 * @param callback Function that builds the subquery
 	 * @returns Query builder instance for chaining
 	 */
@@ -223,7 +222,6 @@ import {
 	
 	/**
 	 * Add a condition to check if a value does not exist in a subquery
-	 * @param logicalColumnName Logical column name
 	 * @param callback Function that builds the subquery
 	 * @returns Query builder instance for chaining
 	 */
@@ -309,15 +307,6 @@ import {
    * Define an abstract base class for entity query builders
    */
   export abstract class EntityQueryBuilderBase implements EntityQueryBuilder {
-	whereExpression(expression: string, ...params: unknown[]): QueryBuilder {
-		throw new Error("Method not implemented.");
-	}
-	orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): QueryBuilder {
-		throw new Error("Method not implemented.");
-	}
-	aggregate(func: AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]> {
-		throw new Error("Method not implemented.");
-	}
 	/**
 	 * Get the entity mapping
 	 */
@@ -337,55 +326,35 @@ import {
 	 */
 	protected abstract getRelation(relationName: string): Relation;
   
-	// Implement the required methods from QueryBuilder and EntityQueryBuilder
-	abstract select(
-	  fields: string | string[],
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract selectRaw(expression: string, ...params: unknown[]): QueryBuilder;
-	abstract from(table: string, alias?: string): QueryBuilder;
-	abstract where(
-	  condition: string | unknown,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract andWhere(
-	  condition: string | unknown,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract orWhere(
-	  condition: string | unknown,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract join(
-	  type: string,
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract innerJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract leftJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract rightJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder;
-	abstract orderBy(field: string, direction?: string | undefined): QueryBuilder;
-	abstract groupBy(fields: string | string[]): QueryBuilder;
-	abstract having(condition: string, ...params: unknown[]): QueryBuilder;
-	abstract limit(limit: number): QueryBuilder;
-	abstract offset(offset: number): QueryBuilder;
+	// Implement all methods from the merged QueryBuilder interface
+	abstract select(fields: string | string[], ...params: unknown[]): EntityQueryBuilder;
+	abstract selectRaw(expression: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract from(table: string, alias?: string): EntityQueryBuilder;
+	abstract where(condition: any, ...params: unknown[]): EntityQueryBuilder;
+	abstract andWhere(condition: any, ...params: unknown[]): EntityQueryBuilder;
+	abstract orWhere(condition: any, ...params: unknown[]): EntityQueryBuilder;
+	abstract whereExpression(expression: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract whereDateColumn(column: string, operator: ConditionOperator, value: Date | string): EntityQueryBuilder;
+	abstract whereColumn(column: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder;
+	abstract whereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): EntityQueryBuilder;
+	abstract orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): EntityQueryBuilder;
+	abstract join(type: any, table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract innerJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract leftJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract rightJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract fullOuterJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract joinWith(options: JoinOptions): EntityQueryBuilder;
+	abstract orderBy(field: string, direction?: "ASC" | "DESC"): EntityQueryBuilder;
+	abstract groupBy(fields: string | string[]): EntityQueryBuilder;
+	abstract having(condition: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract limit(limit: number): EntityQueryBuilder;
+	abstract offset(offset: number): EntityQueryBuilder;
+	abstract union(queryBuilder: QueryBuilder): EntityQueryBuilder;
+	abstract unionAll(queryBuilder: QueryBuilder): EntityQueryBuilder;
+	abstract exists(queryBuilder: QueryBuilder, not?: boolean): EntityQueryBuilder;
+	abstract inSubquery(field: string, queryBuilder: QueryBuilder, not?: boolean): EntityQueryBuilder;
+	abstract selectExpression(expression: string, alias: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract aggregate(func: string | AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]>;
 	abstract getQuery(): string;
 	abstract getParameters(): unknown[];
 	abstract toSql(): string;
@@ -393,106 +362,75 @@ import {
 	abstract getOne<T>(): Promise<T | undefined>;
 	abstract getCount(): Promise<number>;
   
-	// Implement entity-aware methods
+	// Entity-aware methods
 	abstract selectColumns(logicalColumnNames: string[]): EntityQueryBuilder;
 	abstract selectColumn(logicalColumnName: string): EntityQueryBuilder;
-	abstract whereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder;
-	abstract andWhereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder;
-	abstract orWhereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder;
-	abstract orderByColumn(
-	  logicalColumnName: string,
-	  direction?: "ASC" | "DESC"
-	): EntityQueryBuilder;
+	abstract andWhereColumn(logicalColumnName: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder;
+	abstract orWhereColumn(logicalColumnName: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder;
+	abstract orderByColumn(logicalColumnName: string, direction?: "ASC" | "DESC"): EntityQueryBuilder;
 	abstract groupByColumns(logicalColumnNames: string[]): EntityQueryBuilder;
-	abstract joinRelated(
-	  relationName: string,
-	  alias?: string
-	): EntityQueryBuilder;
-	abstract leftJoinRelated(
-	  relationName: string,
-	  alias?: string
-	): EntityQueryBuilder;
-	abstract whereDateColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: Date | string
-	): EntityQueryBuilder;
-	abstract whereCurrentDate(
-	  logicalColumnName: string,
-	  operator: ConditionOperator
-	): EntityQueryBuilder;
-	abstract whereFullText(
-	  logicalColumnName: string,
-	  searchText: string
-	): EntityQueryBuilder;
-	abstract whereLike(
-	  logicalColumnName: string,
-	  searchText: string,
-	  position?: "start" | "end" | "both" | "none"
-	): EntityQueryBuilder;
-	abstract whereSubquery(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder;
-	abstract selectExpression(
-	  expression: string,
-	  alias: string,
-	  ...params: unknown[]
-	): EntityQueryBuilder;
-	abstract selectAggregate(
-	  func: AggregateFunction, 
-	  logicalColumnName: string, 
-	  alias: string, 
-	  distinct?: boolean
-	): EntityQueryBuilder;
-	abstract whereExists(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder;
-	abstract whereNotExists(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder;
-	abstract whereInSubquery(
-	  logicalColumnName: string,
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder;
-	abstract whereNotInSubquery(
-	  logicalColumnName: string,
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder;
+	abstract joinRelated(relationName: string, alias?: string): EntityQueryBuilder;
+	abstract leftJoinRelated(relationName: string, alias?: string): EntityQueryBuilder;
+	abstract whereCurrentDate(logicalColumnName: string, operator: ConditionOperator): EntityQueryBuilder;
+	abstract whereFullText(logicalColumnName: string, searchText: string): EntityQueryBuilder;
+	abstract whereSubquery(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
+	abstract selectAggregate(func: string | AggregateFunction, logicalColumnName: string, alias: string, distinct?: boolean): EntityQueryBuilder;
+	abstract whereExists(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
+	abstract whereNotExists(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
+	abstract whereInSubquery(logicalColumnName: string, callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
+	abstract whereNotInSubquery(logicalColumnName: string, callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
 	abstract executeAndMap<T>(): Promise<T[]>;
 	abstract getOneAndMap<T>(): Promise<T | undefined>;
   }
+  /**
+   * Entity-aware query builder factory
+   * Creates entity-aware query builders for different entity types
+   */
+  export interface EntityQueryBuilderFactory {
+	/**
+	 * Create an entity query builder for the specified entity
+	 * @param entityMapping Entity mapping
+	 * @returns Entity query builder
+	 */
+	createEntityQueryBuilder(entityMapping: EntityMapping): EntityQueryBuilder;
+  
+	/**
+	 * Create an entity query builder for a one-to-many relationship
+	 * @param sourceMapping Source entity mapping
+	 * @param relation Relationship definition
+	 * @param sourceId Source entity ID
+	 * @returns Entity query builder for the target entity
+	 */
+	createOneToManyQueryBuilder(
+	  sourceMapping: EntityMapping,
+	  relation: Relation,
+	  sourceId: number | string
+	): EntityQueryBuilder;
+  
+	/**
+	 * Create an entity query builder for a many-to-many relationship
+	 * @param sourceMapping Source entity mapping
+	 * @param relation Relationship definition
+	 * @param sourceId Source entity ID
+	 * @returns Entity query builder for the target entity
+	 */
+	createManyToManyQueryBuilder(
+	  sourceMapping: EntityMapping,
+	  relation: Relation,
+	  sourceId: number | string
+	): EntityQueryBuilder;
+  }
   
   /**
-   * Generic entity query builder implementation
-   * Adapts a standard query builder to be entity-aware
-   */
-  export class GenericEntityQueryBuilder implements EntityQueryBuilder {
+ * Generic entity query builder implementation
+ * Adapts a standard query builder to be entity-aware
+ */
+export class GenericEntityQueryBuilder implements EntityQueryBuilder {
 	constructor(
 	  protected queryBuilder: QueryBuilder,
 	  protected mapping: EntityMapping,
 	  protected adapter: DatabaseAdapter
 	) {}
-	  whereExpression(expression: string, ...params: unknown[]): QueryBuilder {
-		  throw new Error("Method not implemented.");
-	  }
-	  orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): QueryBuilder {
-		  throw new Error("Method not implemented.");
-	  }
-	  aggregate(func: AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]> {
-		  throw new Error("Method not implemented.");
-	  }
   
 	/**
 	 * Get the entity mapping
@@ -529,100 +467,138 @@ import {
 	}
   
 	// Delegate methods to the underlying query builder
-	select(fields: string | string[], ...params: unknown[]): QueryBuilder {
+	select(fields: string | string[], ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.select(fields, ...params);
 	  return this;
 	}
   
-	selectRaw(expression: string, ...params: unknown[]): QueryBuilder {
+	selectRaw(expression: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.selectRaw(expression, ...params);
 	  return this;
 	}
   
-	from(table: string, alias?: string): QueryBuilder {
+	from(table: string, alias?: string): EntityQueryBuilder {
 	  this.queryBuilder.from(table, alias);
 	  return this;
 	}
   
-	where(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
+	where(condition: WhereCondition | string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.where(condition, ...params);
 	  return this;
 	}
   
-	andWhere(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
+	andWhere(condition: WhereCondition | string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.andWhere(condition, ...params);
 	  return this;
 	}
   
-	orWhere(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
+	orWhere(condition: WhereCondition | string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.orWhere(condition, ...params);
 	  return this;
 	}
   
-	join(
-	  type: "INNER" | "LEFT" | "RIGHT",
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder {
+	whereExpression(expression: string, ...params: unknown[]): EntityQueryBuilder {
+	  this.queryBuilder.whereExpression(expression, ...params);
+	  return this;
+	}
+  
+	whereDateColumn(column: string, operator: ConditionOperator, value: Date | string): EntityQueryBuilder {
+	  this.queryBuilder.whereDateColumn(column, operator, value);
+	  return this;
+	}
+  
+	whereColumn(column: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder {
+	  this.queryBuilder.whereColumn(column, operator, value);
+	  return this;
+	}
+  
+	whereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): EntityQueryBuilder {
+	  this.queryBuilder.whereLike(column, value, position);
+	  return this;
+	}
+  
+	orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): EntityQueryBuilder {
+	  this.queryBuilder.orWhereLike(column, value, position);
+	  return this;
+	}
+  
+	join(type: "INNER" | "LEFT" | "RIGHT" | "FULL", table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.join(type, table, alias, condition, ...params);
 	  return this;
 	}
   
-	innerJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder {
+	innerJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.innerJoin(table, alias, condition, ...params);
 	  return this;
 	}
   
-	leftJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder {
+	leftJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.leftJoin(table, alias, condition, ...params);
 	  return this;
 	}
   
-	rightJoin(
-	  table: string,
-	  alias: string,
-	  condition: string,
-	  ...params: unknown[]
-	): QueryBuilder {
+	rightJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.rightJoin(table, alias, condition, ...params);
 	  return this;
 	}
   
-	orderBy(field: string, direction?: "ASC" | "DESC"): QueryBuilder {
+	fullOuterJoin(table: string, alias: string, condition: string, ...params: unknown[]): EntityQueryBuilder {
+	  this.queryBuilder.fullOuterJoin(table, alias, condition, ...params);
+	  return this;
+	}
+  
+	joinWith(options: JoinOptions): EntityQueryBuilder {
+	  this.queryBuilder.joinWith(options);
+	  return this;
+	}
+  
+	orderBy(field: string, direction?: "ASC" | "DESC"): EntityQueryBuilder {
 	  this.queryBuilder.orderBy(field, direction);
 	  return this;
 	}
   
-	groupBy(fields: string | string[]): QueryBuilder {
+	groupBy(fields: string | string[]): EntityQueryBuilder {
 	  this.queryBuilder.groupBy(fields);
 	  return this;
 	}
   
-	having(condition: string, ...params: unknown[]): QueryBuilder {
+	having(condition: string, ...params: unknown[]): EntityQueryBuilder {
 	  this.queryBuilder.having(condition, ...params);
 	  return this;
 	}
   
-	limit(limit: number): QueryBuilder {
+	limit(limit: number): EntityQueryBuilder {
 	  this.queryBuilder.limit(limit);
 	  return this;
 	}
   
-	offset(offset: number): QueryBuilder {
+	offset(offset: number): EntityQueryBuilder {
 	  this.queryBuilder.offset(offset);
 	  return this;
+	}
+  
+	union(queryBuilder: QueryBuilder): EntityQueryBuilder {
+	  this.queryBuilder.union(queryBuilder);
+	  return this;
+	}
+  
+	unionAll(queryBuilder: QueryBuilder): EntityQueryBuilder {
+	  this.queryBuilder.unionAll(queryBuilder);
+	  return this;
+	}
+  
+	exists(queryBuilder: QueryBuilder, not?: boolean): EntityQueryBuilder {
+	  this.queryBuilder.exists(queryBuilder, not);
+	  return this;
+	}
+  
+	inSubquery(field: string, queryBuilder: QueryBuilder, not?: boolean): EntityQueryBuilder {
+	  this.queryBuilder.inSubquery(field, queryBuilder, not);
+	  return this;
+	}
+  
+	async aggregate(func: string | AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]> {
+	  return this.queryBuilder.aggregate(func, field, alias, distinct);
 	}
   
 	getQuery(): string {
@@ -662,40 +638,19 @@ import {
 	  return this;
 	}
   
-	whereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder {
-	  const physicalColumn = this.mapColumnName(logicalColumnName);
-	  this.queryBuilder.where({ field: physicalColumn, operator, value });
-	  return this;
-	}
-  
-	andWhereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder {
+	andWhereColumn(logicalColumnName: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  this.queryBuilder.andWhere({ field: physicalColumn, operator, value });
 	  return this;
 	}
   
-	orWhereColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: unknown
-	): EntityQueryBuilder {
+	orWhereColumn(logicalColumnName: string, operator: ConditionOperator, value: unknown): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  this.queryBuilder.orWhere({ field: physicalColumn, operator, value });
 	  return this;
 	}
   
-	orderByColumn(
-	  logicalColumnName: string,
-	  direction?: "ASC" | "DESC"
-	): EntityQueryBuilder {
+	orderByColumn(logicalColumnName: string, direction?: "ASC" | "DESC"): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  this.queryBuilder.orderBy(physicalColumn, direction);
 	  return this;
@@ -813,23 +768,7 @@ import {
 	  return this;
 	}
   
-	whereDateColumn(
-	  logicalColumnName: string,
-	  operator: ConditionOperator,
-	  value: Date | string
-	): EntityQueryBuilder {
-	  const physicalColumn = this.mapColumnName(logicalColumnName);
-	  const dateValue = value instanceof Date ? value.toISOString() : value;
-	  
-	  this.queryBuilder.where(`${physicalColumn} ${operator} ?`, dateValue);
-	  
-	  return this;
-	}
-  
-	whereCurrentDate(
-	  logicalColumnName: string,
-	  operator: ConditionOperator
-	): EntityQueryBuilder {
+	whereCurrentDate(logicalColumnName: string, operator: ConditionOperator): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  const currentDateExpr = this.adapter.getDateFunctions().currentDate();
 	  
@@ -838,46 +777,13 @@ import {
 	  return this;
 	}
   
-	whereFullText(
-	  logicalColumnName: string,
-	  searchText: string
-	): EntityQueryBuilder {
+	whereFullText(logicalColumnName: string, searchText: string): EntityQueryBuilder {
 	  // Full-text search depends on the database engine
 	  // This is a simple implementation that uses LIKE with wildcards
 	  return this.whereLike(logicalColumnName, searchText, "both");
 	}
   
-	whereLike(
-	  logicalColumnName: string,
-	  searchText: string,
-	  position: "start" | "end" | "both" | "none" = "both"
-	): EntityQueryBuilder {
-	  const physicalColumn = this.mapColumnName(logicalColumnName);
-	  let pattern: string;
-	  
-	  switch (position) {
-		case "start":
-		  pattern = `%${searchText}`;
-		  break;
-		case "end":
-		  pattern = `${searchText}%`;
-		  break;
-		case "both":
-		  pattern = `%${searchText}%`;
-		  break;
-		case "none":
-		  pattern = searchText;
-		  break;
-	  }
-	  
-	  this.queryBuilder.where(`${physicalColumn} LIKE ?`, pattern);
-	  
-	  return this;
-	}
-  
-	whereSubquery(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder {
+	whereSubquery(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder {
 	  // Create a new entity query builder for the subquery
 	  const subQueryBuilder = new GenericEntityQueryBuilder(
 		this.adapter.createQueryBuilder(),
@@ -897,21 +803,12 @@ import {
 	  return this;
 	}
   
-	selectExpression(
-	  expression: string,
-	  alias: string,
-	  ...params: unknown[]
-	): EntityQueryBuilder {
-	  this.queryBuilder.selectRaw(`${expression} AS ${alias}`, ...params);
+	selectExpression(expression: string, alias: string, ...params: unknown[]): EntityQueryBuilder {
+	  this.queryBuilder.selectExpression(expression, alias, ...params);
 	  return this;
 	}
 	
-	selectAggregate(
-	  func: AggregateFunction, 
-	  logicalColumnName: string, 
-	  alias: string, 
-	  distinct: boolean = false
-	): EntityQueryBuilder {
+	selectAggregate(func: string | AggregateFunction, logicalColumnName: string, alias: string, distinct: boolean = false): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  let expression: string;
 	  
@@ -925,9 +822,7 @@ import {
 	  return this;
 	}
 	
-	whereExists(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder {
+	whereExists(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder {
 	  // Create a new entity query builder for the subquery
 	  const subQueryBuilder = new GenericEntityQueryBuilder(
 		this.adapter.createQueryBuilder(),
@@ -939,17 +834,12 @@ import {
 	  const builtSubQuery = callback(subQueryBuilder);
 	  
 	  // Add the EXISTS condition
-	  this.queryBuilder.where(
-		`EXISTS (${builtSubQuery.getQuery()})`,
-		...builtSubQuery.getParameters()
-	  );
+	  this.queryBuilder.exists(builtSubQuery, false);
 	  
 	  return this;
 	}
 	
-	whereNotExists(
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder {
+	whereNotExists(callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder {
 	  // Create a new entity query builder for the subquery
 	  const subQueryBuilder = new GenericEntityQueryBuilder(
 		this.adapter.createQueryBuilder(),
@@ -961,18 +851,12 @@ import {
 	  const builtSubQuery = callback(subQueryBuilder);
 	  
 	  // Add the NOT EXISTS condition
-	  this.queryBuilder.where(
-		`NOT EXISTS (${builtSubQuery.getQuery()})`,
-		...builtSubQuery.getParameters()
-	  );
+	  this.queryBuilder.exists(builtSubQuery, true);
 	  
 	  return this;
 	}
 	
-	whereInSubquery(
-	  logicalColumnName: string,
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder {
+	whereInSubquery(logicalColumnName: string, callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  
 	  // Create a new entity query builder for the subquery
@@ -986,18 +870,12 @@ import {
 	  const builtSubQuery = callback(subQueryBuilder);
 	  
 	  // Add the IN condition
-	  this.queryBuilder.where(
-		`${physicalColumn} IN (${builtSubQuery.getQuery()})`,
-		...builtSubQuery.getParameters()
-	  );
+	  this.queryBuilder.inSubquery(physicalColumn, builtSubQuery, false);
 	  
 	  return this;
 	}
 	
-	whereNotInSubquery(
-	  logicalColumnName: string,
-	  callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder
-	): EntityQueryBuilder {
+	whereNotInSubquery(logicalColumnName: string, callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder {
 	  const physicalColumn = this.mapColumnName(logicalColumnName);
 	  
 	  // Create a new entity query builder for the subquery
@@ -1011,10 +889,7 @@ import {
 	  const builtSubQuery = callback(subQueryBuilder);
 	  
 	  // Add the NOT IN condition
-	  this.queryBuilder.where(
-		`${physicalColumn} NOT IN (${builtSubQuery.getQuery()})`,
-		...builtSubQuery.getParameters()
-	  );
+	  this.queryBuilder.inSubquery(physicalColumn, builtSubQuery, true);
 	  
 	  return this;
 	}
