@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    // "module": "ESNext",
-    //   "moduleResolution": "node",
+    "module": "ESNext",
+    "moduleResolution": "node",
     "lib": ["esnext"],
     "outDir": "dist",
     "rootDir": ".",
@@ -17,10 +17,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    },
+    }
     // "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext"
+    // "module": "NodeNext",
+    // "moduleResolution": "NodeNext"
     // "esModuleInterop": true
     // "strict": true,
     // "outDir": "./dist",
