@@ -1,0 +1,38 @@
+entity: UserProductPreferences
+table: user_product_preferences
+idField: preference_id
+columns:
+  - logical: preference_id
+    physical: preference_id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+  - logical: user_id
+    physical: user_id
+    type: integer
+  - logical: default_view
+    physical: default_view
+    type: string
+  - logical: auto_shuffle
+    physical: auto_shuffle
+    nullable: true
+    type: boolean
+  - logical: show_hints
+    physical: show_hints
+    nullable: true
+    type: boolean
+  - logical: inactivity_timeout
+    physical: inactivity_timeout
+    nullable: true
+    type: integer
+  - logical: cards_per_session
+    physical: cards_per_session
+    nullable: true
+    type: integer
+relations:
+  - name: user
+    type: manyToOne
+    sourceEntity: UserProductPreferences
+    targetEntity: User
+    sourceColumn: user_id
+    targetColumn: user_id

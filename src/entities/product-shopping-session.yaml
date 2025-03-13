@@ -1,0 +1,70 @@
+entity: ProductShoppingSession
+table: product_shopping_session
+idField: session_id
+columns:
+  - logical: session_id
+    physical: session_id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+  - logical: user_id
+    physical: user_id
+    type: integer
+  - logical: category_id
+    physical: category_id
+    nullable: true
+    type: integer
+  - logical: start_time
+    physical: start_time
+    type: datetime
+  - logical: last_activity_time
+    physical: last_activity_time
+    type: datetime
+  - logical: end_time
+    physical: end_time
+    nullable: true
+    type: datetime
+  - logical: status
+    physical: status
+    type: string
+  - logical: cards_studied
+    physical: cards_studied
+    type: integer
+  - logical: current_card_index
+    physical: current_card_index
+    type: integer
+  - logical: total_shopping_time
+    physical: total_shopping_time
+    type: number
+  - logical: cards_order
+    physical: cards_order
+    nullable: true
+    type: string
+  - logical: created_at
+    physical: created_at
+    type: datetime
+  - logical: updated_at
+    physical: updated_at
+    type: datetime
+relations:
+  - name: user
+    type: manyToOne
+    sourceEntity: ProductShoppingSession
+    targetEntity: User
+    sourceColumn: user_id
+    targetColumn: user_id
+  - name: category
+    type: manyToOne
+    sourceEntity: ProductShoppingSession
+    targetEntity: ProductCategory
+    sourceColumn: category_id
+    targetColumn: category_id
+  - name: viewRecords
+    type: oneToMany
+    sourceEntity: ProductShoppingSession
+    targetEntity: ProductViewRecord
+    sourceColumn: session_id
+    targetColumn: session_id
+timestamps:
+  createdAt: created_at
+  updatedAt: updated_at

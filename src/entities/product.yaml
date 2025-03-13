@@ -1,0 +1,74 @@
+# Product Entity Definition
+entity: Product
+table: products
+idField: product_id
+columns:
+  - logical: product_id
+    physical: product_id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+  - logical: title
+    physical: title
+    type: string
+  - logical: pricing
+    physical: pricing
+    type: string
+  - logical: hint
+    physical: hint
+    nullable: true
+    type: string
+  - logical: teaser
+    physical: teaser
+    nullable: true
+    type: string
+  - logical: credit_cost
+    physical: credit_cost
+    nullable: true
+    type: integer
+  - logical: is_free
+    physical: is_free
+    type: boolean
+  - logical: total_view_count
+    physical: total_view_count
+    nullable: true
+    type: integer
+  - logical: bookmark_count
+    physical: bookmark_count
+    nullable: true
+    type: integer
+  - logical: avg_view_time
+    physical: avg_view_time
+    nullable: true
+    type: number
+  - logical: created_at
+    physical: created_at
+    type: datetime
+  - logical: updated_at
+    physical: updated_at
+    type: datetime
+relations:
+  - name: categories
+    type: manyToMany
+    sourceEntity: Product
+    targetEntity: ProductCategory
+    sourceColumn: product_id
+    targetColumn: category_id
+    junctionTable: category_product
+    junctionSourceColumn: product_id
+    junctionTargetColumn: category_id
+  - name: userBookmarks
+    type: oneToMany
+    sourceEntity: Product
+    targetEntity: UserProductBookmark
+    sourceColumn: product_id
+    targetColumn: product_id
+  - name: userData
+    type: oneToMany
+    sourceEntity: Product
+    targetEntity: UserProductData
+    sourceColumn: product_id
+    targetColumn: product_id
+timestamps:
+  createdAt: created_at
+  updatedAt: updated_at

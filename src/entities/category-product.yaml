@@ -1,0 +1,10 @@
+entity: ProductCategoryProduct
+table: category_product
+idField: ''  # No single primary key
+columns:
+  - logical: category_id
+    physical: category_id
+    type: integer
+  - logical: product_id
+    physical: product_id
+    type: integer

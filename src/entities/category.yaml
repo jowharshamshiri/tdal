@@ -1,0 +1,55 @@
+entity: ProductCategory
+table: categories
+idField: category_id
+columns:
+  - logical: category_id
+    physical: category_id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+  - logical: category_name
+    physical: category_name
+    type: string
+  - logical: description
+    physical: description
+    nullable: true
+    type: string
+  - logical: parent_id
+    physical: parent_id
+    nullable: true
+    type: integer
+  - logical: image_url
+    physical: image_url
+    nullable: true
+    type: string
+  - logical: created_at
+    physical: created_at
+    type: datetime
+  - logical: updated_at
+    physical: updated_at
+    type: datetime
+relations:
+  - name: parent
+    type: manyToOne
+    sourceEntity: ProductCategory
+    targetEntity: ProductCategory
+    sourceColumn: parent_id
+    targetColumn: category_id
+  - name: children
+    type: oneToMany
+    sourceEntity: ProductCategory
+    targetEntity: ProductCategory
+    sourceColumn: category_id
+    targetColumn: parent_id
+  - name: products
+    type: manyToMany
+    sourceEntity: ProductCategory
+    targetEntity: Product
+    sourceColumn: category_id
+    targetColumn: product_id
+    junctionTable: category_product
+    junctionSourceColumn: category_id
+    junctionTargetColumn: product_id
+timestamps:
+  createdAt: created_at
+  updatedAt: updated_at

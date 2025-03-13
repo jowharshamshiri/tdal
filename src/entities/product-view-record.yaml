@@ -1,0 +1,59 @@
+entity: ProductViewRecord
+table: product_view_record
+idField: record_id
+columns:
+  - logical: record_id
+    physical: record_id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+  - logical: session_id
+    physical: session_id
+    type: integer
+  - logical: user_id
+    physical: user_id
+    type: integer
+  - logical: product_id
+    physical: product_id
+    type: integer
+  - logical: view_start
+    physical: view_start
+    type: datetime
+  - logical: view_end
+    physical: view_end
+    nullable: true
+    type: datetime
+  - logical: view_time
+    physical: view_time
+    nullable: true
+    type: number
+  - logical: page_shown
+    physical: page_shown
+    type: string
+  - logical: hint_viewed
+    physical: hint_viewed
+    type: boolean
+  - logical: created_at
+    physical: created_at
+    type: datetime
+relations:
+  - name: session
+    type: manyToOne
+    sourceEntity: ProductViewRecord
+    targetEntity: ProductShoppingSession
+    sourceColumn: session_id
+    targetColumn: session_id
+  - name: user
+    type: manyToOne
+    sourceEntity: ProductViewRecord
+    targetEntity: User
+    sourceColumn: user_id
+    targetColumn: user_id
+  - name: product
+    type: manyToOne
+    sourceEntity: ProductViewRecord
+    targetEntity: Product
+    sourceColumn: product_id
+    targetColumn: product_id
+timestamps:
+  createdAt: created_at

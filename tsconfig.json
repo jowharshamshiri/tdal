@@ -1,24 +1,32 @@
 {
-	"compilerOptions": {
-	  "target": "ES2020",
-	  "module": "ESNext",
-	  "moduleResolution": "node",
-	  "lib": ["esnext"],
-	  "outDir": "dist",
-	  "rootDir": ".",
-	  "strict": true,
-	  "esModuleInterop": true,
-	  "skipLibCheck": true,
-	  "forceConsistentCasingInFileNames": true,
-	  "resolveJsonModule": true,
-	  "isolatedModules": true,
-	  "noEmit": true,
-	  "declaration": true,
-	  "baseUrl": ".",
-	  "paths": {
-		"@/*": ["src/*"]
-	  }
-	},
-	"include": ["src/**/*"],
-	"exclude": ["node_modules", "dist", "tests", "**/*.test.ts"]
-  }
+  "compilerOptions": {
+    "target": "ES2020",
+    // "module": "ESNext",
+    //   "moduleResolution": "node",
+    "lib": ["esnext"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    // "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+    // "esModuleInterop": true
+    // "strict": true,
+    // "outDir": "./dist",
+    // "rootDir": "./src",
+    // "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests", "**/*.test.ts"]
+}
