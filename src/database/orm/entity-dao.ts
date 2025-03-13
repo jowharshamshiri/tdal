@@ -611,23 +611,6 @@ export abstract class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Create a query builder for this entity
-	 * @returns Query builder instance
-	 */
-	protected createQueryBuilder() {
-		const qb = this.db.createQueryBuilder();
-		qb.from(this.tableName);
-
-		// Add soft delete condition if enabled
-		if (this.entityMapping.softDelete) {
-			const { column, nonDeletedValue } = this.entityMapping.softDelete;
-			qb.where(`${column} = ?`, nonDeletedValue);
-		}
-
-		return qb;
-	}
-
-	/**
 	 * Find related entities through a many-to-many relationship
 	 * @param id ID of the source entity
 	 * @param relation Many-to-many relationship
@@ -1028,5 +1011,243 @@ export abstract class EntityDao<T, IdType = number> {
 		}
 
 		return null;
+	}
+
+
+
+	/**
+ * Enhanced EntityDao with better support for complex queries
+ */
+
+	/**
+	 * Execute a raw query while still leveraging entity mapping for results
+	 * This preserves the benefits of the ORM while allowing complex SQL when needed
+	 * 
+	 * @param query SQL query
+	 * @param params Query parameters
+	 * @returns Mapped entity results
+	 */
+	async executeRawQuery<T>(query: string, ...params: unknown[]): Promise<T[]> {
+		try {
+			const results = await this.db.query<Record<string, unknown>>(query, ...params);
+			return results.map(result => this.mapToEntity(result) as T);
+		} catch (error) {
+			console.error(`Error executing raw query: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Execute a raw query that returns a single result
+	 * 
+	 * @param query SQL query
+	 * @param params Query parameters
+	 * @returns Mapped entity result
+	 */
+	async executeRawQuerySingle<T>(query: string, ...params: unknown[]): Promise<T | undefined> {
+		try {
+			const result = await this.db.querySingle<Record<string, unknown>>(query, ...params);
+			if (!result) {
+				return undefined;
+			}
+			return this.mapToEntity(result) as T;
+		} catch (error) {
+			console.error(`Error executing raw query for single result: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Enhanced aggregate method for complex aggregations
+	 * 
+	 * @param tableName Optional override table name
+	 * @param aggregateFunctions Array of aggregate function definitions
+	 * @param conditions Where conditions
+	 * @param groupBy Group by fields
+	 * @param having Having clause
+	 * @returns Aggregate results
+	 */
+	async complexAggregate<T>(
+		tableName: string = this.tableName,
+		aggregateFunctions: {
+			function: string;
+			field: string;
+			alias: string;
+			distinct?: boolean;
+		}[],
+		conditions?: Record<string, unknown>,
+		groupBy?: string[],
+		having?: string
+	): Promise<T[]> {
+		// Construct the query parts
+		const selectClauses: string[] = [];
+
+		// Add aggregates to select
+		for (const agg of aggregateFunctions) {
+			const distinctKeyword = agg.distinct ? 'DISTINCT ' : '';
+			selectClauses.push(`${agg.function}(${distinctKeyword}${agg.field}) AS ${agg.alias}`);
+		}
+
+		// Add group by fields to select if provided
+		if (groupBy && groupBy.length > 0) {
+			selectClauses.push(...groupBy);
+		}
+
+		// Start building the query
+		let query = `SELECT ${selectClauses.join(', ')} FROM ${tableName}`;
+
+		// Add where conditions
+		const params: unknown[] = [];
+		if (conditions && Object.keys(conditions).length > 0) {
+			const whereClauses: string[] = [];
+
+			for (const [key, value] of Object.entries(conditions)) {
+				if (value === null) {
+					whereClauses.push(`${key} IS NULL`);
+				} else if (Array.isArray(value)) {
+					if (value.length > 0) {
+						const placeholders = value.map(() => '?').join(', ');
+						whereClauses.push(`${key} IN (${placeholders})`);
+						params.push(...value);
+					} else {
+						whereClauses.push('0 = 1'); // Always false for empty arrays
+					}
+				} else if (typeof value === 'object' && 'sql' in value) {
+					// Handle SQL expressions
+					whereClauses.push(`${key} ${(value as any).sql}`);
+					if ((value as any).params) {
+						params.push(...(value as any).params);
+					}
+				} else {
+					whereClauses.push(`${key} = ?`);
+					params.push(value);
+				}
+			}
+
+			if (whereClauses.length > 0) {
+				query += ` WHERE ${whereClauses.join(' AND ')}`;
+			}
+		}
+
+		// Add group by
+		if (groupBy && groupBy.length > 0) {
+			query += ` GROUP BY ${groupBy.join(', ')}`;
+		}
+
+		// Add having
+		if (having) {
+			query += ` HAVING ${having}`;
+		}
+
+		// Execute the query
+		return this.executeRawQuery<T>(query, ...params);
+	}
+
+	/**
+	 * Create SQL expressions for complex conditions
+	 * This helps build queries that can't easily be expressed with standard WHERE clauses
+	 * 
+	 * @returns SQL expression factory
+	 */
+	sql() {
+		return {
+			/**
+			 * Raw SQL expression
+			 */
+			raw: (sql: string, ...params: unknown[]) => ({ sql, params }),
+
+			/**
+			 * CASE WHEN expression
+			 */
+			caseWhen: (cases: Array<{ condition: string; result: unknown }>, elseResult: unknown) => {
+				let sql = 'CASE';
+				const params: unknown[] = [];
+
+				for (const item of cases) {
+					sql += ` WHEN ${item.condition} THEN ?`;
+					params.push(item.result);
+				}
+
+				sql += ' ELSE ? END';
+				params.push(elseResult);
+
+				return { sql, params };
+			},
+
+			/**
+			 * Date comparison expression
+			 */
+			dateCompare: (field: string, operator: string, value: Date | string) => {
+				const dateValue = value instanceof Date ? value.toISOString() : value;
+				return { sql: `${operator} ?`, params: [dateValue] };
+			},
+
+			/**
+			 * Subquery expression
+			 */
+			subquery: (subquerySql: string, ...params: unknown[]) => ({
+				sql: `IN (${subquerySql})`,
+				params
+			}),
+
+			/**
+			 * Between expression
+			 */
+			between: (low: unknown, high: unknown) => ({
+				sql: 'BETWEEN ? AND ?',
+				params: [low, high]
+			}),
+		};
+	}
+
+	/**
+	 * Enhanced createQueryBuilder with better support for complex queries
+	 */
+	protected createQueryBuilder() {
+		const qb = this.db.createQueryBuilder();
+
+		// Add methods for complex expressions
+		(qb as any).createCaseExpression = (
+			cases: Array<{ condition: string; result: unknown }>,
+			elseResult: unknown
+		) => {
+			let caseExpr = 'CASE';
+			for (const item of cases) {
+				caseExpr += ` WHEN ${item.condition} THEN ${typeof item.result === 'string' ? `'${item.result}'` : item.result
+					}`;
+			}
+			caseExpr += ` ELSE ${typeof elseResult === 'string' ? `'${elseResult}'` : elseResult
+				} END`;
+
+			return caseExpr;
+		};
+
+		// Add method for date expressions
+		(qb as any).createDateExpression = (
+			func: 'current_date' | 'current_timestamp' | 'date_diff',
+			...params: unknown[]
+		) => {
+			const dateFuncs = this.db.getDateFunctions();
+
+			switch (func) {
+				case 'current_date':
+					return dateFuncs.currentDate();
+				case 'current_timestamp':
+					return dateFuncs.currentDateTime();
+				case 'date_diff':
+					if (params.length >= 3 && typeof params[0] === 'string' && typeof params[1] === 'string') {
+						return dateFuncs.dateDiff(
+							params[0],
+							params[1],
+							params[2] as 'day' | 'month' | 'year'
+						);
+					}
+					throw new Error('Invalid parameters for date_diff');
+				default:
+					throw new Error(`Unknown date function: ${func}`);
+			}
+		};
+
+		return qb;
 	}
 }

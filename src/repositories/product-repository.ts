@@ -305,27 +305,6 @@ export class ProductRepository extends EntityDao<Product> {
 	}
 
 	/**
-	 * Find products by search term
-	 * @param searchTerm Search term
-	 * @returns Array of matching products
-	 */
-	async searchByText(searchTerm: string): Promise<Product[]> {
-		const qb = this.createQueryBuilder();
-
-		// Select all fields
-		qb.select(["*"]);
-
-		// Add conditions for title or pricing containing the search term
-		qb.whereLike("title", searchTerm, "both");
-		qb.orWhereLike("pricing", searchTerm, "both");
-
-		// Order by title
-		qb.orderBy("title");
-
-		return qb.execute<Product>();
-	}
-
-	/**
 	 * Find products by category ID
 	 * @param productCategoryId ProductCategory ID
 	 * @returns Array of products
@@ -341,19 +320,6 @@ export class ProductRepository extends EntityDao<Product> {
 			return qb.execute<Product>();
 		} catch (error) {
 			console.error(`Error finding products by category ID: ${error}`);
-			return [];
-		}
-	}
-
-	/**
-	 * Find free products
-	 * @returns Array of free products
-	 */
-	async findFreeProducts(): Promise<Product[]> {
-		try {
-			return this.findBy({ is_free: true } as unknown as Partial<Product>);
-		} catch (error) {
-			console.error(`Error finding free products: ${error}`);
 			return [];
 		}
 	}
@@ -581,21 +547,18 @@ export class ProductRepository extends EntityDao<Product> {
 		return product;
 	}
 
-	/**
-	 * Fix for grantAccess method in ProductRepository
-	 * Uses proper query parameters and table/column references
-	 */
+	// Fix for grantAccess method in ProductRepository
 	async grantAccess(
 		productId: number,
 		userId: number,
 		creditCost: number
 	): Promise<boolean> {
-		return this.transaction(async (txDao) => {
+		return this.db.transaction(async (db) => {
 			try {
 				// Step 1: Record the access
 				const now = new Date().toISOString();
 
-				await this.db.insert("user_resource_access", {
+				await db.insert("user_resource_access", {
 					user_id: userId,
 					resource_type: "product",
 					resource_id: productId,
@@ -604,23 +567,23 @@ export class ProductRepository extends EntityDao<Product> {
 					created_at: now,
 				});
 
-				// Step 2: Deduct credits from the user's balance
-				// Get credits that expire soonest first
-				const creditsQb = this.createQueryBuilder();
-				creditsQb.select(["credit_id", "amount"])
-					.from("user_credits")
-					.where(`user_id = ?`, userId)
-					.whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
-					.orderBy("expiry_date", "ASC");
-
-				const creditsToUse = await creditsQb.execute<{
+				// Step 2: Get credits that expire soonest first
+				const credits = await db.query<{
 					credit_id: number;
 					amount: number;
-				}>();
+				}>(
+					`SELECT credit_id, amount 
+					FROM user_credits 
+					WHERE user_id = ? 
+					AND expiry_date >= datetime('now')
+					ORDER BY expiry_date ASC`,
+					userId
+				);
 
+				// Step 3: Deduct credits starting from the ones expiring soonest
 				let remainingCost = creditCost;
 
-				for (const credit of creditsToUse) {
+				for (const credit of credits) {
 					if (remainingCost <= 0) break;
 
 					const amountToUse = Math.min(credit.amount, remainingCost);
@@ -628,14 +591,14 @@ export class ProductRepository extends EntityDao<Product> {
 
 					if (amountToUse === credit.amount) {
 						// Use the entire credit - delete it
-						await this.db.delete(
+						await db.delete(
 							"user_credits",
 							"credit_id",
 							credit.credit_id
 						);
 					} else {
 						// Use part of the credit - update it
-						await this.db.update(
+						await db.update(
 							"user_credits",
 							"credit_id",
 							credit.credit_id,
@@ -652,4 +615,38 @@ export class ProductRepository extends EntityDao<Product> {
 		});
 	}
 
+	/**
+	 * Fix for ProductRepository.findFreeProducts() method
+	 * Issue: boolean parameter handling
+	 */
+	async findFreeProducts(): Promise<Product[]> {
+		try {
+			// Using direct query with integer for boolean
+			return this.db.query<Product>(
+				`SELECT * FROM products WHERE is_free = 1`
+			);
+		} catch (error) {
+			console.error(`Error finding free products: ${error}`);
+			return [];
+		}
+	}
+
+	/**
+	 * Fix for ProductRepository.searchByText() method
+	 * Issue: Syntax error in LIKE expressions
+	 */
+	async searchByText(searchTerm: string): Promise<Product[]> {
+		try {
+			return this.db.query<Product>(
+				`SELECT * FROM products 
+		 WHERE title LIKE ? OR pricing LIKE ? 
+		 ORDER BY title`,
+				`%${searchTerm}%`,
+				`%${searchTerm}%`
+			);
+		} catch (error) {
+			console.error(`Error searching products: ${error}`);
+			return [];
+		}
+	}
 }

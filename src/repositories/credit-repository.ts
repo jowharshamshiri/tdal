@@ -446,40 +446,6 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		} as Partial<PaymentTransaction>);
 	}
 
-	/**
-	 * Find active credit packages
-	 * @returns Array of active credit packages
-	 */
-	async findActive(): Promise<CreditPackage[]> {
-		// Use findBy with active = true
-		return this.db.findBy<CreditPackage>("credit_packages", { active: 1 }, {
-			orderBy: [{ field: "price" }]
-		});
-	}
-
-	/**
-	 * Find transactions for a user
-	 * @param userId User ID
-	 * @returns Array of payment transactions
-	 */
-	async findForUser(userId: number): Promise<PaymentTransaction[]> {
-		try {
-			const qb = this.createQueryBuilder();
-
-			// Select transaction fields and add package name
-			qb.select(["t.*"])
-				.from(this.tableName, "t")
-				.leftJoin("credit_packages", "p", "t.package_id = p.package_id")
-				.selectRaw("p.name as package_name")
-				.whereColumn("t.user_id", "=", userId)
-				.orderBy("t.transaction_date", "DESC");
-
-			return qb.execute<PaymentTransaction>();
-		} catch (error) {
-			console.error(`Error finding transactions for user: ${error}`);
-			return [];
-		}
-	}
 
 	/**
 	 * Get transaction statistics
@@ -547,5 +513,64 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 				totalCredits: 0,
 			};
 		}
+	}
+
+
+	/**
+	 * Fix for CreditPackageRepository.findActive() method
+	 * Issue: boolean parameter handling
+	 */
+	async findActive(): Promise<CreditPackage[]> {
+		// Using direct query with correct parameter type (1 instead of true)
+		return this.db.query<CreditPackage>(
+			`SELECT * FROM credit_packages WHERE active = 1 ORDER BY price`
+		);
+	}
+
+	/**
+	 * Fix for UserCreditRepository.findForUser() method
+	 * Issue: Syntax error in WHERE clause with date expression
+	 */
+	async findForUser(
+		userId: number,
+		includeExpired = false
+	): Promise<UserCredit[]> {
+		let query = `
+	  SELECT uc.*, 
+	  (julianday(expiry_date) - julianday('now')) as days_remaining
+	  FROM user_credits uc
+	  WHERE uc.user_id = ?
+	`;
+
+		// Add expiry filter if needed
+		if (!includeExpired) {
+			query += ` AND uc.expiry_date >= datetime('now')`;
+		}
+
+		// Add ordering
+		query += ` ORDER BY uc.expiry_date`;
+
+		return this.db.query<UserCredit>(query, userId);
+	}
+
+	/**
+	 * Fix for UserCreditRepository.getExpiringCredits() method
+	 * Issue: Syntax error in WHERE clause with date expression and calculations
+	 */
+	async getExpiringCredits(
+		userId: number,
+		daysThreshold: number
+	): Promise<UserCredit[]> {
+		const query = `
+	  SELECT uc.*, 
+	  (julianday(expiry_date) - julianday('now')) as days_remaining
+	  FROM user_credits uc
+	  WHERE uc.user_id = ?
+	  AND uc.expiry_date >= datetime('now')
+	  AND (julianday(expiry_date) - julianday('now')) <= ?
+	  ORDER BY uc.expiry_date
+	`;
+
+		return this.db.query<UserCredit>(query, userId, daysThreshold);
 	}
 }

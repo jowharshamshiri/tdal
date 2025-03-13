@@ -290,22 +290,6 @@ export class SQLiteAdapter
 	}
 
 	/**
-	 * Execute a SQL script
-	 * @param sql SQL script
-	 */
-	async executeScript(sql: string): Promise<void> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Execute Script] ${sql.substring(0, 100)}...`);
-		}
-
-		if (this.dbInstance) {
-			this.dbInstance.exec(sql);
-		}
-	}
-
-	/**
 	 * Create a query builder instance
 	 * @returns Query builder instance
 	 */
@@ -760,48 +744,6 @@ export class SQLiteAdapter
 	}
 
 	/**
- * Execute a query that returns multiple rows with improved parameter handling
- * @param query SQL query
- * @param params Query parameters
- * @returns Query results
- */
-	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Query] ${query}`, params);
-		}
-
-		// Sanitize parameters to ensure they're SQLite compatible
-		const sanitizedParams = params.map(param => {
-			if (typeof param === 'boolean') {
-				return param ? 1 : 0;
-			}
-			// Handle undefined values by converting to null
-			if (param === undefined) {
-				return null;
-			}
-			return param;
-		});
-
-		if (this.dbInstance) {
-			try {
-				// Only spread parameters if there are any to avoid "too many parameters" error
-				if (sanitizedParams.length > 0) {
-					return this.dbInstance.prepare(query).all(...sanitizedParams) as T[];
-				} else {
-					return this.dbInstance.prepare(query).all() as T[];
-				}
-			} catch (error) {
-				this.logDebug(`[SQLite Error] ${error}`);
-				throw error;
-			}
-		}
-
-		return [];
-	}
-
-	/**
 	 * Execute a query that returns a single row with improved parameter handling
 	 * @param query SQL query
 	 * @param params Query parameters
@@ -886,5 +828,98 @@ export class SQLiteAdapter
 		}
 
 		return { changes: 0 };
+	}
+
+
+	// Improvements to SQLiteAdapter for better handling of raw SQL expressions
+
+	/**
+	 * Improved query method for better parameter handling
+	 */
+	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Query] ${query}`, params);
+		}
+
+		if (!this.dbInstance) {
+			return [];
+		}
+
+		try {
+			// Check if the query has complex expressions like CASE statements
+			const hasComplexExpressions = query.includes('CASE WHEN') ||
+				query.includes('SELECT ') ||
+				query.includes('datetime(') ||
+				query.includes('julianday(');
+
+			if (hasComplexExpressions) {
+				// For complex queries, handle as raw SQL to avoid over-parameterization
+				// This ensures the SQL engine handles the expressions correctly
+				return this.dbInstance.prepare(query).all(...params) as T[];
+			} else {
+				// For simple queries, process parameters safely
+				const sanitizedParams = this.sanitizeParameters(params);
+
+				if (sanitizedParams.length > 0) {
+					return this.dbInstance.prepare(query).all(...sanitizedParams) as T[];
+				} else {
+					return this.dbInstance.prepare(query).all() as T[];
+				}
+			}
+		} catch (error) {
+			this.logDebug(`[SQLite Error] ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Safely sanitize parameters for SQLite
+	 */
+	private sanitizeParameters(params: unknown[]): unknown[] {
+		return params.map(param => {
+			if (param === undefined) {
+				return null;
+			}
+			if (typeof param === 'boolean') {
+				return param ? 1 : 0;
+			}
+			return param;
+		});
+	}
+
+	/**
+	 * Improved executeScript method to handle complex SQL scripts
+	 */
+	async executeScript(sql: string): Promise<void> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Execute Script] ${sql.substring(0, 100)}...`);
+		}
+
+		if (!this.dbInstance) {
+			return;
+		}
+
+		try {
+			// Split script into statements if it contains multiple statements
+			// This helps with error reporting and handling complex scripts
+			if (sql.includes(';') && !sql.includes('BEGIN TRANSACTION')) {
+				// Execute each statement separately to better handle errors
+				const statements = sql.split(';').filter(stmt => stmt.trim().length > 0);
+
+				for (const statement of statements) {
+					this.dbInstance.prepare(statement.trim()).run();
+				}
+			} else {
+				// Execute as a single script
+				this.dbInstance.exec(sql);
+			}
+		} catch (error) {
+			this.logDebug(`[SQLite Execute Script Error] ${error}`);
+			throw error;
+		}
 	}
 }

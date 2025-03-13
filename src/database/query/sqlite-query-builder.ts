@@ -186,22 +186,6 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	}
 
 	/**
-	 * Add a WHERE condition for a date column
-	 * @param column Date column name
-	 * @param operator Condition operator
-	 * @param value Date value to compare against
-	 * @returns Query builder instance for chaining
-	 */
-	whereDateColumn(
-		column: string,
-		operator: ConditionOperator,
-		value: Date | string
-	): QueryBuilder {
-		const dateValue = value instanceof Date ? value.toISOString() : value;
-		return this.where(`${column} ${operator} ?`, dateValue);
-	}
-
-	/**
 	 * Add a LIKE condition with automatic wildcards
 	 * @param column Column name
 	 * @param searchText Text to search for
@@ -601,16 +585,6 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	}
 
 	/**
-	 * Execute the query and return multiple results
-	 * @returns Promise resolving to an array of results
-	 */
-	async execute<T>(): Promise<T[]> {
-		const query = this.getQuery();
-		const params = this.getParameters();
-		return this.adapter.query<T>(query, ...params);
-	}
-
-	/**
 	 * Execute the query and return a single result
 	 * @returns Promise resolving to a single result or undefined
 	 */
@@ -717,37 +691,6 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 		return { sql, params };
 	}
 
-	/**
-   * Select a calculated expression and assign it an alias
-   * This method now properly handles complex expressions like CASE statements
-   * @param expression SQL expression
-   * @param alias Column alias
-   * @param params Optional parameters for the expression
-   * @returns Query builder instance for chaining
-   */
-	/**
- * Improved SQLiteQueryBuilder.selectExpression method
- * Better handling of SQL expressions to avoid parameter issues
- */
-	selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder {
-		// For raw SQL expressions like CASE statements, don't add parameters
-		// SQLite will try to bind them which causes "too many parameters" errors
-		if (expression.toUpperCase().includes('CASE WHEN') ||
-			expression.includes('SELECT ') ||
-			expression.includes('SUM(') ||
-			expression.includes('COUNT(') ||
-			expression.includes('AVG(') ||
-			expression.includes('MAX(') ||
-			expression.includes('MIN(') ||
-			expression.includes('julianday')) {
-			// Use selectRaw to avoid parameter binding for complex expressions
-			this.selectRaw(`${expression} AS ${alias}`);
-		} else {
-			// For simpler expressions, use parameter binding
-			this.selectRaw(`${expression} AS ${alias}`, ...params);
-		}
-		return this;
-	}
 
 	/**
 	 * Add an aggregate function with optional DISTINCT
@@ -794,22 +737,78 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	}
 
 	/**
-	 * Create a CASE WHEN expression
-	 * Helper method to generate proper CASE WHEN syntax
-	 * @param conditions Array of condition/value pairs
-	 * @param elseValue Value for the ELSE clause
-	 * @returns CASE expression string
+	 * Improved selectExpression method
+	 * Better handling of SQL expressions to avoid parameter binding issues
 	 */
-	caseWhen(
-		conditions: Array<{ condition: string, value: any }>,
-		elseValue: any
-	): string {
+	selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder {
+		// Detect complex expressions that should not be parameterized
+		const isComplexExpression =
+			expression.toUpperCase().includes('CASE WHEN') ||
+			expression.includes('SELECT ') ||
+			expression.includes('(SELECT ') ||
+			expression.includes('SUM(') ||
+			expression.includes('COUNT(') ||
+			expression.includes('AVG(') ||
+			expression.includes('MAX(') ||
+			expression.includes('MIN(') ||
+			expression.includes('julianday(') ||
+			expression.includes('datetime(');
+
+		if (isComplexExpression) {
+			// Use selectRaw to avoid parameter binding for complex expressions
+			this.selectRaw(`${expression} AS ${alias}`);
+		} else {
+			// For simpler expressions, use parameter binding
+			this.selectRaw(`${expression} AS ${alias}`, ...params);
+		}
+		return this;
+	}
+
+	/**
+	 * Improved whereDateColumn method
+	 * Better handles date expressions in WHERE clauses
+	 */
+	whereDateColumn(column: string, operator: ConditionOperator, value: Date | string): QueryBuilder {
+		const isDateFunction = column.includes('datetime(') || column.includes('julianday(');
+
+		// If the column includes date functions, handle it differently
+		if (isDateFunction) {
+			return this.whereExpression(`${column} ${operator} ?`, value);
+		}
+
+		const dateValue = value instanceof Date ? value.toISOString() : value;
+		return this.where(`${column} ${operator} ?`, dateValue);
+	}
+
+	/**
+	 * New method for SQL expressions with date functions
+	 * Handles common date operations in a database-agnostic way
+	 */
+	whereDateExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		// Mark the query as having date expressions to handle parameter binding correctly
+		(this as any).hasDateExpressions = true;
+
+		if (this.whereConditions.length === 0) {
+			this.whereConditions.push(`(${expression})`);
+		} else {
+			this.whereConditions.push(`AND (${expression})`);
+		}
+
+		this.queryParams.push(...params);
+		return this;
+	}
+
+	/**
+	 * Helper to create CASE expressions
+	 * Generates the correct SQL for CASE WHEN statements
+	 */
+	caseWhen(conditions: Array<{ condition: string, value: any }>, elseValue: any): string {
 		let caseExpr = "CASE";
 
 		for (const { condition, value } of conditions) {
 			// Add proper quoting for string values
 			const formattedValue = typeof value === 'string'
-				? `'${value}'`
+				? `'${value.replace(/'/g, "''")}'`
 				: value;
 
 			caseExpr += ` WHEN ${condition} THEN ${formattedValue}`;
@@ -817,12 +816,54 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 
 		// Add ELSE clause with proper quoting
 		const formattedElse = typeof elseValue === 'string'
-			? `'${elseValue}'`
+			? `'${elseValue.replace(/'/g, "''")}'`
 			: elseValue;
 
 		caseExpr += ` ELSE ${formattedElse} END`;
 
 		return caseExpr;
+	}
+
+	/**
+	 * New method for subqueries
+	 * Properly handles embedding subqueries with parameters
+	 */
+	subquery(subqueryBuilder: QueryBuilder): string {
+		// Extract the SQL from the subquery builder
+		const subquerySql = subqueryBuilder.getQuery();
+
+		// Add parameters from the subquery to the main query
+		this.queryParams.push(...subqueryBuilder.getParameters());
+
+		// Return the subquery SQL to be embedded in the main query
+		return `(${subquerySql})`;
+	}
+
+	/**
+	 * Enhanced execute method to handle complex queries correctly
+	 */
+	async execute<T>(): Promise<T[]> {
+		// Check if we have complex expressions that require special handling
+		const hasComplexExpressions =
+			(this as any).hasDateExpressions ||
+			this.selectFields.some(field =>
+				field.includes('CASE WHEN') ||
+				field.includes('SELECT') ||
+				field.includes('SUM(') ||
+				field.includes('datetime(') ||
+				field.includes('julianday(')
+			);
+
+		const query = this.getQuery();
+		const params = this.getParameters();
+
+		if (hasComplexExpressions) {
+			// For complex queries, use the raw query method
+			return this.adapter.query<T>(query, ...params);
+		} else {
+			// For standard queries, use the normal execute path
+			return this.adapter.query<T>(query, ...params);
+		}
 	}
 }
 
