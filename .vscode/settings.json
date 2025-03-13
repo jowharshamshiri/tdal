@@ -1,3 +1,5 @@
 {
-	"peacock.remoteColor": "#38ade9"
+  "peacock.remoteColor": "#38ade9",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": ["source.fixAll.format", "source.fixAll.eslint"]
 }
