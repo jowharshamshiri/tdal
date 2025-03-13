@@ -235,8 +235,6 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 		return totals;
 	}
 
-
-
 	async findForUser(userId: number, includeExpired = false): Promise<UserCredit[]> {
 		const qb = this.createQueryBuilder();
 

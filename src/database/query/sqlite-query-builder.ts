@@ -497,6 +497,12 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	 * @returns SQL query string
 	 */
 	getQuery(): string {
+		// Validate that a table name is set before building the query
+		if (!this.fromTable && this.selectFields.length > 0 && !this.unionQueries.length) {
+			const callerInfo = new Error().stack?.split('\n')[2] || '';
+			throw new Error(`No table specified for query. Make sure to call 'from()' method before executing the query. Called from: ${callerInfo}`);
+		}
+
 		// Build the main select query
 		let query = this.buildSelectQuery();
 
@@ -521,6 +527,11 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	 * @returns SELECT query string
 	 */
 	private buildSelectQuery(): string {
+		// Double-check table name here as well, just to be safe
+		if (!this.fromTable) {
+			throw new Error("No table specified for SELECT query. Make sure to call 'from()' method before executing the query.");
+		}
+
 		// Build the query
 		let query = `SELECT ${this.selectFields.join(", ")} FROM ${this.fromTable}`;
 
@@ -846,21 +857,32 @@ export class SQLiteQueryBuilder implements QueryBuilder {
  * Special handling for queries with date expressions
  */
 	async execute<T>(): Promise<T[]> {
-		// Check if we have date expressions that require special handling
-		const hasDateExpressions = (this as any).hasDateExpressions === true;
+		try {
+			// Check if we have date expressions that require special handling
+			const hasDateExpressions = (this as any).hasDateExpressions === true;
 
-		const query = this.getQuery();
-		const params = this.getParameters();
+			const query = this.getQuery(); // This will now throw a helpful error if table is missing
+			const params = this.getParameters();
 
-		// Ensure there's no syntax issue with the query when date expressions are used
-		if (hasDateExpressions) {
-			// Log the query for debugging if needed
-			// console.log("Date expression query:", query);
-			// console.log("Date expression params:", params);
 
-			return this.adapter.query<T>(query, ...params);
-		} else {
-			return this.adapter.query<T>(query, ...params);
+			// Ensure there's no syntax issue with the query when date expressions are used
+			if (hasDateExpressions) {
+				// Log the query for debugging if needed
+				// console.log("Date expression query:", query);
+				// console.log("Date expression params:", params);
+
+				return this.adapter.query<T>(query, ...params);
+			} else {
+				return this.adapter.query<T>(query, ...params);
+			}
+
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('No table specified')) {
+				// Enhance the error with more context
+				console.error('Query Builder Error:', error.message);
+				throw error;
+			}
+			throw error;
 		}
 	}
 	/**
