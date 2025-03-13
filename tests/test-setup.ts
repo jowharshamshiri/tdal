@@ -1,5 +1,5 @@
 // tests/tdal/test-setup.ts
-import { DatabaseAdapter, SQLiteAdapter, SQLiteConfig } from "../src/database";
+import { DatabaseAdapter, DatabaseContext, SQLiteAdapter, SQLiteConfig } from "../src/database";
 import { SchemaLoader } from "../src/database/schema/schema-loader";
 import * as path from "path";
 import * as fs from "fs";
@@ -78,4 +78,27 @@ export function getExpiryDate(dateString: string, days: number): string {
   const date = new Date(dateString);
   date.setDate(date.getDate() + days);
   return date.toISOString();
+}
+
+
+
+/**
+ * Close test database connection
+ */
+export function closeTestDatabase(): void {
+  DatabaseContext.closeDatabase();
+}
+
+/**
+ * Setup for Jest tests - can be used in jest.setup.js
+ */
+export async function setupJestTestEnvironment(): Promise<void> {
+  await setupTestDatabase();
+}
+
+/**
+ * Teardown for Jest tests - can be used in jest.teardown.js
+ */
+export function teardownJestTestEnvironment(): void {
+  closeTestDatabase();
 }

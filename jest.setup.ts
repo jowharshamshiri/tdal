@@ -1,7 +1,7 @@
 import {
   setupJestTestEnvironment,
   teardownJestTestEnvironment,
-} from "./tests/utils/init-test-db";
+} from "./tests/test-setup";
 
 // Setup global test environment before all tests
 beforeAll(async () => {
