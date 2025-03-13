@@ -725,14 +725,27 @@ export class SQLiteQueryBuilder implements QueryBuilder {
    * @param params Optional parameters for the expression
    * @returns Query builder instance for chaining
    */
-	selectExpression(
-		expression: string,
-		alias: string,
-		...params: unknown[]
-	): QueryBuilder {
-		// Properly escape the expression and add the alias
-		this.selectFields.push(`(${expression}) AS ${alias}`);
-		this.queryParams.push(...params);
+	/**
+ * Improved SQLiteQueryBuilder.selectExpression method
+ * Better handling of SQL expressions to avoid parameter issues
+ */
+	selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder {
+		// For raw SQL expressions like CASE statements, don't add parameters
+		// SQLite will try to bind them which causes "too many parameters" errors
+		if (expression.toUpperCase().includes('CASE WHEN') ||
+			expression.includes('SELECT ') ||
+			expression.includes('SUM(') ||
+			expression.includes('COUNT(') ||
+			expression.includes('AVG(') ||
+			expression.includes('MAX(') ||
+			expression.includes('MIN(') ||
+			expression.includes('julianday')) {
+			// Use selectRaw to avoid parameter binding for complex expressions
+			this.selectRaw(`${expression} AS ${alias}`);
+		} else {
+			// For simpler expressions, use parameter binding
+			this.selectRaw(`${expression} AS ${alias}`, ...params);
+		}
 		return this;
 	}
 

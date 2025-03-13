@@ -276,73 +276,6 @@ export class SQLiteAdapter
 		}
 	}
 
-	/**
-	 * Execute a query that returns multiple rows
-	 * @param query SQL query
-	 * @param params Query parameters
-	 * @returns Query results
-	 */
-	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Query] ${query}`, params);
-		}
-
-		// Sanitize parameters to ensure they're SQLite compatible
-		const sanitizedParams = params.map(param => {
-			if (typeof param === 'boolean') {
-				return param ? 1 : 0;
-			}
-			return param;
-		});
-
-		if (this.dbInstance) {
-			try {
-				return this.dbInstance.prepare(query).all(...sanitizedParams) as T[];
-			} catch (error) {
-				this.logDebug(`[SQLite Error] ${error}`);
-				throw error;
-			}
-		}
-
-		return [];
-	}
-
-	/**
-	 * Execute a non-query SQL statement
-	 * @param query SQL statement
-	 * @param params Statement parameters
-	 * @returns Query result information
-	 */
-	async execute(query: string, ...params: unknown[]): Promise<DbQueryResult> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Execute] ${query}`, params);
-		}
-
-		if (this.dbInstance) {
-			// Process params to ensure they are compatible with SQLite
-			const processedParams = this.processParams(params);
-
-			try {
-				const result = this.dbInstance.prepare(query).run(...processedParams);
-				return {
-					lastInsertRowid:
-						typeof result.lastInsertRowid === "bigint"
-							? Number(result.lastInsertRowid)
-							: (result.lastInsertRowid as number),
-					changes: result.changes,
-				};
-			} catch (error) {
-				this.logDebug(`[SQLite Error] ${error}`);
-				throw error;
-			}
-		}
-
-		return { changes: 0 };
-	}
 
 	private processParams(params: unknown[]): unknown[] {
 		return params.map(param => {
@@ -556,34 +489,6 @@ export class SQLiteAdapter
 	}
 
 	/**
-	 * Execute a query that returns a single row
-	 * @param query SQL query
-	 * @param params Query parameters
-	 * @returns Single row result or undefined
-	 */
-	async querySingle<T>(
-		query: string,
-		...params: unknown[]
-	): Promise<T | undefined> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Query Single] ${query}`, params);
-		}
-
-		if (this.dbInstance) {
-			try {
-				return this.dbInstance.prepare(query).get(...params) as T | undefined;
-			} catch (error) {
-				this.logDebug(`[SQLite Error] ${error}`);
-				throw error;
-			}
-		}
-
-		return undefined;
-	}
-
-	/**
 	 * Find a record by ID
 	 * @param tableName Table name
 	 * @param idField ID field name
@@ -723,6 +628,11 @@ export class SQLiteAdapter
 	 * @param options Aggregate options
 	 * @returns Aggregate results
 	 */
+
+	/**
+	 * Improved aggregate method for SQLiteAdapter
+	 * Better handles CASE expressions and subqueries in aggregation
+	 */
 	async aggregate<T>(tableName: string, options: AggregateOptions): Promise<T[]> {
 		const qb = this.createQueryBuilder();
 
@@ -734,14 +644,18 @@ export class SQLiteAdapter
 			selects.push(...options.groupBy);
 		}
 
-		// Add aggregate expressions
+		// Add aggregate expressions using selectRaw to avoid parameter binding issues
 		for (const agg of options.aggregates) {
 			// Create the expression based on function and field
 			let expr: string;
 			const fn = agg.function;
 			const field = agg.field === '*' ? '*' : `"${agg.field}"`;
 
-			if (agg.distinct && field !== '*') {
+			// Handle special case for COUNT with CASE WHEN inside
+			if (field.toUpperCase().includes('CASE WHEN')) {
+				// For CASE expressions, don't add DISTINCT as it might not be valid in all cases
+				expr = `${fn}(${field})`;
+			} else if (agg.distinct && field !== '*') {
 				expr = `${fn}(DISTINCT ${field})`;
 			} else {
 				expr = `${fn}(${field})`;
@@ -755,22 +669,51 @@ export class SQLiteAdapter
 			selects.push(expr);
 		}
 
-		// Set the select fields
-		qb.select(selects);
+		// Set the select fields using selectRaw to avoid parameter binding issues
+		for (const selectExpr of selects) {
+			qb.selectRaw(selectExpr);
+		}
 
 		// Set the base table
 		qb.from(options.from || tableName);
 
-		// Add conditions if provided
+		// Add conditions if provided - carefully handle conditions with expressions
 		if (options.conditions) {
+			let isFirstCondition = true;
 			for (const [key, value] of Object.entries(options.conditions)) {
-				if (value === null) {
-					qb.where(`${key} IS NULL`);
-				} else if (Array.isArray(value)) {
-					const placeholders = value.map(() => '?').join(', ');
-					qb.where(`${key} IN (${placeholders})`, ...value);
+				if (isFirstCondition) {
+					if (key.includes('(') || key.includes(')') || key.includes('CASE')) {
+						// Complex expression - use raw SQL
+						qb.whereExpression(key);
+					} else if (value === null) {
+						qb.where(`${key} IS NULL`);
+					} else if (Array.isArray(value)) {
+						if (value.length === 0) {
+							qb.where("0 = 1"); // Always false for empty IN clause
+						} else {
+							const placeholders = value.map(() => '?').join(', ');
+							qb.where(`${key} IN (${placeholders})`, ...value);
+						}
+					} else {
+						qb.where(`${key} = ?`, value);
+					}
+					isFirstCondition = false;
 				} else {
-					qb.where(`${key} = ?`, value);
+					if (key.includes('(') || key.includes(')') || key.includes('CASE')) {
+						// Complex expression - use raw SQL
+						qb.andWhere(key);
+					} else if (value === null) {
+						qb.andWhere(`${key} IS NULL`);
+					} else if (Array.isArray(value)) {
+						if (value.length === 0) {
+							qb.andWhere("0 = 1"); // Always false for empty IN clause
+						} else {
+							const placeholders = value.map(() => '?').join(', ');
+							qb.andWhere(`${key} IN (${placeholders})`, ...value);
+						}
+					} else {
+						qb.andWhere(`${key} = ?`, value);
+					}
 				}
 			}
 		}
@@ -785,9 +728,16 @@ export class SQLiteAdapter
 			qb.groupBy(options.groupBy);
 		}
 
-		// Add having
+		// Add having - handle raw SQL expressions
 		if (options.having) {
-			qb.having(options.having, ...(options.havingParams || []));
+			if (options.having.includes('CASE WHEN') || options.having.includes('SELECT')) {
+				// Complex expression - use raw condition
+				qb.having(options.having);
+			} else if (options.havingParams && options.havingParams.length > 0) {
+				qb.having(options.having, ...(options.havingParams || []));
+			} else {
+				qb.having(options.having);
+			}
 		}
 
 		// Add order by
@@ -807,5 +757,134 @@ export class SQLiteAdapter
 		}
 
 		return qb.execute<T>();
+	}
+
+	/**
+ * Execute a query that returns multiple rows with improved parameter handling
+ * @param query SQL query
+ * @param params Query parameters
+ * @returns Query results
+ */
+	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Query] ${query}`, params);
+		}
+
+		// Sanitize parameters to ensure they're SQLite compatible
+		const sanitizedParams = params.map(param => {
+			if (typeof param === 'boolean') {
+				return param ? 1 : 0;
+			}
+			// Handle undefined values by converting to null
+			if (param === undefined) {
+				return null;
+			}
+			return param;
+		});
+
+		if (this.dbInstance) {
+			try {
+				// Only spread parameters if there are any to avoid "too many parameters" error
+				if (sanitizedParams.length > 0) {
+					return this.dbInstance.prepare(query).all(...sanitizedParams) as T[];
+				} else {
+					return this.dbInstance.prepare(query).all() as T[];
+				}
+			} catch (error) {
+				this.logDebug(`[SQLite Error] ${error}`);
+				throw error;
+			}
+		}
+
+		return [];
+	}
+
+	/**
+	 * Execute a query that returns a single row with improved parameter handling
+	 * @param query SQL query
+	 * @param params Query parameters
+	 * @returns Single row result or undefined
+	 */
+	async querySingle<T>(
+		query: string,
+		...params: unknown[]
+	): Promise<T | undefined> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Query Single] ${query}`, params);
+		}
+
+		// Sanitize parameters
+		const sanitizedParams = params.map(param => {
+			if (typeof param === 'boolean') {
+				return param ? 1 : 0;
+			}
+			// Handle undefined values by converting to null
+			if (param === undefined) {
+				return null;
+			}
+			return param;
+		});
+
+		if (this.dbInstance) {
+			try {
+				// Only spread parameters if there are any to avoid "too many parameters" error
+				if (sanitizedParams.length > 0) {
+					return this.dbInstance.prepare(query).get(...sanitizedParams) as T | undefined;
+				} else {
+					return this.dbInstance.prepare(query).get() as T | undefined;
+				}
+			} catch (error) {
+				this.logDebug(`[SQLite Error] ${error}`);
+				throw error;
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Execute a non-query SQL statement with improved parameter handling
+	 * @param query SQL statement
+	 * @param params Statement parameters
+	 * @returns Query result information
+	 */
+	async execute(query: string, ...params: unknown[]): Promise<DbQueryResult> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Execute] ${query}`, params);
+		}
+
+		if (this.dbInstance) {
+			// Process params to ensure they are compatible with SQLite
+			const processedParams = this.processParams(params);
+
+			try {
+				// Only spread parameters if there are any to avoid "too many parameters" error
+				let result;
+				if (processedParams.length > 0) {
+					result = this.dbInstance.prepare(query).run(...processedParams);
+				} else {
+					result = this.dbInstance.prepare(query).run();
+				}
+
+				return {
+					lastInsertRowid:
+						typeof result.lastInsertRowid === "bigint"
+							? Number(result.lastInsertRowid)
+							: (result.lastInsertRowid as number),
+					changes: result.changes,
+				};
+			} catch (error) {
+				this.logDebug(`[SQLite Error] ${error}`);
+				throw error;
+			}
+		}
+
+		return { changes: 0 };
 	}
 }
