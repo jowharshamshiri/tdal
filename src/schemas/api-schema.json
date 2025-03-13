@@ -1,0 +1,823 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "API Configuration Schema",
+	"description": "Schema for API configurations in YAML",
+	"type": "object",
+	"required": [
+		"basePath"
+	],
+	"properties": {
+		"basePath": {
+			"type": "string",
+			"description": "Base path for all API endpoints",
+			"default": "/api"
+		},
+		"version": {
+			"type": "string",
+			"description": "API version",
+			"default": "1.0.0"
+		},
+		"cors": {
+			"type": "object",
+			"description": "CORS configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to enable CORS"
+				},
+				"origin": {
+					"oneOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					],
+					"default": "*",
+					"description": "Allowed origins"
+				},
+				"methods": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST",
+							"PUT",
+							"DELETE",
+							"PATCH",
+							"OPTIONS",
+							"HEAD"
+						]
+					},
+					"default": [
+						"GET",
+						"POST",
+						"PUT",
+						"DELETE",
+						"PATCH",
+						"OPTIONS"
+					],
+					"description": "Allowed methods"
+				},
+				"allowedHeaders": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"Content-Type",
+						"Authorization"
+					],
+					"description": "Allowed headers"
+				},
+				"exposedHeaders": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Exposed headers"
+				},
+				"credentials": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether to allow credentials"
+				},
+				"maxAge": {
+					"type": "integer",
+					"description": "Max age in seconds"
+				}
+			}
+		},
+		"rateLimiting": {
+			"type": "object",
+			"description": "Rate limiting configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether to enable rate limiting"
+				},
+				"windowMs": {
+					"type": "integer",
+					"default": 60000,
+					"description": "Time window in milliseconds"
+				},
+				"max": {
+					"type": "integer",
+					"default": 100,
+					"description": "Maximum number of requests per window"
+				},
+				"message": {
+					"type": "string",
+					"default": "Too many requests, please try again later.",
+					"description": "Rate limit error message"
+				},
+				"statusCode": {
+					"type": "integer",
+					"default": 429,
+					"description": "Rate limit HTTP status code"
+				},
+				"skipSuccessfulRequests": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether to skip counting successful requests"
+				},
+				"keyGenerator": {
+					"type": "string",
+					"description": "Function to generate a rate limit key (req, res) => string"
+				}
+			}
+		},
+		"compression": {
+			"type": "object",
+			"description": "Compression configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to enable compression"
+				},
+				"level": {
+					"type": "integer",
+					"minimum": -1,
+					"maximum": 9,
+					"default": 6,
+					"description": "Compression level (0-9, where 0 is no compression and 9 is max compression)"
+				}
+			}
+		},
+		"bodyParser": {
+			"type": "object",
+			"description": "Body parser configuration",
+			"properties": {
+				"json": {
+					"type": "object",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether to enable JSON body parsing"
+						},
+						"limit": {
+							"type": "string",
+							"default": "1mb",
+							"description": "Size limit of request bodies"
+						}
+					}
+				},
+				"urlencoded": {
+					"type": "object",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether to enable URL-encoded body parsing"
+						},
+						"limit": {
+							"type": "string",
+							"default": "1mb",
+							"description": "Size limit of request bodies"
+						},
+						"extended": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether to use the qs library for parsing URL-encoded bodies"
+						}
+					}
+				},
+				"raw": {
+					"type": "object",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": false,
+							"description": "Whether to enable raw body parsing"
+						},
+						"limit": {
+							"type": "string",
+							"default": "1mb",
+							"description": "Size limit of request bodies"
+						}
+					}
+				}
+			}
+		},
+		"endpoints": {
+			"type": "array",
+			"description": "Custom API endpoint definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"path",
+					"method",
+					"implementation"
+				],
+				"properties": {
+					"path": {
+						"type": "string",
+						"description": "Endpoint path"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST",
+							"PUT",
+							"DELETE",
+							"PATCH",
+							"OPTIONS",
+							"HEAD"
+						],
+						"description": "HTTP method"
+					},
+					"description": {
+						"type": "string",
+						"description": "Endpoint description"
+					},
+					"auth": {
+						"oneOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						],
+						"description": "Authentication requirements or allowed roles"
+					},
+					"implementation": {
+						"type": "string",
+						"description": "Endpoint implementation function or file path"
+					},
+					"middleware": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Middleware to apply to this endpoint"
+					},
+					"requestSchema": {
+						"type": "object",
+						"description": "Request validation schema",
+						"properties": {
+							"body": {
+								"type": "object"
+							},
+							"query": {
+								"type": "object"
+							},
+							"params": {
+								"type": "object"
+							}
+						}
+					},
+					"responseSchema": {
+						"type": "object",
+						"description": "Response validation schema"
+					},
+					"cache": {
+						"type": "object",
+						"properties": {
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether to enable caching"
+							},
+							"ttl": {
+								"type": "integer",
+								"description": "Time to live in seconds"
+							},
+							"key": {
+								"type": "string",
+								"description": "Cache key generator function (req) => string"
+							}
+						}
+					},
+					"rateLimiting": {
+						"type": "object",
+						"description": "Endpoint-specific rate limiting",
+						"properties": {
+							"windowMs": {
+								"type": "integer"
+							},
+							"max": {
+								"type": "integer"
+							}
+						}
+					}
+				}
+			}
+		},
+		"middleware": {
+			"type": "array",
+			"description": "Global middleware",
+			"items": {
+				"oneOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "object",
+						"required": [
+							"name",
+							"implementation"
+						],
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Middleware name"
+							},
+							"implementation": {
+								"type": "string",
+								"description": "Middleware implementation function or file path"
+							},
+							"options": {
+								"type": "object",
+								"description": "Middleware options"
+							}
+						}
+					}
+				]
+			}
+		},
+		"errorHandlers": {
+			"type": "array",
+			"description": "Error handler middleware",
+			"items": {
+				"type": "object",
+				"required": [
+					"implementation"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Error handler name"
+					},
+					"implementation": {
+						"type": "string",
+						"description": "Error handler implementation function or file path"
+					},
+					"errorTypes": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Error types this handler handles"
+					}
+				}
+			}
+		},
+		"documentation": {
+			"type": "object",
+			"description": "API documentation configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to enable API documentation"
+				},
+				"path": {
+					"type": "string",
+					"default": "/docs",
+					"description": "Path to documentation UI"
+				},
+				"title": {
+					"type": "string",
+					"description": "Documentation title"
+				},
+				"description": {
+					"type": "string",
+					"description": "API description"
+				},
+				"version": {
+					"type": "string",
+					"description": "API version"
+				},
+				"contact": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"url": {
+							"type": "string"
+						},
+						"email": {
+							"type": "string"
+						}
+					}
+				},
+				"license": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string"
+						},
+						"url": {
+							"type": "string"
+						}
+					}
+				},
+				"externalDocs": {
+					"type": "object",
+					"properties": {
+						"description": {
+							"type": "string"
+						},
+						"url": {
+							"type": "string"
+						}
+					}
+				},
+				"servers": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"url": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"tags": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		},
+		"entities": {
+			"type": "array",
+			"description": "Entities exposed through the API",
+			"items": {
+				"type": "object",
+				"required": [
+					"entity"
+				],
+				"properties": {
+					"entity": {
+						"type": "string",
+						"description": "Entity name"
+					},
+					"basePath": {
+						"type": "string",
+						"description": "Base path for this entity's endpoints"
+					},
+					"operations": {
+						"type": "object",
+						"properties": {
+							"getAll": {
+								"oneOf": [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"path": {
+												"type": "string"
+											},
+											"auth": {
+												"oneOf": [
+													{
+														"type": "boolean"
+													},
+													{
+														"type": "array",
+														"items": {
+															"type": "string"
+														}
+													}
+												]
+											},
+											"pagination": {
+												"type": "object",
+												"properties": {
+													"enabled": {
+														"type": "boolean"
+													},
+													"defaultLimit": {
+														"type": "integer"
+													},
+													"maxLimit": {
+														"type": "integer"
+													}
+												}
+											},
+											"filters": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"sort": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"fields": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"include": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"hooks": {
+												"type": "object",
+												"properties": {
+													"before": {
+														"type": "string"
+													},
+													"after": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							},
+							"getById": {
+								"oneOf": [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"path": {
+												"type": "string"
+											},
+											"auth": {
+												"oneOf": [
+													{
+														"type": "boolean"
+													},
+													{
+														"type": "array",
+														"items": {
+															"type": "string"
+														}
+													}
+												]
+											},
+											"fields": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"include": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"hooks": {
+												"type": "object",
+												"properties": {
+													"before": {
+														"type": "string"
+													},
+													"after": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							},
+							"create": {
+								"oneOf": [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"path": {
+												"type": "string"
+											},
+											"auth": {
+												"oneOf": [
+													{
+														"type": "boolean"
+													},
+													{
+														"type": "array",
+														"items": {
+															"type": "string"
+														}
+													}
+												]
+											},
+											"fields": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"hooks": {
+												"type": "object",
+												"properties": {
+													"before": {
+														"type": "string"
+													},
+													"after": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							},
+							"update": {
+								"oneOf": [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"path": {
+												"type": "string"
+											},
+											"auth": {
+												"oneOf": [
+													{
+														"type": "boolean"
+													},
+													{
+														"type": "array",
+														"items": {
+															"type": "string"
+														}
+													}
+												]
+											},
+											"fields": {
+												"type": "array",
+												"items": {
+													"type": "string"
+												}
+											},
+											"hooks": {
+												"type": "object",
+												"properties": {
+													"before": {
+														"type": "string"
+													},
+													"after": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							},
+							"delete": {
+								"oneOf": [
+									{
+										"type": "boolean"
+									},
+									{
+										"type": "object",
+										"properties": {
+											"enabled": {
+												"type": "boolean"
+											},
+											"path": {
+												"type": "string"
+											},
+											"auth": {
+												"oneOf": [
+													{
+														"type": "boolean"
+													},
+													{
+														"type": "array",
+														"items": {
+															"type": "string"
+														}
+													}
+												]
+											},
+											"hooks": {
+												"type": "object",
+												"properties": {
+													"before": {
+														"type": "string"
+													},
+													"after": {
+														"type": "string"
+													}
+												}
+											}
+										}
+									}
+								]
+							}
+						}
+					},
+					"actions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"name",
+								"path",
+								"method",
+								"implementation"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Action name"
+								},
+								"path": {
+									"type": "string",
+									"description": "Endpoint path"
+								},
+								"method": {
+									"type": "string",
+									"enum": [
+										"GET",
+										"POST",
+										"PUT",
+										"DELETE",
+										"PATCH"
+									],
+									"description": "HTTP method"
+								},
+								"description": {
+									"type": "string",
+									"description": "Action description"
+								},
+								"auth": {
+									"oneOf": [
+										{
+											"type": "boolean"
+										},
+										{
+											"type": "array",
+											"items": {
+												"type": "string"
+											}
+										}
+									],
+									"description": "Authentication requirements or allowed roles"
+								},
+								"implementation": {
+									"type": "string",
+									"description": "Action implementation function or file path"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

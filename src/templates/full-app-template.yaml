@@ -1,0 +1,317 @@
+# Full Application Configuration Template
+# This template demonstrates all available configuration options
+
+# Application information
+name: "Full Featured Application"
+version: "1.0.0"
+
+# Server configuration
+port: 3000
+apiBasePath: "/api"
+
+# Database configuration
+database:
+  # Database type: sqlite, postgres, mysql
+  type: "sqlite"
+
+  # Connection details
+  connection:
+    # For SQLite
+    filename: "data/app.sqlite"
+
+    # For PostgreSQL/MySQL (uncomment as needed)
+    # host: "localhost"
+    # port: 5432
+    # database: "app_db"
+    # user: "app_user"
+    # password: "app_password"
+    # ssl: false
+
+  # Connection pool options
+  pool:
+    min: 1
+    max: 10
+
+  # Whether to automatically synchronize schema
+  synchronize: true
+
+  # Debug mode
+  debug: false
+
+# Authentication configuration
+auth:
+  # Provider type
+  provider: "jwt"
+
+  # JWT secret key (use environment variables in production)
+  secret: "${process.env.JWT_SECRET}"
+
+  # Token expiry time
+  tokenExpiry: "24h"
+
+  # Refresh token expiry time
+  refreshTokenExpiry: "7d"
+
+  # User entity configuration
+  userEntity: "User"
+  usernameField: "email"
+  passwordField: "password"
+  roleField: "role"
+
+  # Available roles
+  roles:
+    - name: "admin"
+      description: "Administrator with full access"
+    - name: "user"
+      description: "Regular user with limited access"
+    - name: "guest"
+      description: "Guest with read-only access"
+
+# Entities configuration
+entitiesDir: "entities"
+
+# API configuration
+api:
+  # CORS settings
+  cors:
+    # Allow all origins in development
+    origin: "${process.env.CORS_ORIGIN || '*'}"
+
+    # Methods to allow
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+
+    # Headers to allow
+    allowedHeaders: ["Content-Type", "Authorization"]
+
+    # Expose these headers to client
+    exposedHeaders: ["X-Total-Count"]
+
+    # Allow credentials
+    credentials: true
+
+  # Rate limiting
+  rateLimit:
+    # Maximum requests per window
+    max: 100
+
+    # Time window in milliseconds
+    windowMs: 60000
+
+    # Message when limit exceeded
+    message: "Too many requests, please try again later"
+
+  # Request timeout in milliseconds
+  timeout: 30000
+
+  # Maximum request body size
+  bodyLimit: "1mb"
+
+  # API documentation
+  docs:
+    # Enable Swagger documentation
+    enabled: true
+
+    # Documentation path
+    path: "/docs"
+
+    # API title
+    title: "Application API"
+
+    # API description
+    description: "API documentation for the application"
+
+    # API version
+    version: "1.0.0"
+
+# Logging configuration
+logging:
+  # Log level
+  level: "${process.env.LOG_LEVEL || 'info'}"
+
+  # Whether to log to console
+  console: true
+
+  # Whether to log to file
+  file: true
+
+  # Log file path
+  filePath: "logs/app.log"
+
+  # Log format
+  format: "combined"
+
+  # Whether to colorize logs
+  colorize: true
+
+  # Maximum log file size
+  maxSize: "10m"
+
+  # Maximum number of log files
+  maxFiles: 5
+
+  # Whether to rotate logs
+  rotate: true
+
+# Email configuration
+email:
+  # Email provider: smtp, sendgrid, mailgun
+  provider: "smtp"
+
+  # SMTP configuration
+  smtp:
+    host: "smtp.example.com"
+    port: 587
+    secure: false
+    auth:
+      user: "${process.env.SMTP_USER}"
+      pass: "${process.env.SMTP_PASSWORD}"
+
+  # Default sender
+  from: "App <noreply@example.com>"
+
+  # Email templates directory
+  templatesDir: "templates/emails"
+
+# File storage configuration
+storage:
+  # Storage provider: local, s3, azure
+  provider: "local"
+
+  # Local storage configuration
+  local:
+    # Upload directory
+    uploadDir: "uploads"
+
+    # Maximum file size in bytes
+    maxFileSize: 5242880 # 5MB
+
+    # Allowed file types
+    allowedTypes: ["image/jpeg", "image/png", "application/pdf"]
+
+  # Amazon S3 configuration
+  # s3:
+  #   accessKeyId: "${process.env.AWS_ACCESS_KEY_ID}"
+  #   secretAccessKey: "${process.env.AWS_SECRET_ACCESS_KEY}"
+  #   region: "us-east-1"
+  #   bucket: "app-uploads"
+
+# Task scheduling configuration
+scheduler:
+  # Enable task scheduler
+  enabled: true
+
+  # Tasks configuration
+  tasks:
+    # Example scheduled task
+    - name: "cleanup"
+      schedule: "0 0 * * *" # Cron expression (daily at midnight)
+      handler: "./tasks/cleanup.js"
+
+    # Another example task
+    - name: "sendReports"
+      schedule: "0 8 * * 1" # Every Monday at 8 AM
+      handler: "./tasks/sendReports.js"
+
+# Cache configuration
+cache:
+  # Cache provider: memory, redis
+  provider: "memory"
+
+  # TTL in seconds
+  ttl: 3600
+
+  # Maximum items in memory cache
+  max: 1000
+
+  # Redis configuration (if provider is redis)
+  # redis:
+  #   host: "localhost"
+  #   port: 6379
+  #   password: "${process.env.REDIS_PASSWORD}"
+
+# WebSocket configuration
+websocket:
+  # Enable WebSocket
+  enabled: true
+
+  # Path for WebSocket connections
+  path: "/ws"
+
+  # Authentication required for WebSocket
+  requireAuth: true
+
+# UI configuration
+ui:
+  # Default theme
+  theme: "light"
+
+  # Available themes
+  themes:
+    - name: "light"
+      description: "Light theme"
+    - name: "dark"
+      description: "Dark theme"
+
+  # Feature flags
+  features:
+    enableChat: true
+    enableNotifications: true
+    enableFileUpload: true
+
+# Internationalization
+i18n:
+  # Default locale
+  defaultLocale: "en"
+
+  # Available locales
+  locales: ["en", "es", "fr", "de"]
+
+  # Locales directory
+  localesDir: "locales"
+
+# Application modes
+modes:
+  # Production mode
+  production: false
+
+  # Maintenance mode
+  maintenance: false
+
+  # Debug mode
+  debug: "${process.env.DEBUG || false}"
+
+# Plugins configuration
+plugins:
+  - name: "audit-log"
+    enabled: true
+    config:
+      logActions: ["create", "update", "delete"]
+      excludeEntities: ["Log"]
+
+  - name: "data-export"
+    enabled: true
+    config:
+      formats: ["csv", "json", "excel"]
+      maxRows: 10000
+
+# Deployment configuration
+deployment:
+  # Server host
+  host: "0.0.0.0"
+
+  # Enable HTTPS
+  https: false
+
+  # SSL certificate path
+  certPath: "certs/cert.pem"
+
+  # SSL key path
+  keyPath: "certs/key.pem"
+
+  # Server is behind proxy
+  behindProxy: false
+
+  # Server scaling
+  scaling:
+    minInstances: 1
+    maxInstances: 4

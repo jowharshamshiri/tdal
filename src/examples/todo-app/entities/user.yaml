@@ -1,0 +1,350 @@
+# User Entity Definition
+entity: User
+table: users
+idField: id
+
+# Database columns
+columns:
+  - logical: id
+    physical: id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+    comment: Unique identifier for the user
+
+  - logical: name
+    physical: name
+    type: string
+    nullable: false
+    comment: User's full name
+
+  - logical: email
+    physical: email
+    type: string
+    nullable: false
+    unique: true
+    comment: User's email address (used for login)
+
+  - logical: password
+    physical: password
+    type: string
+    nullable: false
+    comment: User's hashed password
+
+  - logical: role
+    physical: role
+    type: string
+    nullable: false
+    comment: User's role (user, admin)
+
+  - logical: avatar
+    physical: avatar
+    type: string
+    nullable: true
+    comment: URL to user's profile image
+
+  - logical: bio
+    physical: bio
+    type: string
+    nullable: true
+    comment: User's biography or description
+
+  - logical: last_login
+    physical: last_login
+    type: datetime
+    nullable: true
+    comment: When the user last logged in
+
+  - logical: created_at
+    physical: created_at
+    type: datetime
+    nullable: false
+    comment: When the user account was created
+
+  - logical: updated_at
+    physical: updated_at
+    type: datetime
+    nullable: true
+    comment: When the user account was last updated
+
+# Entity relationships
+relations:
+  - name: todos
+    type: oneToMany
+    sourceEntity: User
+    targetEntity: Todo
+    sourceColumn: id
+    targetColumn: user_id
+
+# Automatic timestamps
+timestamps:
+  createdAt: created_at
+  updatedAt: updated_at
+
+# REST API configuration
+api:
+  exposed: true
+  basePath: /api/users
+  operations:
+    getAll: true
+    getById: true
+    create: true
+    update: true
+    delete: true
+
+  # Role-based permissions
+  permissions:
+    getAll: [admin]
+    getById: [user, admin]
+    create: [admin]
+    update: [user, admin]
+    delete: [admin]
+
+  # Field-level permissions
+  fields:
+    password:
+      read: [] # Nobody can read passwords
+      write: [user, admin]
+
+    email:
+      read: [user, admin]
+      write: [user, admin]
+
+    role:
+      read: [user, admin]
+      write: [admin] # Only admins can change roles
+
+  # Record-level access control
+  recordAccess:
+    condition: "id = :currentUserId OR :currentUserRole = 'admin'"
+
+# Validation rules
+validation:
+  rules:
+    name:
+      - type: required
+        message: Name is required
+      - type: minLength
+        value: 2
+        message: Name must be at least 2 characters
+      - type: maxLength
+        value: 100
+        message: Name cannot exceed 100 characters
+
+    email:
+      - type: required
+        message: Email is required
+      - type: email
+        message: Please enter a valid email address
+      - type: unique
+        message: This email is already registered
+
+    password:
+      - type: required
+        message: Password is required
+      - type: minLength
+        value: 8
+        message: Password must be at least 8 characters
+      - type: custom
+        implementation: |
+          (value) => {
+            // Password must contain at least one number, one uppercase letter, and one lowercase letter
+            return /\d/.test(value) && /[A-Z]/.test(value) && /[a-z]/.test(value);
+          }
+        message: Password must include at least one number, one uppercase letter, and one lowercase letter
+
+    role:
+      - type: required
+        message: Role is required
+      - type: pattern
+        value: ^(user|admin)$
+        message: Role must be either 'user' or 'admin'
+
+# Computed properties
+computed:
+  - name: displayName
+    dependencies: [name, email]
+    implementation: |
+      (user) => {
+        return user.name || user.email.split('@')[0];
+      }
+
+  - name: isAdmin
+    dependencies: [role]
+    implementation: |
+      (user) => {
+        return user.role === 'admin';
+      }
+
+  - name: todoCount
+    implementation: |
+      async (user, context) => {
+        const todoDao = context.getEntityDao('Todo');
+        return await todoDao.count({ user_id: user.id });
+      }
+
+# Lifecycle hooks
+hooks:
+  beforeCreate:
+    - name: hashPassword
+      implementation: |
+        async (entity, context) => {
+          if (entity.password) {
+            const bcrypt = require('bcrypt');
+            entity.password = await bcrypt.hash(entity.password, 10);
+          }
+          return entity;
+        }
+
+  afterCreate:
+    - name: logUserCreation
+      implementation: |
+        async (entity, context) => {
+          context.logger.info(`User created: ${entity.email}`);
+          return entity;
+        }
+
+  beforeUpdate:
+    - name: hashPasswordOnUpdate
+      implementation: |
+        async (params, context) => {
+          const { id, data } = params;
+          if (data.password) {
+            const bcrypt = require('bcrypt');
+            data.password = await bcrypt.hash(data.password, 10);
+          }
+          return params;
+        }
+
+# Custom actions beyond CRUD
+actions:
+  - name: login
+    path: "/login"
+    method: "POST"
+    auth: [] # No auth required for login
+    implementation: |
+      async (req, context) => {
+        const { email, password } = req.body;
+        
+        if (!email || !password) {
+          return { status: 400, message: "Email and password are required" };
+        }
+        
+        // Find user
+        const user = await context.entityDao.findOne({ email });
+        if (!user) {
+          return { status: 401, message: "Invalid credentials" };
+        }
+        
+        // Check password
+        const bcrypt = require('bcrypt');
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return { status: 401, message: "Invalid credentials" };
+        }
+        
+        // Update last login time
+        await context.entityDao.update(user.id, { last_login: new Date().toISOString() });
+        
+        // Generate token
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign(
+          { id: user.id, email: user.email, role: user.role },
+          context.config.auth.secret,
+          { expiresIn: context.config.auth.tokenExpiry }
+        );
+        
+        return {
+          token,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            displayName: user.displayName,
+            avatar: user.avatar
+          }
+        };
+      }
+
+  - name: me
+    path: "/me"
+    method: "GET"
+    auth: [user, admin]
+    implementation: |
+      async (req, context) => {
+        // Get current user
+        const user = await context.entityDao.findById(req.user.id);
+        if (!user) {
+          return { status: 404, message: "User not found" };
+        }
+        
+        // Get todo stats
+        const todoDao = context.getEntityDao('Todo');
+        const todoCount = await todoDao.count({ user_id: user.id });
+        const completedCount = await todoDao.count({ user_id: user.id, completed: true });
+        
+        return {
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            displayName: user.displayName,
+            avatar: user.avatar,
+            bio: user.bio,
+            lastLogin: user.last_login,
+            created: user.created_at
+          },
+          stats: {
+            todoCount,
+            completedCount,
+            pendingCount: todoCount - completedCount,
+            completionRate: todoCount > 0 ? Math.round((completedCount / todoCount) * 100) : 0
+          }
+        };
+      }
+
+  - name: changePassword
+    path: "/change-password"
+    method: "POST"
+    auth: [user, admin]
+    implementation: |
+      async (req, context) => {
+        const { currentPassword, newPassword } = req.body;
+        
+        if (!currentPassword || !newPassword) {
+          return { status: 400, message: "Current password and new password are required" };
+        }
+        
+        // Get current user
+        const user = await context.entityDao.findById(req.user.id);
+        if (!user) {
+          return { status: 404, message: "User not found" };
+        }
+        
+        // Verify current password
+        const bcrypt = require('bcrypt');
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+          return { status: 401, message: "Current password is incorrect" };
+        }
+        
+        // Validate new password
+        if (newPassword.length < 8) {
+          return { status: 400, message: "Password must be at least 8 characters" };
+        }
+        
+        if (!/\d/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword)) {
+          return { 
+            status: 400, 
+            message: "Password must include at least one number, one uppercase letter, and one lowercase letter" 
+          };
+        }
+        
+        // Hash and update password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await context.entityDao.update(user.id, { password: hashedPassword });
+        
+        return { status: 200, message: "Password updated successfully" };
+      }

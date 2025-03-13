@@ -1,0 +1,172 @@
+# Basic Entity Template
+# Copy this template to create a new entity
+
+# Entity name in PascalCase
+entity: MyEntity
+
+# Database table name (typically snake_case or lowercase)
+table: my_entities
+
+# Primary key field name
+idField: id
+
+# Column definitions
+columns:
+  # Primary key column
+  - logical: id
+    physical: id
+    primaryKey: true
+    autoIncrement: true
+    type: integer
+
+  # Example string column
+  - logical: name
+    physical: name
+    type: string
+    nullable: false
+    comment: "Entity name"
+
+  # Example nullable text column
+  - logical: description
+    physical: description
+    type: text
+    nullable: true
+
+  # Example numeric column
+  - logical: amount
+    physical: amount
+    type: number
+    nullable: false
+
+  # Example boolean column
+  - logical: isActive
+    physical: is_active
+    type: boolean
+    nullable: false
+
+  # Timestamps
+  - logical: createdAt
+    physical: created_at
+    type: datetime
+    nullable: false
+
+  - logical: updatedAt
+    physical: updated_at
+    type: datetime
+    nullable: true
+
+# Relationship definitions
+relations:
+  # Example one-to-many relationship
+  # - name: items
+  #   type: oneToMany
+  #   sourceEntity: MyEntity
+  #   targetEntity: Item
+  #   sourceColumn: id
+  #   targetColumn: myEntityId
+
+  # Example many-to-one relationship
+  # - name: category
+  #   type: manyToOne
+  #   sourceEntity: MyEntity
+  #   targetEntity: Category
+  #   sourceColumn: categoryId
+  #   targetColumn: id
+
+  # Example many-to-many relationship
+  # - name: tags
+  #   type: manyToMany
+  #   sourceEntity: MyEntity
+  #   targetEntity: Tag
+  #   sourceColumn: id
+  #   targetColumn: id
+  #   junctionTable: my_entity_tags
+  #   junctionSourceColumn: my_entity_id
+  #   junctionTargetColumn: tag_id
+
+# Timestamp handling configuration
+timestamps:
+  createdAt: createdAt
+  updatedAt: updatedAt
+
+# REST API configuration
+api:
+  # Whether to expose this entity via REST API
+  exposed: true
+
+  # Base path (defaults to /api/table_name)
+  # basePath: "/api/my-entities"
+
+  # Which operations to enable
+  operations:
+    getAll: true
+    getById: true
+    create: true
+    update: true
+    delete: true
+
+  # Role-based permissions
+  permissions:
+    getAll: ["user", "admin"]
+    getById: ["user", "admin"]
+    create: ["admin"]
+    update: ["admin"]
+    delete: ["admin"]
+
+  # Field-level permissions
+  # fields:
+  #   sensitiveField:
+  #     read: ["admin"]
+  #     write: ["admin"]
+# Lifecycle hooks
+# hooks:
+#   beforeCreate:
+#     - name: "setDefaults"
+#       implementation: |
+#         async (entity, context) => {
+#           entity.isActive = true;
+#           return entity;
+#         }
+#   afterGetById:
+#     - name: "incrementViewCount"
+#       implementation: |
+#         async (entity, context) => {
+#           // Your code here
+#           return entity;
+#         }
+
+# Custom actions
+# actions:
+#   - name: "archive"
+#     path: "/:id/archive"
+#     method: "POST"
+#     auth: ["admin"]
+#     implementation: |
+#       async (req, context) => {
+#         const id = req.params.id;
+#         await context.entityDao.update(id, { isActive: false });
+#         return { success: true, message: "Entity archived" };
+#       }
+
+# Validation rules
+# validation:
+#   rules:
+#     name:
+#       - type: "required"
+#         message: "Name is required"
+#       - type: "maxLength"
+#         value: 100
+#         message: "Name cannot exceed 100 characters"
+#     amount:
+#       - type: "min"
+#         value: 0
+#         message: "Amount cannot be negative"
+
+# Computed properties
+# computed:
+#   - name: "formattedAmount"
+#     dependencies: ["amount"]
+#     implementation: |
+#       (entity) => {
+#         return `$${entity.amount.toFixed(2)}`;
+#       }

@@ -1,0 +1,397 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Authentication Configuration Schema",
+	"description": "Schema for validating authentication configuration in YAML files",
+	"type": "object",
+	"required": [
+		"provider"
+	],
+	"properties": {
+		"provider": {
+			"type": "string",
+			"description": "Authentication provider type",
+			"enum": [
+				"jwt",
+				"oauth2",
+				"basic"
+			]
+		},
+		"secret": {
+			"type": "string",
+			"description": "Secret key for token signing"
+		},
+		"tokenExpiry": {
+			"type": "string",
+			"description": "Token expiration time (e.g., '1h', '30m', '7d')",
+			"pattern": "^\\d+[smhdwMy]$"
+		},
+		"refreshTokenExpiry": {
+			"type": "string",
+			"description": "Refresh token expiration time",
+			"pattern": "^\\d+[smhdwMy]$"
+		},
+		"userEntity": {
+			"type": "string",
+			"description": "Entity name for user records"
+		},
+		"usernameField": {
+			"type": "string",
+			"description": "Field name for username/email in user entity"
+		},
+		"passwordField": {
+			"type": "string",
+			"description": "Field name for password in user entity"
+		},
+		"roleField": {
+			"type": "string",
+			"description": "Field name for role in user entity"
+		},
+		"roles": {
+			"type": "array",
+			"description": "Available roles in the system",
+			"items": {
+				"type": "object",
+				"required": [
+					"name"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Role name"
+					},
+					"description": {
+						"type": "string",
+						"description": "Role description"
+					},
+					"inherits": {
+						"type": "string",
+						"description": "Parent role that this role inherits permissions from"
+					},
+					"permissions": {
+						"type": "array",
+						"description": "Permissions granted to this role",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		},
+		"permissions": {
+			"type": "array",
+			"description": "Available permissions in the system",
+			"items": {
+				"type": "object",
+				"required": [
+					"name"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Permission name"
+					},
+					"description": {
+						"type": "string",
+						"description": "Permission description"
+					},
+					"resource": {
+						"type": "string",
+						"description": "Resource this permission applies to"
+					},
+					"action": {
+						"type": "string",
+						"description": "Action this permission allows",
+						"enum": [
+							"create",
+							"read",
+							"update",
+							"delete",
+							"manage",
+							"*"
+						]
+					}
+				}
+			}
+		},
+		"jwtOptions": {
+			"type": "object",
+			"description": "JWT-specific configuration options",
+			"properties": {
+				"algorithm": {
+					"type": "string",
+					"description": "JWT signing algorithm",
+					"enum": [
+						"HS256",
+						"HS384",
+						"HS512",
+						"RS256",
+						"RS384",
+						"RS512",
+						"ES256",
+						"ES384",
+						"ES512"
+					]
+				},
+				"issuer": {
+					"type": "string",
+					"description": "JWT issuer claim"
+				},
+				"audience": {
+					"type": "string",
+					"description": "JWT audience claim"
+				},
+				"notBefore": {
+					"type": "string",
+					"description": "Time before which the token is not valid",
+					"pattern": "^\\d+[smhdwMy]$"
+				},
+				"privateKey": {
+					"type": "string",
+					"description": "Private key for asymmetric algorithms"
+				},
+				"publicKey": {
+					"type": "string",
+					"description": "Public key for asymmetric algorithms"
+				}
+			}
+		},
+		"oauth2Options": {
+			"type": "object",
+			"description": "OAuth2-specific configuration options",
+			"properties": {
+				"providers": {
+					"type": "array",
+					"description": "OAuth2 providers",
+					"items": {
+						"type": "object",
+						"required": [
+							"name",
+							"clientId",
+							"clientSecret",
+							"authorizationUrl",
+							"tokenUrl"
+						],
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Provider name"
+							},
+							"clientId": {
+								"type": "string",
+								"description": "OAuth2 client ID"
+							},
+							"clientSecret": {
+								"type": "string",
+								"description": "OAuth2 client secret"
+							},
+							"authorizationUrl": {
+								"type": "string",
+								"description": "OAuth2 authorization URL"
+							},
+							"tokenUrl": {
+								"type": "string",
+								"description": "OAuth2 token URL"
+							},
+							"userInfoUrl": {
+								"type": "string",
+								"description": "URL to fetch user information"
+							},
+							"scope": {
+								"type": "string",
+								"description": "OAuth2 scope"
+							},
+							"callbackUrl": {
+								"type": "string",
+								"description": "OAuth2 callback URL"
+							},
+							"userMapping": {
+								"type": "object",
+								"description": "Mapping from provider fields to user entity fields",
+								"properties": {
+									"id": {
+										"type": "string",
+										"description": "Field for user ID"
+									},
+									"email": {
+										"type": "string",
+										"description": "Field for user email"
+									},
+									"name": {
+										"type": "string",
+										"description": "Field for user name"
+									},
+									"role": {
+										"type": "string",
+										"description": "Field for user role"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"endpoints": {
+			"type": "object",
+			"description": "Authentication endpoint configuration",
+			"properties": {
+				"login": {
+					"type": "string",
+					"description": "Login endpoint path"
+				},
+				"register": {
+					"type": "string",
+					"description": "Registration endpoint path"
+				},
+				"logout": {
+					"type": "string",
+					"description": "Logout endpoint path"
+				},
+				"refreshToken": {
+					"type": "string",
+					"description": "Refresh token endpoint path"
+				},
+				"forgotPassword": {
+					"type": "string",
+					"description": "Forgot password endpoint path"
+				},
+				"resetPassword": {
+					"type": "string",
+					"description": "Reset password endpoint path"
+				},
+				"verifyEmail": {
+					"type": "string",
+					"description": "Email verification endpoint path"
+				}
+			}
+		},
+		"cookieOptions": {
+			"type": "object",
+			"description": "Cookie configuration for authentication tokens",
+			"properties": {
+				"secure": {
+					"type": "boolean",
+					"description": "Whether cookies should be secure (HTTPS only)"
+				},
+				"httpOnly": {
+					"type": "boolean",
+					"description": "Whether cookies should be HTTP only"
+				},
+				"sameSite": {
+					"type": "string",
+					"description": "Same-site cookie policy",
+					"enum": [
+						"strict",
+						"lax",
+						"none"
+					]
+				},
+				"domain": {
+					"type": "string",
+					"description": "Cookie domain"
+				},
+				"path": {
+					"type": "string",
+					"description": "Cookie path"
+				}
+			}
+		},
+		"passwordPolicy": {
+			"type": "object",
+			"description": "Password policy configuration",
+			"properties": {
+				"minLength": {
+					"type": "integer",
+					"description": "Minimum password length"
+				},
+				"requireUppercase": {
+					"type": "boolean",
+					"description": "Whether passwords must contain uppercase letters"
+				},
+				"requireLowercase": {
+					"type": "boolean",
+					"description": "Whether passwords must contain lowercase letters"
+				},
+				"requireNumbers": {
+					"type": "boolean",
+					"description": "Whether passwords must contain numbers"
+				},
+				"requireSpecialChars": {
+					"type": "boolean",
+					"description": "Whether passwords must contain special characters"
+				},
+				"maxAge": {
+					"type": "string",
+					"description": "Maximum password age before requiring a change",
+					"pattern": "^\\d+[smhdwMy]$"
+				},
+				"preventReuse": {
+					"type": "integer",
+					"description": "Number of previous passwords that cannot be reused"
+				}
+			}
+		},
+		"rateLimiting": {
+			"type": "object",
+			"description": "Rate limiting configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"description": "Whether rate limiting is enabled"
+				},
+				"maxAttempts": {
+					"type": "integer",
+					"description": "Maximum number of attempts within the window"
+				},
+				"window": {
+					"type": "string",
+					"description": "Time window for rate limiting",
+					"pattern": "^\\d+[smhdwMy]$"
+				},
+				"blockDuration": {
+					"type": "string",
+					"description": "Duration to block after exceeding rate limit",
+					"pattern": "^\\d+[smhdwMy]$"
+				}
+			}
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"provider": {
+						"enum": [
+							"jwt"
+						]
+					}
+				}
+			},
+			"then": {
+				"required": [
+					"secret",
+					"tokenExpiry",
+					"userEntity",
+					"usernameField",
+					"passwordField"
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"provider": {
+						"enum": [
+							"oauth2"
+						]
+					}
+				}
+			},
+			"then": {
+				"required": [
+					"oauth2Options"
+				]
+			}
+		}
+	]
+}

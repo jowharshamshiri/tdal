@@ -1,0 +1,1085 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "UI Configuration Schema",
+	"description": "Schema for validating UI configuration in YAML files",
+	"type": "object",
+	"properties": {
+		"app": {
+			"type": "object",
+			"description": "General application UI configuration",
+			"properties": {
+				"title": {
+					"type": "string",
+					"description": "Application title"
+				},
+				"description": {
+					"type": "string",
+					"description": "Application description"
+				},
+				"logo": {
+					"type": "string",
+					"description": "Path to application logo"
+				},
+				"favicon": {
+					"type": "string",
+					"description": "Path to favicon"
+				},
+				"theme": {
+					"type": "object",
+					"description": "Theme configuration",
+					"properties": {
+						"primaryColor": {
+							"type": "string",
+							"description": "Primary color in hex format",
+							"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+						},
+						"secondaryColor": {
+							"type": "string",
+							"description": "Secondary color in hex format",
+							"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+						},
+						"accentColor": {
+							"type": "string",
+							"description": "Accent color in hex format",
+							"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+						},
+						"textColor": {
+							"type": "string",
+							"description": "Text color in hex format",
+							"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+						},
+						"backgroundColor": {
+							"type": "string",
+							"description": "Background color in hex format",
+							"pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+						},
+						"fontFamily": {
+							"type": "string",
+							"description": "Font family"
+						},
+						"fontSize": {
+							"type": "string",
+							"description": "Base font size"
+						},
+						"borderRadius": {
+							"type": "string",
+							"description": "Border radius for UI elements"
+						},
+						"mode": {
+							"type": "string",
+							"description": "Color mode",
+							"enum": [
+								"light",
+								"dark",
+								"system"
+							]
+						},
+						"customCss": {
+							"type": "string",
+							"description": "Custom CSS to apply"
+						}
+					}
+				},
+				"layout": {
+					"type": "string",
+					"description": "Default layout",
+					"enum": [
+						"default",
+						"dashboard",
+						"minimal",
+						"custom"
+					]
+				},
+				"meta": {
+					"type": "object",
+					"description": "Meta tags for SEO",
+					"properties": {
+						"title": {
+							"type": "string",
+							"description": "Meta title"
+						},
+						"description": {
+							"type": "string",
+							"description": "Meta description"
+						},
+						"keywords": {
+							"type": "string",
+							"description": "Meta keywords"
+						},
+						"ogImage": {
+							"type": "string",
+							"description": "Open Graph image URL"
+						},
+						"twitterCard": {
+							"type": "string",
+							"description": "Twitter card type"
+						}
+					}
+				}
+			}
+		},
+		"layouts": {
+			"type": "array",
+			"description": "Custom layout definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"components"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Layout name"
+					},
+					"description": {
+						"type": "string",
+						"description": "Layout description"
+					},
+					"components": {
+						"type": "array",
+						"description": "Layout components",
+						"items": {
+							"type": "object",
+							"required": [
+								"type"
+							],
+							"properties": {
+								"type": {
+									"type": "string",
+									"description": "Component type",
+									"enum": [
+										"Header",
+										"Footer",
+										"Sidebar",
+										"Content",
+										"Navigation",
+										"Custom"
+									]
+								},
+								"component": {
+									"type": "string",
+									"description": "Component name or path"
+								},
+								"props": {
+									"type": "object",
+									"description": "Component props"
+								},
+								"position": {
+									"type": "string",
+									"description": "Component position",
+									"enum": [
+										"top",
+										"bottom",
+										"left",
+										"right",
+										"center"
+									]
+								},
+								"order": {
+									"type": "integer",
+									"description": "Component rendering order"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"pages": {
+			"type": "array",
+			"description": "Page definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"path"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Page name"
+					},
+					"path": {
+						"type": "string",
+						"description": "URL path"
+					},
+					"title": {
+						"type": "string",
+						"description": "Page title"
+					},
+					"description": {
+						"type": "string",
+						"description": "Page description"
+					},
+					"layout": {
+						"type": "string",
+						"description": "Layout name"
+					},
+					"permissions": {
+						"type": "array",
+						"description": "Required permissions to access this page",
+						"items": {
+							"type": "string"
+						}
+					},
+					"components": {
+						"type": "array",
+						"description": "Page components",
+						"items": {
+							"type": "object",
+							"required": [
+								"type"
+							],
+							"properties": {
+								"type": {
+									"type": "string",
+									"description": "Component type"
+								},
+								"name": {
+									"type": "string",
+									"description": "Component name"
+								},
+								"entity": {
+									"type": "string",
+									"description": "Entity this component is bound to"
+								},
+								"props": {
+									"type": "object",
+									"description": "Component props"
+								},
+								"children": {
+									"type": "array",
+									"description": "Child components",
+									"items": {
+										"type": "object"
+									}
+								},
+								"bindings": {
+									"type": "object",
+									"description": "Data bindings"
+								},
+								"handlers": {
+									"type": "object",
+									"description": "Event handlers",
+									"additionalProperties": {
+										"type": "string"
+									}
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"wrapper": {
+									"type": "string",
+									"description": "Wrapper component"
+								},
+								"position": {
+									"type": "object",
+									"description": "Component position",
+									"properties": {
+										"column": {
+											"type": "integer",
+											"description": "Grid column"
+										},
+										"row": {
+											"type": "integer",
+											"description": "Grid row"
+										},
+										"span": {
+											"type": "integer",
+											"description": "Column span"
+										},
+										"rowSpan": {
+											"type": "integer",
+											"description": "Row span"
+										}
+									}
+								}
+							}
+						}
+					},
+					"meta": {
+						"type": "object",
+						"description": "Page-specific meta tags",
+						"properties": {
+							"title": {
+								"type": "string",
+								"description": "Meta title"
+							},
+							"description": {
+								"type": "string",
+								"description": "Meta description"
+							},
+							"keywords": {
+								"type": "string",
+								"description": "Meta keywords"
+							},
+							"ogImage": {
+								"type": "string",
+								"description": "Open Graph image URL"
+							}
+						}
+					}
+				}
+			}
+		},
+		"components": {
+			"type": "array",
+			"description": "Custom component definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"type"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Component name"
+					},
+					"type": {
+						"type": "string",
+						"description": "Component type",
+						"enum": [
+							"form",
+							"table",
+							"chart",
+							"card",
+							"list",
+							"custom"
+						]
+					},
+					"description": {
+						"type": "string",
+						"description": "Component description"
+					},
+					"props": {
+						"type": "object",
+						"description": "Default props"
+					},
+					"template": {
+						"type": "string",
+						"description": "Component template (for custom components)"
+					},
+					"styles": {
+						"type": "object",
+						"description": "Component styles"
+					},
+					"scripts": {
+						"type": "string",
+						"description": "Component scripts"
+					},
+					"children": {
+						"type": "array",
+						"description": "Default children",
+						"items": {
+							"type": "object"
+						}
+					}
+				}
+			}
+		},
+		"forms": {
+			"type": "array",
+			"description": "Form definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"entity"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Form name"
+					},
+					"entity": {
+						"type": "string",
+						"description": "Entity this form is bound to"
+					},
+					"description": {
+						"type": "string",
+						"description": "Form description"
+					},
+					"layout": {
+						"type": "string",
+						"enum": [
+							"vertical",
+							"horizontal",
+							"inline",
+							"grid"
+						],
+						"description": "Form layout"
+					},
+					"submitUrl": {
+						"type": "string",
+						"description": "URL to submit the form to"
+					},
+					"submitMethod": {
+						"type": "string",
+						"enum": [
+							"POST",
+							"PUT"
+						],
+						"description": "HTTP method for form submission"
+					},
+					"fields": {
+						"type": "array",
+						"description": "Form fields",
+						"items": {
+							"type": "object",
+							"required": [
+								"name",
+								"type"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Field name (should match entity field)"
+								},
+								"label": {
+									"type": "string",
+									"description": "Field label"
+								},
+								"type": {
+									"type": "string",
+									"description": "Field type",
+									"enum": [
+										"text",
+										"textarea",
+										"number",
+										"email",
+										"password",
+										"select",
+										"multiselect",
+										"checkbox",
+										"radio",
+										"date",
+										"datetime",
+										"file",
+										"image",
+										"hidden",
+										"custom"
+									]
+								},
+								"placeholder": {
+									"type": "string",
+									"description": "Field placeholder"
+								},
+								"defaultValue": {
+									"description": "Default value"
+								},
+								"required": {
+									"type": "boolean",
+									"description": "Whether this field is required"
+								},
+								"disabled": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Whether this field is disabled (boolean or expression)"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"validation": {
+									"type": "array",
+									"description": "Validation rules",
+									"items": {
+										"type": "object",
+										"required": [
+											"type"
+										],
+										"properties": {
+											"type": {
+												"type": "string",
+												"description": "Validation rule type",
+												"enum": [
+													"required",
+													"minLength",
+													"maxLength",
+													"pattern",
+													"min",
+													"max",
+													"email",
+													"url",
+													"custom"
+												]
+											},
+											"message": {
+												"type": "string",
+												"description": "Error message"
+											},
+											"value": {
+												"description": "Validation parameter"
+											},
+											"expression": {
+												"type": "string",
+												"description": "Custom validation expression"
+											}
+										}
+									}
+								},
+								"options": {
+									"type": "array",
+									"description": "Options for select, multiselect, radio, checkbox",
+									"items": {
+										"type": "object",
+										"properties": {
+											"label": {
+												"type": "string",
+												"description": "Option label"
+											},
+											"value": {
+												"description": "Option value"
+											},
+											"disabled": {
+												"type": "boolean",
+												"description": "Whether this option is disabled"
+											}
+										}
+									}
+								},
+								"optionsUrl": {
+									"type": "string",
+									"description": "URL to fetch options from"
+								},
+								"dependencies": {
+									"type": "array",
+									"description": "Fields this field depends on",
+									"items": {
+										"type": "string"
+									}
+								},
+								"props": {
+									"type": "object",
+									"description": "Additional component props"
+								},
+								"width": {
+									"type": [
+										"string",
+										"integer"
+									],
+									"description": "Field width (percentage, columns, or CSS value)"
+								},
+								"help": {
+									"type": "string",
+									"description": "Help text"
+								}
+							}
+						}
+					},
+					"buttons": {
+						"type": "array",
+						"description": "Form buttons",
+						"items": {
+							"type": "object",
+							"required": [
+								"type"
+							],
+							"properties": {
+								"type": {
+									"type": "string",
+									"enum": [
+										"submit",
+										"reset",
+										"cancel",
+										"custom"
+									],
+									"description": "Button type"
+								},
+								"label": {
+									"type": "string",
+									"description": "Button label"
+								},
+								"icon": {
+									"type": "string",
+									"description": "Button icon"
+								},
+								"position": {
+									"type": "string",
+									"enum": [
+										"left",
+										"right",
+										"center"
+									],
+									"description": "Button position"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"handler": {
+									"type": "string",
+									"description": "Custom handler function or action name"
+								},
+								"props": {
+									"type": "object",
+									"description": "Additional button props"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"tables": {
+			"type": "array",
+			"description": "Table definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"entity"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Table name"
+					},
+					"entity": {
+						"type": "string",
+						"description": "Entity this table is bound to"
+					},
+					"description": {
+						"type": "string",
+						"description": "Table description"
+					},
+					"dataUrl": {
+						"type": "string",
+						"description": "URL to fetch data from"
+					},
+					"pagination": {
+						"type": "object",
+						"description": "Pagination configuration",
+						"properties": {
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether pagination is enabled"
+							},
+							"pageSize": {
+								"type": "integer",
+								"description": "Number of items per page"
+							},
+							"pageSizeOptions": {
+								"type": "array",
+								"description": "Available page size options",
+								"items": {
+									"type": "integer"
+								}
+							}
+						}
+					},
+					"columns": {
+						"type": "array",
+						"description": "Table columns",
+						"items": {
+							"type": "object",
+							"required": [
+								"name"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Column name (should match entity field)"
+								},
+								"label": {
+									"type": "string",
+									"description": "Column label"
+								},
+								"width": {
+									"type": [
+										"string",
+										"integer"
+									],
+									"description": "Column width"
+								},
+								"sortable": {
+									"type": "boolean",
+									"description": "Whether this column is sortable"
+								},
+								"filterable": {
+									"type": "boolean",
+									"description": "Whether this column is filterable"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"align": {
+									"type": "string",
+									"enum": [
+										"left",
+										"center",
+										"right"
+									],
+									"description": "Text alignment"
+								},
+								"format": {
+									"type": "object",
+									"description": "Column formatting options",
+									"properties": {
+										"type": {
+											"type": "string",
+											"enum": [
+												"text",
+												"number",
+												"currency",
+												"date",
+												"datetime",
+												"boolean",
+												"image",
+												"link",
+												"custom"
+											],
+											"description": "Format type"
+										},
+										"template": {
+											"type": "string",
+											"description": "Format template"
+										},
+										"params": {
+											"type": "object",
+											"description": "Format parameters"
+										}
+									}
+								},
+								"render": {
+									"type": "object",
+									"description": "Custom render component",
+									"properties": {
+										"component": {
+											"type": "string",
+											"description": "Component name or path"
+										},
+										"props": {
+											"type": "object",
+											"description": "Component props"
+										}
+									}
+								}
+							}
+						}
+					},
+					"actions": {
+						"type": "array",
+						"description": "Table row actions",
+						"items": {
+							"type": "object",
+							"required": [
+								"name"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Action name"
+								},
+								"label": {
+									"type": "string",
+									"description": "Action label"
+								},
+								"icon": {
+									"type": "string",
+									"description": "Action icon"
+								},
+								"handler": {
+									"type": "string",
+									"description": "Action handler function or action name"
+								},
+								"confirm": {
+									"type": [
+										"boolean",
+										"object"
+									],
+									"description": "Confirmation dialog configuration"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"props": {
+									"type": "object",
+									"description": "Additional action props"
+								}
+							}
+						}
+					},
+					"toolbarActions": {
+						"type": "array",
+						"description": "Table toolbar actions",
+						"items": {
+							"type": "object",
+							"required": [
+								"name"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Action name"
+								},
+								"label": {
+									"type": "string",
+									"description": "Action label"
+								},
+								"icon": {
+									"type": "string",
+									"description": "Action icon"
+								},
+								"handler": {
+									"type": "string",
+									"description": "Action handler function or action name"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								},
+								"props": {
+									"type": "object",
+									"description": "Additional action props"
+								}
+							}
+						}
+					},
+					"filters": {
+						"type": "array",
+						"description": "Table filters",
+						"items": {
+							"type": "object",
+							"required": [
+								"name"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Filter name (should match entity field)"
+								},
+								"label": {
+									"type": "string",
+									"description": "Filter label"
+								},
+								"type": {
+									"type": "string",
+									"description": "Filter type",
+									"enum": [
+										"text",
+										"number",
+										"date",
+										"select",
+										"multiselect",
+										"boolean",
+										"custom"
+									]
+								},
+								"operator": {
+									"type": "string",
+									"description": "Filter operator",
+									"enum": [
+										"eq",
+										"ne",
+										"gt",
+										"gte",
+										"lt",
+										"lte",
+										"contains",
+										"startsWith",
+										"endsWith",
+										"in",
+										"nin"
+									]
+								},
+								"options": {
+									"type": "array",
+									"description": "Filter options (for select and multiselect)",
+									"items": {
+										"type": "object",
+										"properties": {
+											"label": {
+												"type": "string",
+												"description": "Option label"
+											},
+											"value": {
+												"description": "Option value"
+											}
+										}
+									}
+								},
+								"defaultValue": {
+									"description": "Default value"
+								},
+								"visible": {
+									"type": [
+										"boolean",
+										"string"
+									],
+									"description": "Visibility condition (boolean or expression)"
+								}
+							}
+						}
+					},
+					"selection": {
+						"type": "object",
+						"description": "Selection configuration",
+						"properties": {
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether selection is enabled"
+							},
+							"mode": {
+								"type": "string",
+								"enum": [
+									"single",
+									"multiple"
+								],
+								"description": "Selection mode"
+							},
+							"actions": {
+								"type": "array",
+								"description": "Selection actions",
+								"items": {
+									"type": "object",
+									"required": [
+										"name"
+									],
+									"properties": {
+										"name": {
+											"type": "string",
+											"description": "Action name"
+										},
+										"label": {
+											"type": "string",
+											"description": "Action label"
+										},
+										"icon": {
+											"type": "string",
+											"description": "Action icon"
+										},
+										"handler": {
+											"type": "string",
+											"description": "Action handler function or action name"
+										},
+										"visible": {
+											"type": [
+												"boolean",
+												"string"
+											],
+											"description": "Visibility condition (boolean or expression)"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"navigation": {
+			"type": "object",
+			"description": "Navigation configuration",
+			"properties": {
+				"items": {
+					"type": "array",
+					"description": "Navigation items",
+					"items": {
+						"type": "object",
+						"required": [
+							"name"
+						],
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Item name"
+							},
+							"label": {
+								"type": "string",
+								"description": "Item label"
+							},
+							"path": {
+								"type": "string",
+								"description": "URL path"
+							},
+							"icon": {
+								"type": "string",
+								"description": "Icon name or path"
+							},
+							"permissions": {
+								"type": "array",
+								"description": "Required permissions to see this item",
+								"items": {
+									"type": "string"
+								}
+							},
+							"visible": {
+								"type": [
+									"boolean",
+									"string"
+								],
+								"description": "Visibility condition (boolean or expression)"
+							},
+							"items": {
+								"type": "array",
+								"description": "Submenu items",
+								"items": {
+									"type": "object"
+								}
+							},
+							"order": {
+								"type": "integer",
+								"description": "Item order"
+							},
+							"badge": {
+								"type": "object",
+								"description": "Badge configuration",
+								"properties": {
+									"text": {
+										"type": "string",
+										"description": "Badge text"
+									},
+									"type": {
+										"type": "string",
+										"description": "Badge type",
+										"enum": [
+											"primary",
+											"success",
+											"warning",
+											"danger",
+											"info"
+										]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"additionalProperties": false
+}

@@ -1,0 +1,619 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "Entity Configuration Schema",
+	"description": "Schema for entity definitions in YAML configuration",
+	"type": "object",
+	"required": [
+		"entity",
+		"table",
+		"idField",
+		"columns"
+	],
+	"properties": {
+		"entity": {
+			"type": "string",
+			"description": "Entity name in PascalCase"
+		},
+		"table": {
+			"type": "string",
+			"description": "Database table name"
+		},
+		"idField": {
+			"type": "string",
+			"description": "Primary key field name"
+		},
+		"columns": {
+			"type": "array",
+			"description": "Column definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"logical",
+					"physical"
+				],
+				"properties": {
+					"logical": {
+						"type": "string",
+						"description": "Logical column name (in code)"
+					},
+					"physical": {
+						"type": "string",
+						"description": "Physical column name (in database)"
+					},
+					"primaryKey": {
+						"type": "boolean",
+						"description": "Whether this is a primary key"
+					},
+					"autoIncrement": {
+						"type": "boolean",
+						"description": "Whether the column auto-increments"
+					},
+					"nullable": {
+						"type": "boolean",
+						"description": "Whether the column can be null"
+					},
+					"type": {
+						"type": "string",
+						"description": "Column data type",
+						"enum": [
+							"string",
+							"integer",
+							"number",
+							"boolean",
+							"date",
+							"datetime",
+							"time",
+							"timestamp",
+							"text",
+							"json",
+							"blob"
+						]
+					},
+					"unique": {
+						"type": "boolean",
+						"description": "Whether the column has a unique constraint"
+					},
+					"comment": {
+						"type": "string",
+						"description": "Column comment"
+					},
+					"foreignKey": {
+						"type": "string",
+						"description": "Foreign key reference (e.g. 'table.column')"
+					}
+				}
+			}
+		},
+		"relations": {
+			"type": "array",
+			"description": "Relationship definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"type",
+					"sourceEntity",
+					"targetEntity",
+					"sourceColumn",
+					"targetColumn"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Relation name"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"oneToOne",
+							"oneToMany",
+							"manyToOne",
+							"manyToMany"
+						],
+						"description": "Relation type"
+					},
+					"sourceEntity": {
+						"type": "string",
+						"description": "Source entity"
+					},
+					"targetEntity": {
+						"type": "string",
+						"description": "Target entity"
+					},
+					"sourceColumn": {
+						"type": "string",
+						"description": "Source column"
+					},
+					"targetColumn": {
+						"type": "string",
+						"description": "Target column"
+					},
+					"junctionTable": {
+						"type": "string",
+						"description": "For many-to-many, junction table"
+					},
+					"junctionSourceColumn": {
+						"type": "string",
+						"description": "For many-to-many, junction source column"
+					},
+					"junctionTargetColumn": {
+						"type": "string",
+						"description": "For many-to-many, junction target column"
+					},
+					"isOwner": {
+						"type": "boolean",
+						"description": "For one-to-one, whether this is the owner side"
+					},
+					"inverseName": {
+						"type": "string",
+						"description": "Inverse relation name"
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"type": {
+									"enum": [
+										"manyToMany"
+									]
+								}
+							}
+						},
+						"then": {
+							"required": [
+								"junctionTable",
+								"junctionSourceColumn",
+								"junctionTargetColumn"
+							]
+						}
+					}
+				]
+			}
+		},
+		"timestamps": {
+			"type": "object",
+			"description": "Timestamp column configuration",
+			"properties": {
+				"createdAt": {
+					"type": "string",
+					"description": "Created at column name"
+				},
+				"updatedAt": {
+					"type": "string",
+					"description": "Updated at column name"
+				},
+				"deletedAt": {
+					"type": "string",
+					"description": "Deleted at column name"
+				}
+			}
+		},
+		"softDelete": {
+			"type": "object",
+			"description": "Soft delete configuration",
+			"required": [
+				"column",
+				"deletedValue",
+				"nonDeletedValue"
+			],
+			"properties": {
+				"column": {
+					"type": "string",
+					"description": "Soft delete column name"
+				},
+				"deletedValue": {
+					"description": "Value indicating a deleted record"
+				},
+				"nonDeletedValue": {
+					"description": "Value indicating a non-deleted record"
+				}
+			}
+		},
+		"api": {
+			"type": "object",
+			"description": "API configuration",
+			"properties": {
+				"exposed": {
+					"type": "boolean",
+					"description": "Whether to expose entity via REST API"
+				},
+				"basePath": {
+					"type": "string",
+					"description": "Base path for the entity API"
+				},
+				"operations": {
+					"type": "object",
+					"description": "Enabled API operations",
+					"properties": {
+						"getAll": {
+							"type": "boolean"
+						},
+						"getById": {
+							"type": "boolean"
+						},
+						"create": {
+							"type": "boolean"
+						},
+						"update": {
+							"type": "boolean"
+						},
+						"delete": {
+							"type": "boolean"
+						}
+					}
+				},
+				"permissions": {
+					"type": "object",
+					"description": "Role-based permissions",
+					"properties": {
+						"getAll": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"getById": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"create": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"update": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"delete": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"fields": {
+					"type": "object",
+					"description": "Field-level permissions",
+					"additionalProperties": {
+						"type": "object",
+						"properties": {
+							"read": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"write": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				},
+				"recordAccess": {
+					"type": "object",
+					"description": "Record-level access control",
+					"required": [
+						"condition"
+					],
+					"properties": {
+						"condition": {
+							"type": "string",
+							"description": "Record-level access control condition"
+						}
+					}
+				}
+			}
+		},
+		"hooks": {
+			"type": "object",
+			"description": "Entity lifecycle hooks",
+			"properties": {
+				"beforeCreate": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before creating an entity"
+				},
+				"afterCreate": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after creating an entity"
+				},
+				"beforeUpdate": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before updating an entity"
+				},
+				"afterUpdate": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after updating an entity"
+				},
+				"beforeDelete": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before deleting an entity"
+				},
+				"afterDelete": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after deleting an entity"
+				},
+				"beforeGetById": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before retrieving a single entity"
+				},
+				"afterGetById": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after retrieving a single entity"
+				},
+				"beforeGetAll": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before retrieving multiple entities"
+				},
+				"afterGetAll": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after retrieving multiple entities"
+				}
+			}
+		},
+		"actions": {
+			"type": "array",
+			"description": "Custom entity actions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"path",
+					"method",
+					"implementation"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Action name"
+					},
+					"path": {
+						"type": "string",
+						"description": "HTTP path for the action"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST",
+							"PUT",
+							"DELETE",
+							"PATCH"
+						],
+						"description": "HTTP method"
+					},
+					"auth": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Authorized roles"
+					},
+					"implementation": {
+						"type": "string",
+						"description": "Action implementation"
+					}
+				}
+			}
+		},
+		"validation": {
+			"type": "object",
+			"description": "Validation rules",
+			"properties": {
+				"rules": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"type",
+								"message"
+							],
+							"properties": {
+								"type": {
+									"type": "string",
+									"enum": [
+										"required",
+										"minLength",
+										"maxLength",
+										"min",
+										"max",
+										"pattern",
+										"email",
+										"custom"
+									],
+									"description": "Rule type"
+								},
+								"value": {
+									"description": "Rule value (if applicable)"
+								},
+								"message": {
+									"type": "string",
+									"description": "Error message"
+								},
+								"implementation": {
+									"type": "string",
+									"description": "Custom implementation (for custom rules)"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"computed": {
+			"type": "array",
+			"description": "Computed properties",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"implementation"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Property name"
+					},
+					"dependencies": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Fields this property depends on"
+					},
+					"implementation": {
+						"type": "string",
+						"description": "Property implementation"
+					}
+				}
+			}
+		},
+		"workflows": {
+			"type": "array",
+			"description": "Workflow definitions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"states",
+					"transitions"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Workflow name"
+					},
+					"states": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"name"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "State name"
+								},
+								"initial": {
+									"type": "boolean",
+									"description": "Whether this is the initial state"
+								}
+							}
+						}
+					},
+					"transitions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"from",
+								"to",
+								"action"
+							],
+							"properties": {
+								"from": {
+									"type": "string",
+									"description": "Source state"
+								},
+								"to": {
+									"type": "string",
+									"description": "Target state"
+								},
+								"action": {
+									"type": "string",
+									"description": "Transition action name"
+								},
+								"permissions": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									},
+									"description": "Roles that can perform this transition"
+								},
+								"hooks": {
+									"type": "object",
+									"properties": {
+										"before": {
+											"type": "string",
+											"description": "Before transition hook"
+										},
+										"after": {
+											"type": "string",
+											"description": "After transition hook"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"definitions": {
+		"hook": {
+			"type": "object",
+			"required": [
+				"name",
+				"implementation"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Hook name"
+				},
+				"implementation": {
+					"type": "string",
+					"description": "Inline implementation or path to external file"
+				},
+				"condition": {
+					"type": "string",
+					"description": "Optional condition for hook execution"
+				}
+			}
+		}
+	}
+}
