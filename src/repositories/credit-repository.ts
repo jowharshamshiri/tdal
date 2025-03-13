@@ -515,62 +515,90 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		}
 	}
 
-
-	/**
-	 * Fix for CreditPackageRepository.findActive() method
-	 * Issue: boolean parameter handling
-	 */
+	// 1. Fix for CreditPackageRepository.findActive()
+	// Use the ORM's query builder instead of direct SQL
 	async findActive(): Promise<CreditPackage[]> {
-		// Using direct query with correct parameter type (1 instead of true)
-		return this.db.query<CreditPackage>(
-			`SELECT * FROM credit_packages WHERE active = 1 ORDER BY price`
-		);
+		// Create a query builder
+		const qb = this.createQueryBuilder();
+
+		// Select all fields from the credit packages table
+		qb.select(["*"]).from(this.tableName);
+
+		// Add the condition for active packages
+		// This will now use proper boolean conversion (1 instead of true)
+		qb.where({ field: "active", operator: "=", value: true });
+
+		// Add ordering by price
+		qb.orderBy("price");
+
+		// Execute the query
+		return qb.execute<CreditPackage>();
 	}
 
-	/**
-	 * Fix for UserCreditRepository.findForUser() method
-	 * Issue: Syntax error in WHERE clause with date expression
-	 */
-	async findForUser(
-		userId: number,
-		includeExpired = false
-	): Promise<UserCredit[]> {
-		let query = `
-	  SELECT uc.*, 
-	  (julianday(expiry_date) - julianday('now')) as days_remaining
-	  FROM user_credits uc
-	  WHERE uc.user_id = ?
-	`;
+	// 2. Fix for UserCreditRepository.findForUser()
+	// Use the enhanced query builder date functions
+	async findForUser(userId: number, includeExpired = false): Promise<UserCredit[]> {
+		// Create a query builder
+		const qb = this.createQueryBuilder();
 
-		// Add expiry filter if needed
+		// Select all fields
+		qb.select(["*"]);
+
+		// Add days remaining calculation
+		// Using the query builder's date expression capabilities
+		const dateFunctions = this.db.getDateFunctions();
+		qb.selectExpression(
+			dateFunctions.dateDiff("expiry_date", dateFunctions.currentDateTime(), "day"),
+			"days_remaining"
+		);
+
+		// Filter by user ID using parameter binding
+		qb.where("user_id = ?", userId);
+
+		// Filter out expired credits if requested
 		if (!includeExpired) {
-			query += ` AND uc.expiry_date >= datetime('now')`;
+			// Use the whereDateExpression method for date conditions
+			qb.andWhereDateExpression(`expiry_date >= ${dateFunctions.currentDateTime()}`);
 		}
 
-		// Add ordering
-		query += ` ORDER BY uc.expiry_date`;
+		// Order by expiry date
+		qb.orderBy("expiry_date");
 
-		return this.db.query<UserCredit>(query, userId);
+		// Execute the query
+		return qb.execute<UserCredit>();
 	}
 
-	/**
-	 * Fix for UserCreditRepository.getExpiringCredits() method
-	 * Issue: Syntax error in WHERE clause with date expression and calculations
-	 */
-	async getExpiringCredits(
-		userId: number,
-		daysThreshold: number
-	): Promise<UserCredit[]> {
-		const query = `
-	  SELECT uc.*, 
-	  (julianday(expiry_date) - julianday('now')) as days_remaining
-	  FROM user_credits uc
-	  WHERE uc.user_id = ?
-	  AND uc.expiry_date >= datetime('now')
-	  AND (julianday(expiry_date) - julianday('now')) <= ?
-	  ORDER BY uc.expiry_date
-	`;
+	// 3. Fix for UserCreditRepository.getExpiringCredits()
+	// Use the enhanced query builder date functions
+	async getExpiringCredits(userId: number, daysThreshold: number): Promise<UserCredit[]> {
+		// Create a query builder
+		const qb = this.createQueryBuilder();
 
-		return this.db.query<UserCredit>(query, userId, daysThreshold);
+		// Select all fields
+		qb.select(["*"]);
+
+		// Add days remaining calculation
+		const dateFunctions = this.db.getDateFunctions();
+		qb.selectExpression(
+			dateFunctions.dateDiff("expiry_date", dateFunctions.currentDateTime(), "day"),
+			"days_remaining"
+		);
+
+		// Filter by user ID
+		qb.where("user_id = ?", userId);
+
+		// Filter out expired credits
+		qb.andWhereDateExpression(`expiry_date >= ${dateFunctions.currentDateTime()}`);
+
+		// Add condition for credits expiring within threshold
+		// Use parameterized query for the threshold value
+		const daysDiffExpr = dateFunctions.dateDiff("expiry_date", dateFunctions.currentDateTime(), "day");
+		qb.andWhereDateExpression(`${daysDiffExpr} <= ?`, daysThreshold);
+
+		// Order by expiry date (soonest first)
+		qb.orderBy("expiry_date");
+
+		// Execute the query
+		return qb.execute<UserCredit>();
 	}
 }

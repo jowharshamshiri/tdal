@@ -737,68 +737,6 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 	}
 
 	/**
-	 * Improved selectExpression method
-	 * Better handling of SQL expressions to avoid parameter binding issues
-	 */
-	selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder {
-		// Detect complex expressions that should not be parameterized
-		const isComplexExpression =
-			expression.toUpperCase().includes('CASE WHEN') ||
-			expression.includes('SELECT ') ||
-			expression.includes('(SELECT ') ||
-			expression.includes('SUM(') ||
-			expression.includes('COUNT(') ||
-			expression.includes('AVG(') ||
-			expression.includes('MAX(') ||
-			expression.includes('MIN(') ||
-			expression.includes('julianday(') ||
-			expression.includes('datetime(');
-
-		if (isComplexExpression) {
-			// Use selectRaw to avoid parameter binding for complex expressions
-			this.selectRaw(`${expression} AS ${alias}`);
-		} else {
-			// For simpler expressions, use parameter binding
-			this.selectRaw(`${expression} AS ${alias}`, ...params);
-		}
-		return this;
-	}
-
-	/**
-	 * Improved whereDateColumn method
-	 * Better handles date expressions in WHERE clauses
-	 */
-	whereDateColumn(column: string, operator: ConditionOperator, value: Date | string): QueryBuilder {
-		const isDateFunction = column.includes('datetime(') || column.includes('julianday(');
-
-		// If the column includes date functions, handle it differently
-		if (isDateFunction) {
-			return this.whereExpression(`${column} ${operator} ?`, value);
-		}
-
-		const dateValue = value instanceof Date ? value.toISOString() : value;
-		return this.where(`${column} ${operator} ?`, dateValue);
-	}
-
-	/**
-	 * New method for SQL expressions with date functions
-	 * Handles common date operations in a database-agnostic way
-	 */
-	whereDateExpression(expression: string, ...params: unknown[]): QueryBuilder {
-		// Mark the query as having date expressions to handle parameter binding correctly
-		(this as any).hasDateExpressions = true;
-
-		if (this.whereConditions.length === 0) {
-			this.whereConditions.push(`(${expression})`);
-		} else {
-			this.whereConditions.push(`AND (${expression})`);
-		}
-
-		this.queryParams.push(...params);
-		return this;
-	}
-
-	/**
 	 * Helper to create CASE expressions
 	 * Generates the correct SQL for CASE WHEN statements
 	 */
@@ -839,32 +777,158 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 		return `(${subquerySql})`;
 	}
 
+	// 1. Add a method for working with date expressions
 	/**
-	 * Enhanced execute method to handle complex queries correctly
+	 * Add a WHERE condition with a date expression
+	 * This properly handles date functions in SQLite
+	 * @param expression Date expression
+	 * @param params Optional parameters
+	 * @returns Query builder instance
+	 */
+	whereDateExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		// Mark the query as having date expressions for special handling
+		(this as any).hasDateExpressions = true;
+
+		if (this.whereConditions.length === 0) {
+			this.whereConditions.push(`(${expression})`);
+		} else {
+			this.whereConditions.push(`AND (${expression})`);
+		}
+
+		this.queryParams.push(...params);
+		return this;
+	}
+
+	/**
+	 * Add an OR WHERE condition with a date expression
+	 * @param expression Date expression
+	 * @param params Optional parameters
+	 * @returns Query builder instance
+	 */
+	orWhereDateExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		// Mark the query as having date expressions
+		(this as any).hasDateExpressions = true;
+
+		if (this.whereConditions.length === 0) {
+			this.whereConditions.push(`(${expression})`);
+		} else {
+			this.whereConditions.push(`OR (${expression})`);
+		}
+
+		this.queryParams.push(...params);
+		return this;
+	}
+
+	/**
+	 * Enhanced whereDateColumn method
+	 * Better handles date expressions in WHERE clauses
+	 * @param column Column name
+	 * @param operator Comparison operator
+	 * @param value Date value
+	 * @returns Query builder instance
+	 */
+	whereDateColumn(column: string, operator: ConditionOperator, value: Date | string): QueryBuilder {
+		const isDateFunction = column.includes('datetime(') || column.includes('julianday(');
+
+		// If the column includes date functions, handle it differently
+		if (isDateFunction) {
+			return this.whereExpression(`${column} ${operator} ?`, value);
+		}
+
+		const dateValue = value instanceof Date ? value.toISOString() : value;
+		return this.where(`${column} ${operator} ?`, dateValue);
+	}
+
+	/**
+	 * Enhanced selectExpression method
+	 * Better handling of date expressions in SELECT
+	 * @param expression SQL expression
+	 * @param alias Column alias
+	 * @param params Optional parameters
+	 * @returns Query builder instance
+	 */
+	selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder {
+		// Detect date expressions that shouldn't be parameterized
+		const isDateExpression =
+			expression.includes('datetime(') ||
+			expression.includes('julianday(') ||
+			expression.includes('date(');
+
+		if (isDateExpression) {
+			// Use selectRaw for date expressions to avoid parameter binding issues
+			this.selectRaw(`${expression} AS ${alias}`);
+		} else {
+			// For normal expressions, use parameter binding
+			this.selectRaw(`${expression} AS ${alias}`, ...params);
+		}
+
+		return this;
+	}
+
+	/**
+	 * Create a date difference expression
+	 * Generates SQL for calculating difference between dates
+	 * @param date1 First date column or expression
+	 * @param date2 Second date column or expression 
+	 * @param unit Unit of measurement (day, month, year)
+	 * @returns SQL expression string
+	 */
+	createDateDiffExpression(date1: string, date2: string, unit: 'day' | 'month' | 'year'): string {
+		const dateFunctions = this.adapter.getDateFunctions();
+		return dateFunctions.dateDiff(date1, date2, unit);
+	}
+
+	/**
+	 * Enhanced execute method
+	 * Special handling for queries with date expressions
 	 */
 	async execute<T>(): Promise<T[]> {
-		// Check if we have complex expressions that require special handling
-		const hasComplexExpressions =
+		// Check if we have date expressions that require special handling
+		const hasDateExpressions =
 			(this as any).hasDateExpressions ||
 			this.selectFields.some(field =>
-				field.includes('CASE WHEN') ||
-				field.includes('SELECT') ||
-				field.includes('SUM(') ||
 				field.includes('datetime(') ||
-				field.includes('julianday(')
+				field.includes('julianday(') ||
+				field.includes('date(')
+			) ||
+			this.whereConditions.some(condition =>
+				condition.includes('datetime(') ||
+				condition.includes('julianday(') ||
+				condition.includes('date(')
 			);
 
 		const query = this.getQuery();
 		const params = this.getParameters();
 
-		if (hasComplexExpressions) {
-			// For complex queries, use the raw query method
+		if (hasDateExpressions) {
+			// For queries with date expressions, use the direct query method
 			return this.adapter.query<T>(query, ...params);
 		} else {
-			// For standard queries, use the normal execute path
+			// For standard queries, use the normal path
 			return this.adapter.query<T>(query, ...params);
 		}
 	}
+
+	/**
+	 * Add an AND WHERE condition with a date expression
+	 * @param expression Date expression
+	 * @param params Optional parameters
+	 * @returns Query builder instance
+	 */
+	andWhereDateExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		// Mark the query as having date expressions
+		(this as any).hasDateExpressions = true;
+
+		if (this.whereConditions.length === 0) {
+			this.whereConditions.push(`(${expression})`);
+		} else {
+			this.whereConditions.push(`AND (${expression})`);
+		}
+
+		this.queryParams.push(...params);
+		return this;
+	}
+
 }
 
 /**

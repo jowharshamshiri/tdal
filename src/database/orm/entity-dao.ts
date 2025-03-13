@@ -94,29 +94,6 @@ export abstract class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Find entities by conditions
-	 * @param conditions Field-value pairs to filter by
-	 * @param options Optional query options
-	 * @returns Array of entities
-	 */
-	async findBy(conditions: Partial<T>, options?: QueryOptions): Promise<T[]> {
-		const physicalConditions = mapRecordToPhysical(
-			this.entityMapping,
-			conditions as unknown as Record<string, unknown>
-		);
-
-		const queryOptions = this.enhanceQueryOptions(options);
-
-		const results = await this.db.findBy<Record<string, unknown>>(
-			this.tableName,
-			physicalConditions,
-			queryOptions
-		);
-
-		return results.map((result) => this.mapToEntity(result) as T);
-	}
-
-	/**
 	 * Find a single entity by conditions
 	 * @param conditions Field-value pairs to filter by
 	 * @param options Optional find options
@@ -771,52 +748,6 @@ export abstract class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Convert entity values to database-specific values
-	 * @param data Entity data
-	 * @returns Converted data with database-specific types
-	 */
-	private convertToDbValues(data: Partial<T>): Record<string, unknown> {
-		const result: Record<string, unknown> = {};
-
-		// Find boolean columns
-		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
-		const booleanColumnNames = booleanColumns.map(col => col.logical);
-
-		for (const [key, value] of Object.entries(data)) {
-			if (booleanColumnNames.includes(key) && typeof value === "boolean") {
-				// Convert boolean to 0/1 for SQLite compatibility
-				result[key] = value ? 1 : 0;
-			} else {
-				result[key] = value;
-			}
-		}
-
-		return result;
-	}
-
-	/**
-	 * Convert database values to entity values
-	 * @param data Database data
-	 * @returns Converted data with entity-specific types
-	 */
-	private convertToEntityValues(data: Record<string, unknown>): Record<string, unknown> {
-		const result: Record<string, unknown> = { ...data };
-
-		// Find boolean columns
-		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
-		const booleanColumnNames = booleanColumns.map(col => col.logical);
-
-		for (const col of booleanColumnNames) {
-			if (col in result) {
-				const value = result[col];
-				result[col] = value === 1 || value === "1" || value === true;
-			}
-		}
-
-		return result;
-	}
-
-	/**
 	 * Apply timestamps to an entity
 	 * @param data Entity data
 	 * @param operation Operation type (create or update)
@@ -855,16 +786,6 @@ export abstract class EntityDao<T, IdType = number> {
 				] = now;
 			}
 		}
-	}
-
-	/**
-	 * Map a database record to an entity
-	 * @param record Database record with physical column names
-	 * @returns Entity with logical column names
-	 */
-	protected mapToEntity(record: Record<string, unknown>): unknown {
-		const logicalRecord = mapRecordToLogical(this.entityMapping, record);
-		return this.convertToEntityValues(logicalRecord);
 	}
 
 	/**
@@ -1249,5 +1170,130 @@ export abstract class EntityDao<T, IdType = number> {
 		};
 
 		return qb;
+	}
+
+	/**
+ * Improvements to EntityDao for better type handling
+ */
+
+	/**
+	 * Convert entity values to database-specific values
+	 * Improved to handle booleans and dates properly
+	 * @param data Entity data
+	 * @returns Converted data with database-specific types
+	 */
+	private convertToDbValues(data: Partial<T>): Record<string, unknown> {
+		const result: Record<string, unknown> = {};
+
+		// Find boolean columns
+		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
+		const booleanColumnNames = booleanColumns.map(col => col.logical);
+
+		// Find date columns
+		const dateColumns = getColumnsByType(this.entityMapping, ["date", "datetime", "timestamp"]);
+		const dateColumnNames = dateColumns.map(col => col.logical);
+
+		for (const [key, value] of Object.entries(data)) {
+			if (booleanColumnNames.includes(key) && typeof value === "boolean") {
+				// Convert boolean to 0/1 for SQLite compatibility
+				result[key] = value ? 1 : 0;
+			} else if (dateColumnNames.includes(key) && value instanceof Date) {
+				// Convert Date objects to ISO strings
+				result[key] = value.toISOString();
+			} else if (value === undefined) {
+				// Handle undefined values (convert to null)
+				result[key] = null;
+			} else {
+				result[key] = value;
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Convert database values to entity values
+	 * @param data Database data
+	 * @returns Converted data with entity-specific types
+	 */
+	private convertToEntityValues(data: Record<string, unknown>): Record<string, unknown> {
+		const result: Record<string, unknown> = { ...data };
+
+		// Find boolean columns
+		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
+		const booleanColumnNames = booleanColumns.map(col => col.logical);
+
+		// Find date columns
+		const dateColumns = getColumnsByType(this.entityMapping, ["date", "datetime", "timestamp"]);
+		const dateColumnNames = dateColumns.map(col => col.logical);
+
+		for (const col of booleanColumnNames) {
+			if (col in result) {
+				const value = result[col];
+				// Convert 0/1 or string "0"/"1" to boolean
+				result[col] = value === 1 || value === "1" || value === true;
+			}
+		}
+
+		for (const col of dateColumnNames) {
+			if (col in result && result[col] !== null && typeof result[col] === 'string') {
+				try {
+					// Try to convert string to Date object
+					result[col] = new Date(result[col] as string);
+				} catch (e) {
+					// If conversion fails, keep as string
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Enhanced findBy method with better type handling
+	 * @param conditions Field-value pairs to filter by
+	 * @param options Optional query options
+	 * @returns Array of entities
+	 */
+	async findBy(conditions: Partial<T>, options?: QueryOptions): Promise<T[]> {
+		// Convert boolean conditions to 0/1 for SQLite
+		const convertedConditions: Record<string, unknown> = {};
+
+		// Find boolean columns
+		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
+		const booleanColumnNames = booleanColumns.map(col => col.logical);
+
+		for (const [key, value] of Object.entries(conditions)) {
+			if (booleanColumnNames.includes(key) && typeof value === "boolean") {
+				convertedConditions[key] = value ? 1 : 0;
+			} else {
+				convertedConditions[key] = value;
+			}
+		}
+
+		const physicalConditions = mapRecordToPhysical(
+			this.entityMapping,
+			convertedConditions as Record<string, unknown>
+		);
+
+		const queryOptions = this.enhanceQueryOptions(options);
+
+		const results = await this.db.findBy<Record<string, unknown>>(
+			this.tableName,
+			physicalConditions,
+			queryOptions
+		);
+
+		return results.map((result) => this.mapToEntity(result) as T);
+	}
+
+	/**
+	 * Enhanced mapToEntity with better type conversion
+	 * @param record Database record with physical column names
+	 * @returns Entity with logical column names and correct types
+	 */
+	protected mapToEntity(record: Record<string, unknown>): unknown {
+		const logicalRecord = mapRecordToLogical(this.entityMapping, record);
+		return this.convertToEntityValues(logicalRecord);
 	}
 }

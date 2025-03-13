@@ -276,19 +276,6 @@ export class SQLiteAdapter
 		}
 	}
 
-
-	private processParams(params: unknown[]): unknown[] {
-		return params.map(param => {
-			if (typeof param === 'boolean') {
-				return param ? 1 : 0;
-			} else if (param === undefined) {
-				return null;
-			} else {
-				return param;
-			}
-		});
-	}
-
 	/**
 	 * Create a query builder instance
 	 * @returns Query builder instance
@@ -753,6 +740,7 @@ export class SQLiteAdapter
 		query: string,
 		...params: unknown[]
 	): Promise<T | undefined> {
+		console.log(query, params);
 		this.ensureConnection();
 
 		if (this.config.debug) {
@@ -786,92 +774,6 @@ export class SQLiteAdapter
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * Execute a non-query SQL statement with improved parameter handling
-	 * @param query SQL statement
-	 * @param params Statement parameters
-	 * @returns Query result information
-	 */
-	async execute(query: string, ...params: unknown[]): Promise<DbQueryResult> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Execute] ${query}`, params);
-		}
-
-		if (this.dbInstance) {
-			// Process params to ensure they are compatible with SQLite
-			const processedParams = this.processParams(params);
-
-			try {
-				// Only spread parameters if there are any to avoid "too many parameters" error
-				let result;
-				if (processedParams.length > 0) {
-					result = this.dbInstance.prepare(query).run(...processedParams);
-				} else {
-					result = this.dbInstance.prepare(query).run();
-				}
-
-				return {
-					lastInsertRowid:
-						typeof result.lastInsertRowid === "bigint"
-							? Number(result.lastInsertRowid)
-							: (result.lastInsertRowid as number),
-					changes: result.changes,
-				};
-			} catch (error) {
-				this.logDebug(`[SQLite Error] ${error}`);
-				throw error;
-			}
-		}
-
-		return { changes: 0 };
-	}
-
-
-	// Improvements to SQLiteAdapter for better handling of raw SQL expressions
-
-	/**
-	 * Improved query method for better parameter handling
-	 */
-	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
-		this.ensureConnection();
-
-		if (this.config.debug) {
-			this.logDebug(`[SQLite Query] ${query}`, params);
-		}
-
-		if (!this.dbInstance) {
-			return [];
-		}
-
-		try {
-			// Check if the query has complex expressions like CASE statements
-			const hasComplexExpressions = query.includes('CASE WHEN') ||
-				query.includes('SELECT ') ||
-				query.includes('datetime(') ||
-				query.includes('julianday(');
-
-			if (hasComplexExpressions) {
-				// For complex queries, handle as raw SQL to avoid over-parameterization
-				// This ensures the SQL engine handles the expressions correctly
-				return this.dbInstance.prepare(query).all(...params) as T[];
-			} else {
-				// For simple queries, process parameters safely
-				const sanitizedParams = this.sanitizeParameters(params);
-
-				if (sanitizedParams.length > 0) {
-					return this.dbInstance.prepare(query).all(...sanitizedParams) as T[];
-				} else {
-					return this.dbInstance.prepare(query).all() as T[];
-				}
-			}
-		} catch (error) {
-			this.logDebug(`[SQLite Error] ${error}`);
-			throw error;
-		}
 	}
 
 	/**
@@ -919,6 +821,100 @@ export class SQLiteAdapter
 			}
 		} catch (error) {
 			this.logDebug(`[SQLite Execute Script Error] ${error}`);
+			throw error;
+		}
+	}
+
+
+	/**
+ * Improvements to SQLiteAdapter for better type handling and date expressions
+ */
+
+	// 1. Enhanced parameter processing for SQLite
+	private processParams(params: unknown[]): unknown[] {
+		return params.map(param => {
+			if (typeof param === 'boolean') {
+				// Convert boolean values to 0/1 for SQLite
+				return param ? 1 : 0;
+			} else if (param === undefined) {
+				// Convert undefined to null (SQLite doesn't understand undefined)
+				return null;
+			} else if (param instanceof Date) {
+				// Convert dates to ISO strings
+				return param.toISOString();
+			} else {
+				return param;
+			}
+		});
+	}
+
+	// 2. Improved query method with better type and date handling
+	async query<T>(query: string, ...params: unknown[]): Promise<T[]> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Query] ${query}`, params);
+		}
+
+		if (!this.dbInstance) {
+			return [];
+		}
+
+		try {
+			// Process the parameters to handle types correctly
+			const processedParams = this.processParams(params);
+
+			// Check if query has complex date expressions
+			const hasDateExpressions = query.includes('datetime(') ||
+				query.includes('julianday(') ||
+				query.includes('date(');
+
+			// For queries with date functions, use a more direct approach
+			if (hasDateExpressions && processedParams.length > 0) {
+				// Execute with processed parameters
+				return this.dbInstance.prepare(query).all(...processedParams) as T[];
+			} else if (processedParams.length > 0) {
+				// For normal queries, use the processed parameters
+				return this.dbInstance.prepare(query).all(...processedParams) as T[];
+			} else {
+				// For queries without parameters
+				return this.dbInstance.prepare(query).all() as T[];
+			}
+		} catch (error) {
+			this.logDebug(`[SQLite Error] ${error}`);
+			throw error;
+		}
+	}
+
+	// 3. Enhanced execute method for better type handling
+	async execute(query: string, ...params: unknown[]): Promise<DbQueryResult> {
+		this.ensureConnection();
+
+		if (this.config.debug) {
+			this.logDebug(`[SQLite Execute] ${query}`, params);
+		}
+
+		if (!this.dbInstance) {
+			return { changes: 0 };
+		}
+
+		try {
+			// Process the parameters to handle types correctly
+			const processedParams = this.processParams(params);
+
+			// Execute the query with processed parameters
+			const result = processedParams.length > 0
+				? this.dbInstance.prepare(query).run(...processedParams)
+				: this.dbInstance.prepare(query).run();
+
+			return {
+				lastInsertRowid: typeof result.lastInsertRowid === "bigint"
+					? Number(result.lastInsertRowid)
+					: (result.lastInsertRowid as number),
+				changes: result.changes,
+			};
+		} catch (error) {
+			this.logDebug(`[SQLite Error] ${error}`);
 			throw error;
 		}
 	}
