@@ -256,7 +256,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 		cardIndex: number,
 		viewTime: number
 	): Promise<boolean> {
-		return this.transaction(async (db) => {
+		return this.db.transaction(async (db) => {
 			try {
 				// Get the view record to find the session ID and product ID
 				const viewRecord = await db.findById<ProductViewRecord>(
@@ -271,10 +271,15 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 
 				// Update the view record with end time and view time
 				const now = new Date().toISOString();
-				await db.update("product_view_record", "record_id", viewId, {
-					view_end: now,
-					view_time: viewTime,
-				});
+				await db.update(
+					"product_view_record",
+					"record_id",
+					viewId,
+					{
+						view_end: now,
+						view_time: viewTime,
+					}
+				);
 
 				// Get the session to update stats
 				const session = await db.findById<ProductShoppingSession>(
