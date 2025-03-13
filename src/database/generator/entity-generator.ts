@@ -72,24 +72,24 @@ export class EntityRegistry {
 		return EntityRegistry.instance;
 	}
 
-	public registerEntity(name, entityClass, mapping) {
+	public registerEntity(name: string, entityClass: any, mapping: any) {
 		this.entities.set(name, entityClass);
 		this.mappings.set(name, mapping);
 	}
 
-	public registerRepository(name, repositoryClass) {
+	public registerRepository(name: string, repositoryClass: any) {
 		this.repositories.set(name, repositoryClass);
 	}
 
-	public getEntity(name) {
+	public getEntity(name: string) {
 		return this.entities.get(name);
 	}
 
-	public getRepository(name) {
+	public getRepository(name: string) {
 		return this.repositories.get(name);
 	}
 
-	public getMapping(name) {
+	public getMapping(name: string) {
 		return this.mappings.get(name);
 	}
 
@@ -423,7 +423,7 @@ export class ${entity}Repository extends EntityDao<${entity}> {
 	/**
 	 * Create repository instances at runtime
 	 */
-	public async createRepositoryInstances(db): Promise<Record<string, any>> {
+	public async createRepositoryInstances(db: any): Promise<Record<string, any>> {
 		const entities = this.loadEntityMetadata();
 		const repositories: Record<string, any> = {};
 
@@ -455,7 +455,7 @@ export class ${entity}Repository extends EntityDao<${entity}> {
 /**
  * Factory function to get a repository instance
  */
-export async function getRepository(entityName, db) {
+export async function getRepository(entityName: string, db: any) {
 	const registry = EntityRegistry.getInstance();
 	const repo = registry.getRepository(entityName);
 
