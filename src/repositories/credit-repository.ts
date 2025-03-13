@@ -16,9 +16,10 @@ import {
 import { DateExpressions } from "../database/orm/date-functions";
 import { EntityQueryBuilder } from "../database/query/entity-query-builder";
 import { Relation, ManyToOneRelation } from "../database/orm/relation-types";
+import { DatabaseAdapter } from "@/database";
 
 /**
- * Convert string type relations to proper Relation objects for UserCredit
+ * Convert string type relations to proper Relation objects
  */
 const typedUserCreditMapping = {
   ...UserCreditMapping,
@@ -67,11 +68,9 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
    * @returns Array of active credit packages
    */
   async findActive(): Promise<CreditPackage[]> {
-    // Use a direct raw SQL query with the literal value 1 in the query
-    // This avoids the boolean parameter binding issue completely
-    return this.db.query<CreditPackage>(
-      "SELECT * FROM credit_packages WHERE active = 1 ORDER BY price"
-    );
+    return this.findBy({ active: true } as unknown as Partial<CreditPackage>, {
+      orderBy: [{ field: "price" }]
+    });
   }
 
   /**
@@ -99,22 +98,10 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
   async createPackage(
     packageData: Omit<CreditPackage, "package_id" | "created_at" | "updated_at">
   ): Promise<number> {
-    // First create a clean copy of the data
+    // Create a clean copy of the data
     const cleanData = { ...packageData };
 
-    // Convert boolean active to number if needed, but don't modify the type
-    if (typeof cleanData.active === "boolean") {
-      // Use type assertion to handle the type mismatch
-      // SQLite stores booleans as 0/1, but our type system expects boolean
-      const data = {
-        ...cleanData,
-        active: cleanData.active ? 1 : 0,
-      } as unknown as Partial<CreditPackage>;
-
-      return this.create(data);
-    }
-
-    // If not a boolean, just pass through as is
+    // Let the ORM handle the boolean conversion
     return this.create(cleanData);
   }
 
@@ -144,10 +131,10 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
    */
   async deactivatePackage(packageId: number): Promise<boolean> {
     try {
-      // Use 0 instead of boolean false (SQLite compatibility)
       const result = await this.update(packageId, {
-        active: 0,
+        active: false
       } as unknown as Partial<CreditPackage>);
+      
       return result > 0;
     } catch (error) {
       console.error("Error deactivating credit package:", error);
@@ -175,25 +162,23 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
     userId: number,
     includeExpired = false
   ): Promise<UserCredit[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
     // Select all fields
     qb.select(["*"]);
 
-    // Add days remaining calculation using database-agnostic date functions
-    const daysDiff = DateExpressions.dateDiff(
-      "expiry_date",
-      DateExpressions.currentDateTime(),
-      "day"
+    // Add days remaining calculation
+    qb.selectExpression(
+      DateExpressions.dateDiff("expiry_date", DateExpressions.currentDateTime(), "day"),
+      "days_remaining"
     );
-    qb.selectRaw(`${daysDiff} as days_remaining`);
 
     // Filter by user ID
-    qb.where("user_id = ?", userId);
+    qb.whereColumn("user_id", "=", userId);
 
     // Filter out expired credits if requested
     if (!includeExpired) {
-      qb.andWhere(`expiry_date >= ${DateExpressions.currentDateTime()}`);
+      qb.whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime());
     }
 
     // Order by expiry date (soonest first)
@@ -208,19 +193,17 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
    * @returns Available credit balance
    */
   async getBalance(userId: number): Promise<number> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const result = await this.aggregate({
+      aggregates: [
+        { function: "SUM", field: "amount", alias: "balance" }
+      ],
+      conditions: {
+        user_id: userId
+      },
+      having: `expiry_date >= ${DateExpressions.currentDateTime()}`
+    });
 
-    // Sum available credits
-    qb.selectRaw("COALESCE(SUM(amount), 0) as balance");
-
-    // Filter by user ID
-    qb.where("user_id = ?", userId);
-
-    // Only include non-expired credits
-    qb.andWhere(`expiry_date >= ${DateExpressions.currentDateTime()}`);
-
-    const result = await qb.getOne<{ balance: number }>();
-    return result?.balance || 0;
+    return result[0]?.balance as number || 0;
   }
 
   /**
@@ -265,27 +248,28 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
     userId: number,
     daysThreshold: number
   ): Promise<UserCredit[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
     // Select all fields
     qb.select(["*"]);
 
     // Add days remaining calculation
-    const daysDiff = DateExpressions.dateDiff(
-      "expiry_date",
-      DateExpressions.currentDateTime(),
-      "day"
+    qb.selectExpression(
+      DateExpressions.dateDiff("expiry_date", DateExpressions.currentDateTime(), "day"),
+      "days_remaining"
     );
-    qb.selectRaw(`${daysDiff} as days_remaining`);
 
     // Filter by user ID
-    qb.where("user_id = ?", userId);
+    qb.whereColumn("user_id", "=", userId);
 
     // Filter to only include non-expired credits
-    qb.andWhere(`expiry_date >= ${DateExpressions.currentDateTime()}`);
+    qb.whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime());
 
     // Add condition for credits expiring soon
-    qb.andWhere(`${daysDiff} <= ?`, daysThreshold);
+    qb.whereExpression(
+      `${DateExpressions.dateDiff("expiry_date", DateExpressions.currentDateTime(), "day")} <= ?`,
+      daysThreshold
+    );
 
     // Order by expiry date (soonest first)
     qb.orderBy("expiry_date");
@@ -301,18 +285,15 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
   async getTotalsBySource(
     userId: number
   ): Promise<Record<CreditSource, number>> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
-
-    // Group credits by source and sum the amounts
-    qb.select(["source", "SUM(amount) as total"]);
-
-    // Filter by user ID
-    qb.where("user_id = ?", userId);
-
-    // Group by source
-    qb.groupBy(["source"]);
-
-    const results = await qb.execute<{ source: CreditSource; total: number }>();
+    const results = await this.aggregate({
+      aggregates: [
+        { function: "SUM", field: "amount", alias: "total" }
+      ],
+      groupBy: ["source"],
+      conditions: {
+        user_id: userId
+      }
+    }) as { source: CreditSource; total: number }[];
 
     // Convert to record object
     const totals: Record<CreditSource, number> = {
@@ -406,10 +387,10 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
     paymentIntentId: string,
     validityDays = 365
   ): Promise<boolean> {
-    return this.db.transaction(async (db) => {
+    return this.transaction(async (dao: this) => {
       try {
         // Get transaction data
-        const txDao = new PaymentTransactionRepository(db);
+        const txDao = new PaymentTransactionRepository(this.db);
         const transaction = await txDao.findById(transactionId);
 
         if (!transaction) {
@@ -420,7 +401,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
         await txDao.updateStatus(transactionId, "completed", paymentIntentId);
 
         // Add credits to user
-        const creditDao = new UserCreditRepository(db);
+        const creditDao = new UserCreditRepository(this.db);
         await creditDao.addCredits(
           transaction.user_id,
           transaction.credit_amount,
@@ -468,32 +449,10 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
    * @returns Array of active credit packages
    */
   async findActive(): Promise<CreditPackage[]> {
-    try {
-      // Use direct query builder instead of findBy to avoid type issues
-      const qb = this.db.createQueryBuilder();
-      qb.select(["*"])
-        .from("credit_packages")
-        .where("active = ?", 1) // Use 1 instead of true
-        .orderBy("price");
-
-      return qb.execute<CreditPackage>();
-    } catch (error) {
-      console.error(`Error finding active packages: ${error}`);
-      return [];
-    }
-  }
-
-  async deactivatePackage(packageId: number): Promise<boolean> {
-    try {
-      // Use 0 instead of boolean false (SQLite compatibility)
-      const result = await this.update(packageId, {
-        active: 0,
-      } as unknown as Partial<CreditPackage>);
-      return result > 0;
-    } catch (error) {
-      console.error("Error deactivating credit package:", error);
-      return false;
-    }
+    // Use findBy with active = true
+    return this.db.findBy<CreditPackage>("credit_packages", { active: 1 }, {
+      orderBy: [{ field: "price" }]
+    });
   }
 
   /**
@@ -503,14 +462,14 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
    */
   async findForUser(userId: number): Promise<PaymentTransaction[]> {
     try {
-      const qb = this.db.createQueryBuilder();
+      const qb = this.createQueryBuilder();
 
       // Select transaction fields and add package name
       qb.select(["t.*"])
         .from(this.tableName, "t")
         .leftJoin("credit_packages", "p", "t.package_id = p.package_id")
         .selectRaw("p.name as package_name")
-        .where("t.user_id = ?", userId)
+        .whereColumn("t.user_id", "=", userId)
         .orderBy("t.transaction_date", "DESC");
 
       return qb.execute<PaymentTransaction>();
@@ -535,62 +494,44 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
     totalCredits: number;
   }> {
     try {
-      // Get total
-      const totalQb = this.db.createQueryBuilder();
-      totalQb.select("COUNT(*) as count").from(this.tableName);
-
-      if (userId) {
-        totalQb.where("user_id = ?", userId);
-      }
-
-      const totalResult = await totalQb.getOne<{ count: number }>();
+      // Get total count
+      const totalCount = userId 
+        ? await this.count({ user_id: userId })
+        : await this.count();
 
       // Get counts by status
-      const statuses = ["completed", "pending", "failed", "refunded"];
       const statusCounts: Record<string, number> = {};
+      const statuses = ["completed", "pending", "failed", "refunded"];
 
       for (const status of statuses) {
-        const statusQb = this.db.createQueryBuilder();
-        statusQb
-          .select("COUNT(*) as count")
-          .from(this.tableName)
-          .where("status = ?", status);
-
-        if (userId) {
-          statusQb.andWhere("user_id = ?", userId);
-        }
-
-        const result = await statusQb.getOne<{ count: number }>();
-        statusCounts[status] = result?.count || 0;
+        const conditions = userId 
+          ? { status, user_id: userId }
+          : { status };
+          
+        statusCounts[status] = await this.count(conditions as Partial<PaymentTransaction>);
       }
 
-      // Get total amount and credits
-      const amountQb = this.db.createQueryBuilder();
-      amountQb
-        .select([
-          "SUM(amount) as total_amount",
-          "SUM(credit_amount) as total_credits",
-        ])
-        .from(this.tableName)
-        .where("status = ?", "completed");
-
-      if (userId) {
-        amountQb.andWhere("user_id = ?", userId);
-      }
-
-      const amountResult = await amountQb.getOne<{
-        total_amount: number;
-        total_credits: number;
-      }>();
+      // Get total amount and credits for completed transactions
+      const completedConditions = userId 
+        ? { status: "completed", user_id: userId }
+        : { status: "completed" };
+        
+      const aggregateResults = await this.aggregate({
+        aggregates: [
+          { function: "SUM", field: "amount", alias: "total_amount" },
+          { function: "SUM", field: "credit_amount", alias: "total_credits" }
+        ],
+        conditions: completedConditions
+      });
 
       return {
-        total: totalResult?.count || 0,
+        total: totalCount,
         completed: statusCounts.completed,
         failed: statusCounts.failed,
         pending: statusCounts.pending,
         refunded: statusCounts.refunded,
-        totalAmount: amountResult?.total_amount || 0,
-        totalCredits: amountResult?.total_credits || 0,
+        totalAmount: aggregateResults[0]?.total_amount as number || 0,
+        totalCredits: aggregateResults[0]?.total_credits as number || 0,
       };
     } catch (error) {
       console.error(`Error getting transaction stats: ${error}`);

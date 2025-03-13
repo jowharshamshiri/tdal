@@ -1,3 +1,4 @@
+// src/database/core/types.ts
 /**
  * Core database types
  * Defines the interfaces and types for database operations
@@ -19,6 +20,36 @@ export interface DbQueryResult {
    */
   changes?: number;
 }
+
+/**
+ * Transaction isolation levels
+ */
+export enum TransactionIsolationLevel {
+  /**
+   * Read uncommitted isolation level
+   */
+  READ_UNCOMMITTED = "READ UNCOMMITTED",
+
+  /**
+   * Read committed isolation level
+   */
+  READ_COMMITTED = "READ COMMITTED",
+
+  /**
+   * Repeatable read isolation level
+   */
+  REPEATABLE_READ = "REPEATABLE READ",
+
+  /**
+   * Serializable isolation level
+   */
+  SERIALIZABLE = "SERIALIZABLE"
+}
+
+/**
+ * Aggregate function types
+ */
+export type AggregateFunction = "COUNT" | "SUM" | "AVG" | "MIN" | "MAX";
 
 /**
  * Options for joining tables in queries
@@ -48,6 +79,41 @@ export interface JoinOptions {
    * Optional parameters for parameterized join conditions
    */
   params?: unknown[];
+  
+  /**
+   * Nested join specification
+   */
+  nestedJoin?: JoinOptions;
+}
+
+/**
+ * Options for find operations
+ */
+export interface FindOptions {
+  /**
+   * Fields to select (if not specified, selects all fields)
+   */
+  fields?: string[];
+  
+  /**
+   * Relations to include
+   */
+  relations?: RelationOptions[];
+}
+
+/**
+ * Options for update operations
+ */
+export interface UpdateOptions {
+  /**
+   * Maximum number of rows to update
+   */
+  limit?: number;
+  
+  /**
+   * Return updated data
+   */
+  returning?: boolean;
 }
 
 /**
@@ -103,6 +169,66 @@ export interface QueryOptions {
    * Raw parameters for the having clause
    */
   havingParams?: unknown[];
+  
+  /**
+   * Relations to include
+   */
+  relations?: RelationOptions[];
+}
+
+/**
+ * Options for relational queries
+ */
+export interface RelationOptions {
+  /**
+   * Name of the relation
+   */
+  name: string;
+  
+  /**
+   * Type of join to use
+   */
+  type: 'inner' | 'left';
+  
+  /**
+   * Target entity mapping
+   */
+  mapping: {
+    table: string;
+    idField: string;
+    entity: string;
+    columns: any[];
+  };
+  
+  /**
+   * Source field for the join
+   */
+  sourceField?: string;
+  
+  /**
+   * Target field for the join
+   */
+  targetField?: string;
+  
+  /**
+   * Custom join condition
+   */
+  joinCondition?: string;
+  
+  /**
+   * Parameters for the join condition
+   */
+  joinParams?: unknown[];
+  
+  /**
+   * Alias for the joined table
+   */
+  alias?: string;
+  
+  /**
+   * Nested relations to include
+   */
+  nestedRelations?: RelationOptions[];
 }
 
 /**
@@ -113,6 +239,84 @@ export interface DeleteOptions {
    * Maximum number of rows to delete
    */
   limit?: number;
+}
+
+/**
+ * Options for aggregate operations
+ */
+export interface AggregateOptions {
+  /**
+   * Aggregate functions to apply
+   */
+  aggregates: Array<{
+    /**
+     * Aggregate function to apply
+     */
+    function: AggregateFunction;
+    
+    /**
+     * Field to aggregate
+     */
+    field: string;
+    
+    /**
+     * Alias for the result
+     */
+    alias: string;
+    
+    /**
+     * Whether to use DISTINCT
+     */
+    distinct?: boolean;
+  }>;
+  
+  /**
+   * Fields to group by
+   */
+  groupBy?: string[];
+  
+  /**
+   * Conditions to filter by
+   */
+  conditions?: Record<string, unknown>;
+  
+  /**
+   * Order by clauses
+   */
+  orderBy?: Array<{
+    field: string;
+    direction?: "ASC" | "DESC";
+  }>;
+  
+  /**
+   * Having clause for filtering grouped results
+   */
+  having?: string;
+  
+  /**
+   * Parameters for the having clause
+   */
+  havingParams?: unknown[];
+  
+  /**
+   * Maximum number of rows to return
+   */
+  limit?: number;
+  
+  /**
+   * Number of rows to skip
+   */
+  offset?: number;
+  
+  /**
+   * Joins to include
+   */
+  joins?: JoinOptions[];
+  
+  /**
+   * Source table name (if not the default entity table)
+   */
+  from?: string;
 }
 
 /**
@@ -166,6 +370,11 @@ export interface QueryBuilder {
    * Set a raw SQL expression to select
    */
   selectRaw(expression: string, ...params: unknown[]): QueryBuilder;
+  
+  /**
+   * Select a calculated expression and assign it an alias
+   */
+  selectExpression(expression: string, alias: string, ...params: unknown[]): QueryBuilder;
 
   /**
    * Set the table to query from
@@ -191,6 +400,50 @@ export interface QueryBuilder {
   orWhere(
     condition: WhereCondition | string,
     ...params: unknown[]
+  ): QueryBuilder;
+  
+  /**
+   * Add a WHERE condition on a specific column
+   */
+  whereColumn(
+    column: string,
+    operator: ConditionOperator,
+    value: unknown
+  ): QueryBuilder;
+  
+  /**
+   * Add a WHERE condition on a date column
+   */
+  whereDateColumn(
+    column: string,
+    operator: ConditionOperator,
+    value: Date | string
+  ): QueryBuilder;
+  
+  /**
+   * Add a WHERE condition with a raw expression
+   */
+  whereExpression(
+    expression: string,
+    ...params: unknown[]
+  ): QueryBuilder;
+  
+  /**
+   * Add a LIKE condition with wildcards
+   */
+  whereLike(
+    column: string,
+    value: string,
+    position?: "start" | "end" | "both" | "none"
+  ): QueryBuilder;
+  
+  /**
+   * Add an OR LIKE condition with wildcards
+   */
+  orWhereLike(
+    column: string,
+    value: string,
+    position?: "start" | "end" | "both" | "none"
   ): QueryBuilder;
 
   /**
@@ -258,6 +511,16 @@ export interface QueryBuilder {
    * Set the OFFSET clause
    */
   offset(offset: number): QueryBuilder;
+  
+  /**
+   * Calculate an aggregate value
+   */
+  aggregate(
+    func: AggregateFunction,
+    field: string,
+    alias: string,
+    distinct?: boolean
+  ): Promise<any[]>;
 
   /**
    * Get the generated SQL query
@@ -347,7 +610,7 @@ export interface DatabaseAdapter {
   /**
    * Begin a transaction
    */
-  beginTransaction(): Promise<void>;
+  beginTransaction(isolationLevel?: TransactionIsolationLevel): Promise<void>;
 
   /**
    * Commit a transaction
@@ -362,7 +625,10 @@ export interface DatabaseAdapter {
   /**
    * Execute a function within a transaction
    */
-  transaction<T>(callback: (db: DatabaseAdapter) => Promise<T>): Promise<T>;
+  transaction<T>(
+    callback: (db: DatabaseAdapter) => Promise<T>,
+    isolationLevel?: TransactionIsolationLevel
+  ): Promise<T>;
 
   /**
    * Execute a query that returns multiple rows
@@ -385,12 +651,13 @@ export interface DatabaseAdapter {
   executeScript(sql: string): Promise<void>;
 
   /**
-   * Find a record by its ID
+   * Find a record by ID
    */
   findById<T>(
     tableName: string,
     idField: string,
-    id: number | string
+    id: number | string,
+    options?: FindOptions
   ): Promise<T | undefined>;
 
   /**
@@ -412,7 +679,8 @@ export interface DatabaseAdapter {
    */
   findOneBy<T>(
     tableName: string,
-    conditions: Record<string, unknown>
+    conditions: Record<string, unknown>,
+    options?: FindOptions
   ): Promise<T | undefined>;
 
   /**
@@ -427,6 +695,11 @@ export interface DatabaseAdapter {
    * Insert a record
    */
   insert<T>(tableName: string, data: Partial<T>): Promise<number>;
+  
+  /**
+   * Bulk insert multiple records
+   */
+  bulkInsert<T>(tableName: string, data: Partial<T>[]): Promise<number>;
 
   /**
    * Update a record by ID
@@ -435,7 +708,8 @@ export interface DatabaseAdapter {
     tableName: string,
     idField: string,
     id: number | string,
-    data: Partial<T>
+    data: Partial<T>,
+    options?: UpdateOptions
   ): Promise<number>;
 
   /**
@@ -444,7 +718,8 @@ export interface DatabaseAdapter {
   updateBy<T>(
     tableName: string,
     conditions: Record<string, unknown>,
-    data: Partial<T>
+    data: Partial<T>,
+    options?: UpdateOptions
   ): Promise<number>;
 
   /**
@@ -483,6 +758,22 @@ export interface DatabaseAdapter {
     joins: JoinOptions[],
     conditions: Record<string, unknown>
   ): Promise<T | undefined>;
+  
+  /**
+   * Check if a record exists
+   */
+  exists(
+    tableName: string,
+    conditions: Record<string, unknown>
+  ): Promise<boolean>;
+  
+  /**
+   * Calculate an aggregate value
+   */
+  aggregate<T>(
+    tableName: string,
+    options: AggregateOptions
+  ): Promise<T[]>;
 
   /**
    * Create a query builder instance

@@ -8,7 +8,8 @@ import {
 	QueryBuilder, 
 	DatabaseAdapter,
 	JoinOptions,
-	AggregateFunction 
+	AggregateFunction, 
+	WhereCondition
   } from "../core/types";
   import { 
 	EntityMapping, 
@@ -308,6 +309,15 @@ import {
    * Define an abstract base class for entity query builders
    */
   export abstract class EntityQueryBuilderBase implements EntityQueryBuilder {
+	whereExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		throw new Error("Method not implemented.");
+	}
+	orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): QueryBuilder {
+		throw new Error("Method not implemented.");
+	}
+	aggregate(func: AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]> {
+		throw new Error("Method not implemented.");
+	}
 	/**
 	 * Get the entity mapping
 	 */
@@ -474,6 +484,15 @@ import {
 	  protected mapping: EntityMapping,
 	  protected adapter: DatabaseAdapter
 	) {}
+	  whereExpression(expression: string, ...params: unknown[]): QueryBuilder {
+		  throw new Error("Method not implemented.");
+	  }
+	  orWhereLike(column: string, value: string, position?: "start" | "end" | "both" | "none"): QueryBuilder {
+		  throw new Error("Method not implemented.");
+	  }
+	  aggregate(func: AggregateFunction, field: string, alias: string, distinct?: boolean): Promise<any[]> {
+		  throw new Error("Method not implemented.");
+	  }
   
 	/**
 	 * Get the entity mapping
@@ -525,23 +544,23 @@ import {
 	  return this;
 	}
   
-	where(condition: string | unknown, ...params: unknown[]): QueryBuilder {
+	where(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
 	  this.queryBuilder.where(condition, ...params);
 	  return this;
 	}
   
-	andWhere(condition: string | unknown, ...params: unknown[]): QueryBuilder {
+	andWhere(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
 	  this.queryBuilder.andWhere(condition, ...params);
 	  return this;
 	}
   
-	orWhere(condition: string | unknown, ...params: unknown[]): QueryBuilder {
+	orWhere(condition: string | WhereCondition, ...params: unknown[]): QueryBuilder {
 	  this.queryBuilder.orWhere(condition, ...params);
 	  return this;
 	}
   
 	join(
-	  type: string,
+	  type: "INNER" | "LEFT" | "RIGHT",
 	  table: string,
 	  alias: string,
 	  condition: string,
@@ -581,7 +600,7 @@ import {
 	  return this;
 	}
   
-	orderBy(field: string, direction?: string): QueryBuilder {
+	orderBy(field: string, direction?: "ASC" | "DESC"): QueryBuilder {
 	  this.queryBuilder.orderBy(field, direction);
 	  return this;
 	}

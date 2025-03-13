@@ -9,7 +9,6 @@ import {
   ProductCategoryWithMeta,
   ProductCategoryDetail,
   ProductCategoryMapping,
-  ProductCategoryProductMapping,
 } from "../models";
 import { Product } from "../models/product";
 import { EntityQueryBuilder } from "../database/query/entity-query-builder";
@@ -114,38 +113,41 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
    * @returns Array of categories with metadata
    */
   async findAllWithMeta(): Promise<ProductCategoryWithMeta[]> {
-    // Use query builder for this complex query
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
-
-    // Select all category fields, add table alias
+    // Use the aggregate method to get counts for the different metrics we need
+    const qb = this.createQueryBuilder();
+    
+    // Start with selecting all category fields
     qb.select(["c.*"]).from(this.tableName, "c");
-
-    // Join with parent categories
+    
+    // Left join with parent categories for parent name
     qb.leftJoin("categories", "p", "c.parent_id = p.category_id");
     qb.selectRaw("p.category_name as parent_name");
-
-    // Get child count using subquery
-    const childCountQb = this.db.createQueryBuilder();
-    childCountQb
-      .select("COUNT(*)")
-      .from("categories", "c2")
-      .where("c2.parent_id = c.category_id");
-
-    qb.selectRaw(`(${childCountQb.toSql()}) as child_count`);
-
-    // Get direct product count using subquery
-    const productCountQb = this.db.createQueryBuilder();
-    productCountQb
-      .select("COUNT(*)")
-      .from("category_product", "cf")
-      .where("cf.category_id = c.category_id");
-
-    qb.selectRaw(`(${productCountQb.toSql()}) as direct_product_count`);
-
+    
+    // Get child count using a relation-based approach
+    qb.selectExpression(
+      "(SELECT COUNT(*) FROM categories c2 WHERE c2.parent_id = c.category_id)",
+      "child_count"
+    );
+    
+    // Get direct product count
+    qb.selectExpression(
+      "(SELECT COUNT(*) FROM category_product cp WHERE cp.category_id = c.category_id)",
+      "direct_product_count"
+    );
+    
+    // Get total product count (direct + descendants) - this would be better done in application code
+    // but we're keeping it here for consistency
+    qb.selectExpression(
+      "(SELECT COUNT(DISTINCT cp.product_id) FROM category_product cp " +
+      "INNER JOIN categories c_tree ON c_tree.category_id = cp.category_id " +
+      "WHERE c_tree.category_id = c.category_id OR c_tree.parent_id = c.category_id)",
+      "total_product_count"
+    );
+    
     // Order by name
     qb.orderBy("c.category_name");
-
-    // Execute query
+    
+    // Execute the query to get the results
     return qb.execute<ProductCategoryWithMeta>();
   }
 
@@ -155,21 +157,22 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
    * @returns Array of matching categories
    */
   async searchByName(searchTerm: string): Promise<ProductCategory[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
-
-    // Select all fields with table alias
+    // Use the enhanced query builder through EntityDao
+    const qb = this.createQueryBuilder();
+    
+    // Select all fields
     qb.select(["c.*"]).from(this.tableName, "c");
-
+    
     // Join with parent category for parent name
     qb.leftJoin("categories", "p", "c.parent_id = p.category_id");
     qb.selectRaw("p.category_name as parent_name");
-
-    // Search by name
-    qb.where(`c.category_name LIKE ?`, `%${searchTerm}%`);
-
+    
+    // Use whereLike for search
+    qb.whereLike("c.category_name", searchTerm, "both");
+    
     // Order by name
     qb.orderBy("c.category_name");
-
+    
     return qb.execute<ProductCategory>();
   }
 
@@ -217,36 +220,21 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
         }
       );
 
-      // Simplified approach to count descendants
-      const descendantCountQb = this.db.createQueryBuilder();
-      descendantCountQb
-        .select("COUNT(*) as count")
-        .from("categories")
-        .where(
-          "parent_id = ? OR parent_id IN (SELECT category_id FROM categories WHERE parent_id = ?)",
-          productCategoryId,
-          productCategoryId
-        );
+      // Get products using findRelated
+      const products = await this.findRelated<Product>(
+        productCategoryId,
+        "products"
+      );
 
-      const descendantCountResult = await descendantCountQb.getOne<{
-        count: number;
-      }>();
-
-      // Get products directly using query builder instead of findRelated
-      const productsQb = this.db.createQueryBuilder();
-      productsQb
-        .select(["f.*"])
-        .from("products", "f")
-        .innerJoin("category_product", "cf", "f.product_id = cf.product_id")
-        .where("cf.category_id = ?", productCategoryId);
-
-      const products = await productsQb.execute<Product>();
+      // Get descendant count
+      const descendants = await this.findByParentId(productCategoryId);
+      const descendantCount = descendants.length;
 
       return {
         ...category,
         parent,
         children,
-        descendant_count: descendantCountResult?.count || 0,
+        descendant_count: descendantCount,
         products,
       };
     } catch (error) {
@@ -272,30 +260,8 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
         throw new Error("ProductCategory not found");
       }
 
-      // Then check if the relationship already exists
-      const existingQb = this.db.createQueryBuilder();
-      existingQb
-        .select("COUNT(*) as count")
-        .from("category_product")
-        .where(
-          "category_id = ? AND product_id = ?",
-          productCategoryId,
-          productId
-        );
-
-      const existingResult = await existingQb.getOne<{ count: number }>();
-
-      if (existingResult && existingResult.count > 0) {
-        // Already exists, return success
-        return true;
-      }
-
-      await this.db.insert("category_product", {
-        category_id: productCategoryId,
-        product_id: productId,
-      });
-
-      return true;
+      // Add the relation
+      return this.addRelation(productCategoryId, "products", productId);
     } catch (error) {
       console.error("Error adding product to category:", error);
       return false;
@@ -313,13 +279,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
     productId: number
   ): Promise<boolean> {
     try {
-      const result = await this.db.execute(
-        "DELETE FROM category_product WHERE category_id = ? AND product_id = ?",
-        productCategoryId,
-        productId
-      );
-
-      return result.changes ? result.changes > 0 : false;
+      return this.removeRelation(productCategoryId, "products", productId);
     } catch (error) {
       console.error("Error removing product from category:", error);
       return false;
@@ -335,34 +295,34 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
     productCategoryId: number
   ): Promise<{ direct: number; total: number }> {
     try {
-      // Direct count
-      const directCountQb = this.db.createQueryBuilder();
-      directCountQb
-        .select("COUNT(*) as count")
-        .from("category_product")
-        .where("category_id = ?", productCategoryId);
-
-      const directResult = await directCountQb.getOne<{ count: number }>();
-      const directCount = directResult?.count || 0;
-
-      // Total count (simplified approach)
-      const totalCountQb = this.db.createQueryBuilder();
-      totalCountQb
-        .select("COUNT(*) as count")
-        .from("category_product", "cf")
-        .where(
-          "cf.category_id = ? OR cf.category_id IN (SELECT category_id FROM categories WHERE parent_id = ?)",
-          productCategoryId,
-          productCategoryId
-        );
-
-      const totalResult = await totalCountQb.getOne<{ count: number }>();
-      const totalCount = totalResult?.count || 0;
-
-      return {
-        direct: directCount,
-        total: totalCount,
-      };
+      // Get direct count
+      const directCountResult = await this.aggregate({
+        aggregates: [
+          { function: "COUNT", field: "product_id", alias: "count" }
+        ],
+        conditions: { category_id: productCategoryId },
+        from: "category_product"
+      });
+      
+      const directCount = directCountResult[0]?.count as number || 0;
+      
+      // Get children categories recursively
+      const children = await this.findByParentId(productCategoryId);
+      let childrenIds = children.map(c => c.category_id);
+      
+      // If there are no children, total count is the same as direct count
+      if (childrenIds.length === 0) {
+        return { direct: directCount, total: directCount };
+      }
+      
+      // Calculate total count by summing direct count and counts from all children
+      let totalCount = directCount;
+      for (const childId of childrenIds) {
+        const childCounts = await this.getProductCounts(childId);
+        totalCount += childCounts.direct;
+      }
+      
+      return { direct: directCount, total: totalCount };
     } catch (error) {
       console.error(`Error getting product counts: ${error}`);
       return { direct: 0, total: 0 };

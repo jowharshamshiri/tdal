@@ -12,6 +12,14 @@ import {
   DateFunctions,
   QueryBuilder,
   JoinOptions,
+  AggregateFunction,
+  AggregateOptions,
+  TransactionIsolationLevel,
+  FindOptions,
+  QueryOptions,
+  UpdateOptions,
+  DeleteOptions,
+  RelationOptions
 } from "../core/types";
 import { DbConnection, SQLiteConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
@@ -239,8 +247,9 @@ export class SQLiteAdapter
 
   /**
    * Begin a transaction
+   * @param isolationLevel Transaction isolation level (ignored in SQLite)
    */
-  async beginTransaction(): Promise<void> {
+  async beginTransaction(isolationLevel?: TransactionIsolationLevel): Promise<void> {
     this.ensureConnection();
     if (this.dbInstance) {
       this.dbInstance.prepare("BEGIN TRANSACTION").run();
@@ -331,16 +340,76 @@ export class SQLiteAdapter
   }
 
   /**
-   * Create a SQLite-specific query builder
+   * Create a query builder instance
    * @returns Query builder instance
    */
   createQueryBuilder(): QueryBuilder {
-    return new SQLiteQueryBuilder(this);
+    const builder = new SQLiteQueryBuilder(this);
+    
+    // Add the missing methods to the SQLiteQueryBuilder to satisfy interface
+    (builder as any).selectExpression = (expression: string, alias: string, ...params: unknown[]) => {
+      builder.selectRaw(`${expression} AS ${alias}`, ...params);
+      return builder;
+    };
+    
+    (builder as any).whereColumn = (column: string, operator: string, value: unknown) => {
+      return builder.where({ field: column, operator, value });
+    };
+    
+    (builder as any).whereDateColumn = (column: string, operator: string, value: Date | string) => {
+      const dateValue = value instanceof Date ? value.toISOString() : value;
+      return builder.where(`${column} ${operator} ?`, dateValue);
+    };
+    
+    (builder as any).whereExpression = (expression: string, ...params: unknown[]) => {
+      return builder.where(expression, ...params);
+    };
+    
+    (builder as any).whereLike = (column: string, value: string, position: string = "both") => {
+      let pattern: string;
+      switch (position) {
+        case "start": pattern = `%${value}`; break;
+        case "end": pattern = `${value}%`; break;
+        case "both": pattern = `%${value}%`; break;
+        case "none": pattern = value; break;
+        default: pattern = `%${value}%`;
+      }
+      return builder.where(`${column} LIKE ?`, pattern);
+    };
+    
+    (builder as any).orWhereLike = (column: string, value: string, position: string = "both") => {
+      let pattern: string;
+      switch (position) {
+        case "start": pattern = `%${value}`; break;
+        case "end": pattern = `${value}%`; break;
+        case "both": pattern = `%${value}%`; break;
+        case "none": pattern = value; break;
+        default: pattern = `%${value}%`;
+      }
+      return builder.orWhere(`${column} LIKE ?`, pattern);
+    };
+    
+    (builder as any).aggregate = async (
+      func: AggregateFunction,
+      field: string,
+      alias: string,
+      distinct: boolean = false
+    ) => {
+      const prevSelect = [...builder.getSelect()];
+      const expression = distinct ? `${func}(DISTINCT ${field})` : `${func}(${field})`;
+      builder.select([`${expression} AS ${alias}`]);
+      const result = await builder.execute();
+      // Restore the previous select
+      builder.getSelect().length = 0;
+      prevSelect.forEach(sel => builder.getSelect().push(sel));
+      return result;
+    };
+    
+    return builder;
   }
 
   /**
    * Get database-specific date functions
-   * @returns Date functions
    */
   getDateFunctions(): DateFunctions {
     return this.dateFunctions;
@@ -486,68 +555,224 @@ export class SQLiteAdapter
    * @param tableName Table name
    * @param idField ID field name
    * @param id ID value
+   * @param options Additional find options
    * @returns Record or undefined if not found
    */
   async findById<T>(
     tableName: string,
     idField: string,
-    id: number | string
-  ): Promise<T | undefined> {
-    const query = `SELECT * FROM "${tableName}" WHERE "${idField}" = ?`;
-    return this.querySingle<T>(query, id);
-  }
-
-  /**
-   * Update a record by ID
-   * @param tableName Table name
-   * @param idField ID field name
-   * @param id ID value
-   * @param data Update data
-   * @returns Number of affected rows
-   */
-  async update<T>(
-    tableName: string,
-    idField: string,
     id: number | string,
-    data: Partial<T>
-  ): Promise<number> {
-    const keys = Object.keys(data);
-    if (keys.length === 0) return 0;
-
-    const values = Object.values(data);
-    const setClause = keys.map((key) => `"${key}" = ?`).join(", ");
-
-    const query = `UPDATE "${tableName}" SET ${setClause} WHERE "${idField}" = ?`;
-
-    try {
-      const result = await this.execute(query, ...values, id);
-      return result.changes || 0;
-    } catch (error) {
-      this.logDebug(`[SQLite Update Error] ${error}`);
-      throw error;
+    options?: FindOptions
+  ): Promise<T | undefined> {
+    const qb = this.createQueryBuilder();
+    
+    // Select all fields unless specific fields are requested
+    if (options?.fields && options.fields.length > 0) {
+      qb.select(options.fields);
+    } else {
+      qb.select(["*"]);
     }
+    
+    // Add the base table
+    qb.from(tableName);
+    
+    // Add ID condition
+    qb.where(`${idField} = ?`, id);
+    
+    // Convert string relation names to relation options if needed
+    const relationOptions: RelationOptions[] = [];
+    
+    if (options?.relations && options.relations.length > 0) {
+      // Handle both RelationOptions[] and string[] cases
+      if (typeof options.relations[0] === 'string') {
+        // Convert string relation names to default relation options
+        for (const relationName of options.relations as unknown as string[]) {
+          relationOptions.push({
+            name: relationName,
+            type: 'left',
+            mapping: {
+              table: '', // Will be filled by applyRelations
+              idField: '',
+              entity: '',
+              columns: []
+            }
+          });
+        }
+        this.applyRelations(qb, tableName, relationOptions);
+      } else {
+        this.applyRelations(qb, tableName, options.relations as RelationOptions[]);
+      }
+    }
+    
+    return qb.getOne<T>();
   }
 
   /**
-   * Delete a record by ID
+   * Find all records
    * @param tableName Table name
-   * @param idField ID field name
-   * @param id ID value
-   * @returns Number of affected rows
+   * @param options Query options
+   * @returns Array of records
    */
-  async delete(
-    tableName: string,
-    idField: string,
-    id: number | string
-  ): Promise<number> {
-    const query = `DELETE FROM "${tableName}" WHERE "${idField}" = ?`;
+  async findAll<T>(tableName: string, options?: QueryOptions): Promise<T[]> {
+    const qb = this.createQueryBuilder();
 
-    try {
-      const result = await this.execute(query, id);
-      return result.changes || 0;
-    } catch (error) {
-      this.logDebug(`[SQLite Delete Error] ${error}`);
-      throw error;
+    // Add fields if specified, otherwise select all
+    if (options?.fields && options.fields.length > 0) {
+      qb.select(options.fields);
+    } else {
+      qb.select(["*"]);
     }
+
+    qb.from(tableName);
+
+    // Add joins if specified
+    if (options?.joins && options.joins.length > 0) {
+      this.applyJoins(qb, options.joins);
+    }
+    
+    // Convert string relation names to relation options if needed
+    const relationOptions: RelationOptions[] = [];
+    
+    if (options?.relations && options.relations.length > 0) {
+      // Handle both RelationOptions[] and string[] cases
+      if (typeof options.relations[0] === 'string') {
+        // Convert string relation names to default relation options
+        for (const relationName of options.relations as unknown as string[]) {
+          relationOptions.push({
+            name: relationName,
+            type: 'left',
+            mapping: {
+              table: '', // Will be filled by applyRelations
+              idField: '',
+              entity: '',
+              columns: []
+            }
+          });
+        }
+        this.applyRelations(qb, tableName, relationOptions);
+      } else {
+        this.applyRelations(qb, tableName, options.relations as RelationOptions[]);
+      }
+    }
+
+    // Add order by if specified
+    if (options?.orderBy && options.orderBy.length > 0) {
+      for (const order of options.orderBy) {
+        qb.orderBy(order.field, order.direction as "ASC" | "DESC");
+      }
+    }
+
+    // Add group by if specified
+    if (options?.groupBy && options.groupBy.length > 0) {
+      qb.groupBy(options.groupBy);
+    }
+
+    // Add having if specified
+    if (options?.having) {
+      qb.having(options.having, ...(options.havingParams || []));
+    }
+
+    // Add limit and offset if specified
+    if (options?.limit !== undefined) {
+      qb.limit(options.limit);
+
+      if (options?.offset !== undefined) {
+        qb.offset(options.offset);
+      }
+    }
+
+    return qb.execute<T>();
+  }
+  
+  /**
+   * Perform an aggregate operation
+   * @param tableName Table name
+   * @param options Aggregate options
+   * @returns Aggregate results
+   */
+  async aggregate<T>(tableName: string, options: AggregateOptions): Promise<T[]> {
+    const qb = this.createQueryBuilder();
+    
+    // Start with an empty selection
+    const selects: string[] = [];
+    
+    // Add group by fields to select
+    if (options.groupBy && options.groupBy.length > 0) {
+      selects.push(...options.groupBy);
+    }
+    
+    // Add aggregate expressions
+    for (const agg of options.aggregates) {
+      // Create the expression based on function and field
+      let expr: string;
+      const fn = agg.function;
+      const field = agg.field === '*' ? '*' : `"${agg.field}"`;
+      
+      if (agg.distinct && field !== '*') {
+        expr = `${fn}(DISTINCT ${field})`;
+      } else {
+        expr = `${fn}(${field})`;
+      }
+      
+      // Add alias if provided
+      if (agg.alias) {
+        expr += ` AS "${agg.alias}"`;
+      }
+      
+      selects.push(expr);
+    }
+    
+    // Set the select fields
+    qb.select(selects);
+    
+    // Set the base table
+    qb.from(options.from || tableName);
+    
+    // Add conditions if provided
+    if (options.conditions) {
+      for (const [key, value] of Object.entries(options.conditions)) {
+        if (value === null) {
+          qb.where(`${key} IS NULL`);
+        } else if (Array.isArray(value)) {
+          const placeholders = value.map(() => '?').join(', ');
+          qb.where(`${key} IN (${placeholders})`, ...value);
+        } else {
+          qb.where(`${key} = ?`, value);
+        }
+      }
+    }
+    
+    // Add joins if specified
+    if (options.joins && options.joins.length > 0) {
+      this.applyJoins(qb, options.joins);
+    }
+    
+    // Add group by
+    if (options.groupBy && options.groupBy.length > 0) {
+      qb.groupBy(options.groupBy);
+    }
+    
+    // Add having
+    if (options.having) {
+      qb.having(options.having, ...(options.havingParams || []));
+    }
+    
+    // Add order by
+    if (options.orderBy && options.orderBy.length > 0) {
+      for (const order of options.orderBy) {
+        qb.orderBy(order.field, order.direction as "ASC" | "DESC");
+      }
+    }
+    
+    // Add limit and offset
+    if (options.limit !== undefined) {
+      qb.limit(options.limit);
+      
+      if (options.offset !== undefined) {
+        qb.offset(options.offset);
+      }
+    }
+    
+    return qb.execute<T>();
   }
 }

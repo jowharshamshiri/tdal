@@ -503,7 +503,7 @@ import {
 		return this.findOneToOneRelated<R>(id, relation, options);
 	  } else {
 		throw new Error(
-		  `Unsupported relationship type for findRelated: ${relation.type}`
+		  `Unsupported relationship type for findRelated: ${relationName}`
 		);
 	  }
 	}
@@ -898,8 +898,8 @@ import {
 	  if (options.relations && options.relations.length > 0 && this.entityMapping.relations) {
 		enhancedOptions.joins = enhancedOptions.joins || [];
 		
-		for (const relationName of options.relations) {
-		  const relation = findRelation(this.entityMapping.relations, relationName);
+		for (const r of options.relations) {
+		  const relation = findRelation(this.entityMapping.relations, r.name);
 		  if (relation) {
 			const joinOptions = this.relationToJoinOptions(relation);
 			if (joinOptions) {
@@ -926,8 +926,8 @@ import {
 	  if (options.relations && options.relations.length > 0 && this.entityMapping.relations) {
 		enhancedOptions.relations = [];
 		
-		for (const relationName of options.relations) {
-		  const relation = findRelation(this.entityMapping.relations, relationName);
+		for (const r of options.relations) {
+		  const relation = findRelation(this.entityMapping.relations, r.name);
 		  if (relation) {
 			// Create RelationOptions from the Relation definition
 			const relationType = relation.type === "manyToMany" || relation.type === "oneToMany" ? "left" : "inner";

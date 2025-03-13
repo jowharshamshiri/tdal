@@ -10,6 +10,8 @@ import {
   CreditCheckResult,
   ProductCategoryWithMeta,
   ProductMapping,
+  UserProductData,
+  UserProductBookmark,
 } from "../models";
 import { DateExpressions } from "../database/orm/date-functions";
 import { EntityQueryBuilder } from "../database/query/entity-query-builder";
@@ -61,33 +63,30 @@ export class ProductRepository extends EntityDao<Product> {
    * @returns Array of products with metadata
    */
   async findWithMetaForUser(userId: number): Promise<ProductWithMeta[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
-    // Select all product fields - specify the table name with alias
+    // Select all product fields
     qb.select(["f.*"]).from(this.tableName, "f");
 
     // Add category count
-    const productCategoryCountQb = this.db.createQueryBuilder();
-    productCategoryCountQb
-      .select("COUNT(*)")
-      .from("category_product", "cf")
-      .where("cf.product_id = f.product_id");
-
-    qb.selectRaw(`(${productCategoryCountQb.toSql()}) as category_count`);
+    qb.selectExpression(
+      `(SELECT COUNT(*) FROM category_product WHERE product_id = f.product_id)`,
+      "category_count"
+    );
 
     // Add user access check
-    const hasAccessQb = this.db.createQueryBuilder();
-    hasAccessQb
-      .select("COUNT(*)")
-      .from("user_resource_access", "ura")
-      .where(
-        `ura.user_id = ${userId} AND ura.resource_type = 'product' AND ura.resource_id = f.product_id`
-      );
-
-    qb.selectRaw(`(${hasAccessQb.toSql()}) > 0 as has_access`);
+    qb.selectExpression(
+      `(SELECT COUNT(*) FROM user_resource_access 
+        WHERE user_id = ${userId} AND resource_type = 'product' 
+        AND resource_id = f.product_id) > 0`,
+      "has_access"
+    );
 
     // Add requires credits flag
-    qb.selectRaw("(is_free = 0 AND credit_cost > 0) as requires_credits");
+    qb.selectExpression(
+      `(is_free = 0 AND credit_cost > 0)`,
+      "requires_credits"
+    );
 
     // Join with bookmark table to check if bookmarked
     qb.leftJoin(
@@ -96,8 +95,9 @@ export class ProductRepository extends EntityDao<Product> {
       `f.product_id = ufb.product_id AND ufb.user_id = ${userId} AND ufb.removed = 0`
     );
 
-    qb.selectRaw(
-      "ufb.bookmark_id IS NOT NULL AND ufb.removed = 0 as is_bookmarked"
+    qb.selectExpression(
+      `ufb.bookmark_id IS NOT NULL AND ufb.removed = 0`,
+      "is_bookmarked"
     );
 
     // Join with user data table for user-specific stats
@@ -128,33 +128,30 @@ export class ProductRepository extends EntityDao<Product> {
     productId: number,
     userId: number
   ): Promise<ProductWithMeta | undefined> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
-    // Select all product fields with table alias
+    // Select all product fields
     qb.select(["f.*"]).from(this.tableName, "f");
 
     // Add category count
-    const productCategoryCountQb = this.db.createQueryBuilder();
-    productCategoryCountQb
-      .select("COUNT(*)")
-      .from("category_product", "cf")
-      .where("cf.product_id = f.product_id");
-
-    qb.selectRaw(`(${productCategoryCountQb.toSql()}) as category_count`);
+    qb.selectExpression(
+      `(SELECT COUNT(*) FROM category_product WHERE product_id = f.product_id)`,
+      "category_count"
+    );
 
     // Add user access check
-    const hasAccessQb = this.db.createQueryBuilder();
-    hasAccessQb
-      .select("COUNT(*)")
-      .from("user_resource_access", "ura")
-      .where(
-        `ura.user_id = ${userId} AND ura.resource_type = 'product' AND ura.resource_id = f.product_id`
-      );
-
-    qb.selectRaw(`(${hasAccessQb.toSql()}) > 0 as has_access`);
+    qb.selectExpression(
+      `(SELECT COUNT(*) FROM user_resource_access 
+        WHERE user_id = ${userId} AND resource_type = 'product' 
+        AND resource_id = f.product_id) > 0`,
+      "has_access"
+    );
 
     // Add requires credits flag
-    qb.selectRaw("(is_free = 0 AND credit_cost > 0) as requires_credits");
+    qb.selectExpression(
+      `(is_free = 0 AND credit_cost > 0)`,
+      "requires_credits"
+    );
 
     // Join with bookmark table to check if bookmarked
     qb.leftJoin(
@@ -163,8 +160,9 @@ export class ProductRepository extends EntityDao<Product> {
       `f.product_id = ufb.product_id AND ufb.user_id = ${userId} AND ufb.removed = 0`
     );
 
-    qb.selectRaw(
-      "ufb.bookmark_id IS NOT NULL AND ufb.removed = 0 as is_bookmarked"
+    qb.selectExpression(
+      `ufb.bookmark_id IS NOT NULL AND ufb.removed = 0`,
+      "is_bookmarked"
     );
 
     // Join with user data table for user-specific stats
@@ -179,19 +177,16 @@ export class ProductRepository extends EntityDao<Product> {
     qb.selectRaw("ufd.total_view_time");
     qb.selectRaw("ufd.notes");
 
-    // Get remaining credit count using database-agnostic date expressions
-    const currentDateTime = DateExpressions.currentDateTime();
-
-    const creditBalanceQb = this.db.createQueryBuilder();
-    creditBalanceQb
-      .select("SUM(uc.amount)")
-      .from("user_credits", "uc")
-      .where(`uc.user_id = ${userId} AND uc.expiry_date >= ${currentDateTime}`);
-
-    qb.selectRaw(`(${creditBalanceQb.toSql()}) as remaining_credits`);
+    // Get remaining credit count
+    const creditBalanceExpression = DateExpressions.currentDateTime();
+    qb.selectExpression(
+      `(SELECT SUM(uc.amount) FROM user_credits uc 
+        WHERE uc.user_id = ${userId} AND uc.expiry_date >= ${creditBalanceExpression})`,
+      "remaining_credits"
+    );
 
     // Add the product ID filter
-    qb.where("f.product_id = ?", productId);
+    qb.whereColumn("product_id", "=", productId);
 
     const product = await qb.getOne<ProductWithMeta>();
 
@@ -200,15 +195,13 @@ export class ProductRepository extends EntityDao<Product> {
     }
 
     // Get associated categories
-    const categoriesQb = this.db.createQueryBuilder();
-
-    categoriesQb
-      .select(["c.*", "p.category_name as parent_name"])
-      .from("categories", "c")
+    const categoriesQb = this.createQueryBuilder();
+    categoriesQb.from("categories", "c")
       .leftJoin("categories", "p", "c.parent_id = p.category_id")
       .innerJoin("category_product", "cf", "c.category_id = cf.category_id")
-      .where("cf.product_id = ?", productId)
-      .orderBy("c.category_name");
+      .where(`cf.product_id = ${productId}`)
+      .orderBy("c.category_name")
+      .selectRaw("p.category_name as parent_name");
 
     const categories = await categoriesQb.execute<ProductCategoryWithMeta>();
 
@@ -243,35 +236,29 @@ export class ProductRepository extends EntityDao<Product> {
     userId: number
   ): Promise<CreditCheckResult> {
     // Use query builder for this complex query
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
-    // Select product info with table alias
+    // Select product info
     qb.select(["f.is_free", "f.credit_cost"]).from(this.tableName, "f");
 
     // Add user access check
-    const hasAccessQb = this.db.createQueryBuilder();
-    hasAccessQb
-      .select("COUNT(*)")
-      .from("user_resource_access", "ura")
-      .where(
-        `ura.user_id = ${userId} AND ura.resource_type = 'product' AND ura.resource_id = f.product_id`
-      );
+    qb.selectExpression(
+      `(SELECT COUNT(*) FROM user_resource_access 
+        WHERE user_id = ${userId} AND resource_type = 'product' 
+        AND resource_id = f.product_id) > 0`,
+      "has_access"
+    );
 
-    qb.selectRaw(`(${hasAccessQb.toSql()}) > 0 as has_access`);
-
-    // Get credit balance using database-agnostic date expressions
-    const currentDateTime = DateExpressions.currentDateTime();
-
-    const balanceQb = this.db.createQueryBuilder();
-    balanceQb
-      .select("SUM(uc.amount)")
-      .from("user_credits", "uc")
-      .where(`uc.user_id = ${userId} AND uc.expiry_date >= ${currentDateTime}`);
-
-    qb.selectRaw(`(${balanceQb.toSql()}) as balance`);
+    // Get credit balance
+    const creditBalanceExpression = DateExpressions.currentDateTime();
+    qb.selectExpression(
+      `(SELECT SUM(uc.amount) FROM user_credits uc 
+        WHERE uc.user_id = ${userId} AND uc.expiry_date >= ${creditBalanceExpression})`,
+      "balance"
+    );
 
     // Add product ID filter
-    qb.where("f.product_id = ?", productId);
+    qb.whereColumn("product_id", "=", productId);
 
     const result = await qb.getOne<{
       is_free: boolean;
@@ -335,19 +322,17 @@ export class ProductRepository extends EntityDao<Product> {
   async bookmark(productId: number, userId: number): Promise<boolean> {
     try {
       // Check if bookmark exists but is removed
-      const qb = this.db.createQueryBuilder();
-      qb.select("bookmark_id")
-        .from("user_product_bookmark")
-        .where("product_id = ? AND user_id = ?", productId, userId);
+      const existingBookmark = await this.db.findOneBy("user_product_bookmark", {
+        product_id: productId,
+        user_id: userId
+      }) as UserProductBookmark | undefined;
 
-      const existing = await qb.getOne<{ bookmark_id: number }>();
-
-      if (existing && existing.bookmark_id) {
+      if (existingBookmark) {
         // Update existing bookmark
         await this.db.update(
           "user_product_bookmark",
           "bookmark_id",
-          existing.bookmark_id,
+          existingBookmark.bookmark_id,
           {
             removed: 0,
             created_at: new Date().toISOString(),
@@ -364,17 +349,13 @@ export class ProductRepository extends EntityDao<Product> {
       }
 
       // Update product bookmark count
-      const countQb = this.db.createQueryBuilder();
-      countQb
-        .select("COUNT(*) as count")
-        .from("user_product_bookmark")
-        .where("product_id = ? AND removed = 0", productId);
-
-      const countResult = await countQb.getOne<{ count: number }>();
-      const count = countResult?.count || 0;
+      const bookmarkCount = await this.db.count("user_product_bookmark", {
+        product_id: productId,
+        removed: 0
+      });
 
       await this.update(productId, {
-        bookmark_count: count,
+        bookmark_count: bookmarkCount,
       } as Partial<Product>);
 
       return true;
@@ -400,17 +381,13 @@ export class ProductRepository extends EntityDao<Product> {
       );
 
       // Update product bookmark count
-      const countQb = this.db.createQueryBuilder();
-      countQb
-        .select("COUNT(*) as count")
-        .from("user_product_bookmark")
-        .where("product_id = ? AND removed = 0", productId);
-
-      const countResult = await countQb.getOne<{ count: number }>();
-      const count = countResult?.count || 0;
+      const bookmarkCount = await this.db.count("user_product_bookmark", {
+        product_id: productId,
+        removed: 0
+      });
 
       await this.update(productId, {
-        bookmark_count: count,
+        bookmark_count: bookmarkCount,
       } as Partial<Product>);
 
       return true;
@@ -440,14 +417,14 @@ export class ProductRepository extends EntityDao<Product> {
    * @returns Array of matching products
    */
   async searchByText(searchTerm: string): Promise<Product[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
     // Select all fields
     qb.select(["*"]);
 
     // Add conditions for title or pricing containing the search term
-    qb.where(`title LIKE ?`, `%${searchTerm}%`);
-    qb.orWhere(`pricing LIKE ?`, `%${searchTerm}%`);
+    qb.whereLike("title", searchTerm, "both");
+    qb.orWhereLike("pricing", searchTerm, "both");
 
     // Order by title
     qb.orderBy("title");
@@ -456,14 +433,47 @@ export class ProductRepository extends EntityDao<Product> {
   }
 
   /**
+   * Find products by category ID
+   * @param productCategoryId ProductCategory ID
+   * @returns Array of products
+   */
+  async findByProductCategoryId(productCategoryId: number): Promise<Product[]> {
+    try {
+      const qb = this.createQueryBuilder();
+      qb.from("products", "f")
+        .innerJoin("category_product", "cf", "f.product_id = cf.product_id")
+        .whereColumn("cf.category_id", "=", productCategoryId)
+        .orderBy("f.title");
+
+      return qb.execute<Product>();
+    } catch (error) {
+      console.error(`Error finding products by category ID: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Find free products
+   * @returns Array of free products
+   */
+  async findFreeProducts(): Promise<Product[]> {
+    try {
+      return this.findBy({ is_free: true } as unknown as Partial<Product>);
+    } catch (error) {
+      console.error(`Error finding free products: ${error}`);
+      return [];
+    }
+  }
+
+  /**
    * Get products that a user has bookmarked
    * @param userId User ID
    * @returns Array of bookmarked products
    */
   async getBookmarkedProducts(userId: number): Promise<ProductWithMeta[]> {
-    const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
+    const qb = this.createQueryBuilder();
 
-    // Select all product fields with table alias
+    // Select all product fields
     qb.select(["f.*"]).from(this.tableName, "f");
 
     // Join with bookmarks table
@@ -495,40 +505,6 @@ export class ProductRepository extends EntityDao<Product> {
   }
 
   /**
-   * Find products by category ID
-   * @param productCategoryId ProductCategory ID
-   * @returns Array of products
-   */
-  async findByProductCategoryId(productCategoryId: number): Promise<Product[]> {
-    try {
-      const qb = this.db.createQueryBuilder();
-      qb.select(["f.*"])
-        .from("products", "f")
-        .innerJoin("category_product", "cf", "f.product_id = cf.product_id")
-        .where("cf.category_id = ?", productCategoryId)
-        .orderBy("f.title");
-
-      return qb.execute<Product>();
-    } catch (error) {
-      console.error(`Error finding products by category ID: ${error}`);
-      return [];
-    }
-  }
-
-  /**
-   * Find free products
-   * @returns Array of free products
-   */
-  async findFreeProducts(): Promise<Product[]> {
-    try {
-      return this.findBy({ is_free: 1 } as unknown as Partial<Product>);
-    } catch (error) {
-      console.error(`Error finding free products: ${error}`);
-      return [];
-    }
-  }
-
-  /**
    * Grant access to a product
    * @param productId Product ID
    * @param userId User ID
@@ -540,7 +516,7 @@ export class ProductRepository extends EntityDao<Product> {
     userId: number,
     creditCost: number
   ): Promise<boolean> {
-    return this.db.transaction(async (db) => {
+    return this.transaction(async (db) => {
       try {
         // Step 1: Record the access
         const now = new Date().toISOString();
@@ -557,10 +533,9 @@ export class ProductRepository extends EntityDao<Product> {
         // Step 2: Deduct credits from the user's balance
         // Get credits that expire soonest first
         const creditsQb = db.createQueryBuilder();
-        creditsQb
-          .select(["credit_id", "amount"])
-          .from("user_credits")
-          .where("user_id = ? AND expiry_date >= datetime('now')", userId)
+        creditsQb.from("user_credits")
+          .whereColumn("user_id", "=", userId)
+          .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
           .orderBy("expiry_date", "ASC");
 
         const creditsToUse = await creditsQb.execute<{
@@ -616,37 +591,20 @@ export class ProductRepository extends EntityDao<Product> {
         throw new Error("Could not retrieve product data");
       }
 
-      // Check if data exists
-      const userDataQb = this.db.createQueryBuilder();
-      userDataQb
-        .select("data_id")
-        .from("user_product_data")
-        .where("product_id = ? AND user_id = ?", productId, userId);
-
-      const existing = await userDataQb.getOne<{ data_id: number }>();
+      // Check if user data exists
+      const userData = await this.db.findOneBy("user_product_data", {
+        product_id: productId,
+        user_id: userId
+      }) as UserProductData | undefined;
 
       const now = new Date().toISOString();
 
-      if (existing && existing.data_id) {
-        // Get current values
-        const currentDataQb = this.db.createQueryBuilder();
-        currentDataQb
-          .select(["view_count", "total_view_time"])
-          .from("user_product_data")
-          .where("data_id = ?", existing.data_id);
-
-        const currentData = await currentDataQb.getOne<{
-          view_count: number;
-          total_view_time: number;
-        }>();
-
-        if (!currentData) throw new Error("Could not retrieve current data");
-
+      if (userData) {
         // Update existing data
         const updateData: Record<string, unknown> = {
-          view_count: (currentData.view_count || 0) + 1,
+          view_count: ((userData?.view_count || 0) + 1),
           last_viewed: now,
-          total_view_time: (currentData.total_view_time || 0) + viewTime,
+          total_view_time: (userData.total_view_time || 0) + viewTime,
         };
 
         if (notes !== undefined) {
@@ -656,7 +614,7 @@ export class ProductRepository extends EntityDao<Product> {
         await this.db.update(
           "user_product_data",
           "data_id",
-          existing.data_id,
+          userData.data_id,
           updateData
         );
       } else {

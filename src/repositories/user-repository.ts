@@ -56,82 +56,46 @@ export class UserRepository extends EntityDao<User> {
    * @returns Credit balance information
    */
   async getCreditBalance(userId: number): Promise<CreditBalance> {
-    // Get the total balance
-    const currentDateTime = DateExpressions.currentDateTime();
+    // Get total balance by aggregating active credits
+    const qb = this.createQueryBuilder();
+    qb.from("user_credits")
+      .whereColumn("user_id", "=", userId)
+      .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime());
+    
+    const totalBalance = await qb.aggregate("SUM", "amount", "total", false);
+    const total = totalBalance[0]?.total || 0;
 
-    const balanceQb = this.db.createQueryBuilder();
-    balanceQb
-      .select("SUM(amount) as balance")
-      .from("user_credits")
-      .where(`user_id = ? AND expiry_date >= ${currentDateTime}`, userId);
-
-    const balanceResult = await balanceQb.getOne<{ balance: number }>();
-    const total = balanceResult?.balance || 0;
-
-    // Get credit details with remaining days
-    const detailsQb = this.db.createQueryBuilder();
-
-    // Calculate remaining days using database-agnostic date functions
-    const daysDiff = DateExpressions.dateDiff(
-      "expiry_date",
-      currentDateTime,
-      "day"
-    );
-
-    detailsQb
-      .select([
-        "credit_id",
-        "user_id",
-        "amount",
-        "source",
-        "transaction_id",
-        "purchase_date",
-        "expiry_date",
-      ])
-      .selectRaw(`${daysDiff} as days_remaining`)
-      .from("user_credits")
-      .where(`user_id = ? AND expiry_date >= ${currentDateTime}`, userId)
+    // Get detailed credit information with days remaining
+    const creditQb = this.createQueryBuilder();
+    creditQb.from("user_credits", "uc")
+      .whereColumn("user_id", "=", userId)
+      .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
+      .selectExpression(
+        DateExpressions.dateDiff("expiry_date", DateExpressions.currentDateTime(), "day"),
+        "days_remaining"
+      )
       .orderBy("expiry_date", "ASC");
+    
+    const details = await creditQb.execute<UserCredit>();
 
-    const details = await detailsQb.execute<UserCredit>();
-
-    // Get access history with resource names
-    const historyQb = this.db.createQueryBuilder();
-
-    historyQb
-      .select([
-        "a.access_id",
-        "a.user_id",
-        "a.resource_type",
-        "a.resource_id",
-        "a.credit_cost",
-        "a.access_date",
-      ])
-      .from("user_resource_access", "a")
-      .leftJoin(
-        "categories",
-        "c",
-        "a.resource_type = 'category' AND a.resource_id = c.category_id"
-      )
-      .leftJoin(
-        "products",
-        "f",
-        "a.resource_type = 'product' AND a.resource_id = f.product_id"
-      )
-      .selectRaw(
-        `
-        CASE 
+    // Get recent access history with resource names
+    const accessQb = this.createQueryBuilder();
+    accessQb.from("user_resource_access", "a")
+      .whereColumn("user_id", "=", userId)
+      .leftJoin("categories", "c", "a.resource_type = 'category' AND a.resource_id = c.category_id")
+      .leftJoin("products", "f", "a.resource_type = 'product' AND a.resource_id = f.product_id")
+      .selectExpression(
+        `CASE 
           WHEN a.resource_type = 'category' THEN c.category_name 
           WHEN a.resource_type = 'product' THEN f.title 
           ELSE 'Unknown' 
-        END as resource_name
-      `
+        END`,
+        "resource_name"
       )
-      .where("a.user_id = ?", userId)
       .orderBy("a.access_date", "DESC")
       .limit(20);
 
-    const accessHistory = await historyQb.execute<UserResourceAccess>();
+    const accessHistory = await accessQb.execute<UserResourceAccess>();
 
     return {
       total,
@@ -189,36 +153,30 @@ export class UserRepository extends EntityDao<User> {
    */
   async findAllWithCreditBalance(): Promise<User[]> {
     try {
-      const qb = this.createQueryBuilder() as unknown as EntityQueryBuilder;
-
+      const qb = this.createQueryBuilder();
+      
       // Select all user fields
       qb.select(["*"]);
-
-      // Add user credit calculation using simpler expression for SQLite
-      const creditBalanceQb = this.db.createQueryBuilder();
-      creditBalanceQb
-        .select("SUM(amount)")
-        .from("user_credits", "credits")
-        .where("user_id = users.user_id AND expiry_date >= datetime('now')");
-
-      qb.selectRaw(
-        `COALESCE((${creditBalanceQb.toSql()}), 0) as credit_balance`
+      
+      // Add credit balance calculation
+      const creditBalanceExpression = DateExpressions.currentDateTime();
+      qb.selectExpression(
+        `COALESCE((SELECT SUM(amount) FROM user_credits 
+          WHERE user_id = users.user_id 
+          AND expiry_date >= ${creditBalanceExpression}), 0)`,
+        "credit_balance"
       );
-
+      
       // Add resource access count
-      const resourceAccessQb = this.db.createQueryBuilder();
-      resourceAccessQb
-        .select("COUNT(*)")
-        .from("user_resource_access", "access")
-        .where("user_id = users.user_id");
-
-      qb.selectRaw(
-        `COALESCE((${resourceAccessQb.toSql()}), 0) as resource_access_count`
+      qb.selectExpression(
+        `COALESCE((SELECT COUNT(*) FROM user_resource_access 
+          WHERE user_id = users.user_id), 0)`,
+        "resource_access_count"
       );
-
+      
       // Order by name
       qb.orderBy("name");
-
+      
       return qb.execute<User>();
     } catch (error) {
       console.error(`Error finding users with credit balance: ${error}`);
@@ -265,46 +223,37 @@ export class UserRepository extends EntityDao<User> {
     userId: number
   ): Promise<Record<string, unknown>> {
     try {
+      // Get user
       const user = await this.findById(userId);
-
       if (!user) {
         return {};
       }
 
-      // Get recent access history with a safer query
-      const accessQb = this.db.createQueryBuilder();
-      accessQb
-        .select(["a.*"])
-        .from("user_resource_access", "a")
-        .leftJoin(
-          "categories",
-          "c",
-          "a.resource_type = 'category' AND a.resource_id = c.category_id"
-        )
-        .leftJoin(
-          "products",
-          "f",
-          "a.resource_type = 'product' AND a.resource_id = f.product_id"
-        )
-        .selectRaw(
+      // Get recent access history with resource names
+      const accessQb = this.createQueryBuilder();
+      accessQb.from("user_resource_access", "a")
+        .whereColumn("user_id", "=", userId)
+        .leftJoin("categories", "c", "a.resource_type = 'category' AND a.resource_id = c.category_id")
+        .leftJoin("products", "f", "a.resource_type = 'product' AND a.resource_id = f.product_id")
+        .selectExpression(
           `CASE 
-			WHEN a.resource_type = 'category' THEN c.category_name 
-			WHEN a.resource_type = 'product' THEN f.title 
-			ELSE 'Unknown' 
-		  END as resource_name`
+            WHEN a.resource_type = 'category' THEN c.category_name 
+            WHEN a.resource_type = 'product' THEN f.title 
+            ELSE 'Unknown' 
+          END`,
+          "resource_name"
         )
-        .where("a.user_id = ?", userId)
         .orderBy("a.access_date", "DESC")
         .limit(10);
 
       const recentAccess = await accessQb.execute<UserResourceAccess>();
 
-      // Get credit balance with a simpler query
-      const creditQb = this.db.createQueryBuilder();
-      creditQb
-        .select("SUM(amount) as credit_balance")
-        .from("user_credits")
-        .where("user_id = ? AND expiry_date >= datetime('now')", userId);
+      // Get credit balance
+      const creditQb = this.createQueryBuilder();
+      creditQb.from("user_credits", "uc")
+        .whereColumn("user_id", "=", userId)
+        .whereDateColumn("expiry_date", ">=", DateExpressions.currentDateTime())
+        .aggregate("SUM", "amount", "credit_balance", false);
 
       const creditResult = await creditQb.getOne<{ credit_balance: number }>();
 
