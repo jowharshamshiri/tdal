@@ -3,7 +3,7 @@
  * Provides JSON Schema for YAML validation and TypeScript interfaces
  */
 
-import { EntityConfig } from "./entity-config";
+import { EntityConfig, ColumnMapping } from "./entity-config";
 
 /**
  * JSON Schema for entity validation
@@ -24,6 +24,10 @@ export const entityJsonSchema = {
 		idField: {
 			type: 'string',
 			description: 'Primary key field name'
+		},
+		schema: {
+			type: 'string',
+			description: 'Database schema name'
 		},
 		columns: {
 			type: 'array',
@@ -67,9 +71,49 @@ export const entityJsonSchema = {
 						type: 'string',
 						description: 'Column comment'
 					},
+					length: {
+						type: 'number',
+						description: 'Column length (for string types)'
+					},
+					precision: {
+						type: 'number',
+						description: 'Column precision (for numeric types)'
+					},
+					scale: {
+						type: 'number',
+						description: 'Column scale (for numeric types)'
+					},
 					foreignKey: {
 						type: 'string',
 						description: 'Foreign key reference'
+					},
+					api: {
+						type: 'object',
+						properties: {
+							readable: {
+								type: 'boolean',
+								description: 'Whether this field is readable via API'
+							},
+							writable: {
+								type: 'boolean',
+								description: 'Whether this field is writable via API'
+							},
+							roles: {
+								type: 'object',
+								properties: {
+									read: {
+										type: 'array',
+										items: { type: 'string' },
+										description: 'Roles that can read this field'
+									},
+									write: {
+										type: 'array',
+										items: { type: 'string' },
+										description: 'Roles that can write this field'
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -201,26 +245,6 @@ export const entityJsonSchema = {
 						update: { type: 'array', items: { type: 'string' } },
 						delete: { type: 'array', items: { type: 'string' } }
 					}
-				},
-				fields: {
-					type: 'object',
-					additionalProperties: {
-						type: 'object',
-						properties: {
-							read: { type: 'array', items: { type: 'string' } },
-							write: { type: 'array', items: { type: 'string' } }
-						}
-					}
-				},
-				recordAccess: {
-					type: 'object',
-					required: ['condition'],
-					properties: {
-						condition: {
-							type: 'string',
-							description: 'Record-level access control condition'
-						}
-					}
 				}
 			}
 		},
@@ -236,7 +260,9 @@ export const entityJsonSchema = {
 				beforeGetById: { type: 'array', items: { $ref: '#/definitions/hook' } },
 				afterGetById: { type: 'array', items: { $ref: '#/definitions/hook' } },
 				beforeGetAll: { type: 'array', items: { $ref: '#/definitions/hook' } },
-				afterGetAll: { type: 'array', items: { $ref: '#/definitions/hook' } }
+				afterGetAll: { type: 'array', items: { $ref: '#/definitions/hook' } },
+				beforeApi: { type: 'array', items: { $ref: '#/definitions/hook' } },
+				afterApi: { type: 'array', items: { $ref: '#/definitions/hook' } }
 			}
 		},
 		computed: {
@@ -261,6 +287,10 @@ export const entityJsonSchema = {
 					cache: {
 						type: 'boolean',
 						description: 'Whether to cache the computed value'
+					},
+					exposeInApi: {
+						type: 'boolean',
+						description: 'Whether to expose in API responses'
 					}
 				}
 			}
@@ -291,6 +321,10 @@ export const entityJsonSchema = {
 								implementation: {
 									type: 'string',
 									description: 'Custom implementation (for custom rules)'
+								},
+								applyToApi: {
+									type: 'boolean',
+									description: 'Whether to apply this validation to API requests'
 								}
 							}
 						}
@@ -298,80 +332,78 @@ export const entityJsonSchema = {
 				}
 			}
 		},
-		workflows: {
+		actions: {
 			type: 'array',
 			items: {
 				type: 'object',
-				required: ['name', 'states', 'transitions'],
+				required: ['name', 'implementation'],
 				properties: {
 					name: {
 						type: 'string',
-						description: 'Workflow name'
+						description: 'Action name'
 					},
-					stateField: {
+					description: {
 						type: 'string',
-						description: 'Field that stores the state'
+						description: 'Action description'
 					},
-					states: {
+					implementation: {
+						type: 'string',
+						description: 'Action implementation'
+					},
+					httpMethod: {
+						type: 'string',
+						enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+						description: 'HTTP method'
+					},
+					route: {
+						type: 'string',
+						description: 'API route path'
+					},
+					roles: {
+						type: 'array',
+						items: { type: 'string' },
+						description: 'Roles allowed to execute this action'
+					},
+					transactional: {
+						type: 'boolean',
+						description: 'Whether to execute in a transaction'
+					},
+					parameters: {
 						type: 'array',
 						items: {
 							type: 'object',
-							required: ['name'],
+							required: ['name', 'type'],
 							properties: {
 								name: {
 									type: 'string',
-									description: 'State name'
+									description: 'Parameter name'
 								},
-								initial: {
+								type: {
+									type: 'string',
+									enum: ['string', 'number', 'boolean', 'object', 'array'],
+									description: 'Parameter type'
+								},
+								required: {
 									type: 'boolean',
-									description: 'Whether this is the initial state'
+									description: 'Whether the parameter is required'
 								},
 								description: {
 									type: 'string',
-									description: 'State description'
-								}
-							}
-						}
-					},
-					transitions: {
-						type: 'array',
-						items: {
-							type: 'object',
-							required: ['from', 'to', 'action'],
-							properties: {
-								from: {
-									type: 'string',
-									description: 'Source state'
-								},
-								to: {
-									type: 'string',
-									description: 'Target state'
-								},
-								action: {
-									type: 'string',
-									description: 'Transition action name'
-								},
-								roles: {
-									type: 'array',
-									items: { type: 'string' },
-									description: 'Roles that can perform this transition'
-								},
-								hooks: {
-									type: 'object',
-									properties: {
-										before: {
-											type: 'string',
-											description: 'Before transition hook'
-										},
-										after: {
-											type: 'string',
-											description: 'After transition hook'
-										}
-									}
+									description: 'Parameter description'
 								}
 							}
 						}
 					}
+				}
+			}
+		},
+		middleware: {
+			type: 'object',
+			properties: {
+				all: {
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Middleware to apply to all routes'
 				}
 			}
 		}
@@ -407,52 +439,13 @@ export const entityJsonSchema = {
 };
 
 /**
- * Generate TypeScript interface from entity config
- * @param entity Entity configuration
- * @returns TypeScript interface as string
- */
-export function generateEntityInterface(entity: EntityConfig): string {
-	let interfaceCode = `/**
- * Generated interface for ${entity.entity}
- * Automatically generated from YAML schema
- */
-export interface ${entity.entity} {
-`;
-
-	// Add properties for each column
-	for (const column of entity.columns) {
-		const optional = column.nullable ? '?' : '';
-		const tsType = mapTypeToTypeScript(column.type || 'string');
-
-		// Add JSDoc comment if available
-		if (column.comment) {
-			interfaceCode += `  /**
-   * ${column.comment}
-   */
-  `;
-		}
-
-		interfaceCode += `  ${column.logical}${optional}: ${tsType};\n`;
-	}
-
-	// Add computed properties if defined
-	if (entity.computed) {
-		for (const computed of entity.computed) {
-			interfaceCode += `  /** Computed property */
-  ${computed.name}: any;\n`;
-		}
-	}
-
-	interfaceCode += `}\n`;
-	return interfaceCode;
-}
-
-/**
  * Map database type to TypeScript type
  * @param dbType Database type
  * @returns Corresponding TypeScript type
  */
-export function mapTypeToTypeScript(dbType: string): string {
+export function mapDbTypeToTypeScript(dbType: string): string {
+	if (!dbType) return 'any';
+
 	switch (dbType.toLowerCase()) {
 		case 'string':
 		case 'text':
@@ -493,6 +486,8 @@ export function mapTypeToTypeScript(dbType: string): string {
  * @returns Corresponding database type
  */
 export function mapTypeScriptToDbType(tsType: string): string {
+	if (!tsType) return 'string';
+
 	switch (tsType.toLowerCase()) {
 		case 'string':
 			return 'varchar';
@@ -507,110 +502,72 @@ export function mapTypeScriptToDbType(tsType: string): string {
 		case 'record<string, any>':
 		case 'object':
 			return 'json';
+		case 'any':
+			return 'string';
 		default:
-			return 'varchar';
+			return 'string';
 	}
 }
 
 /**
- * Get database column definition SQL
+ * Get database column type for a specific SQL dialect
  * @param column Column definition
  * @param dialect SQL dialect
- * @returns SQL column definition
+ * @returns SQL column type
  */
-export function getColumnDefinition(
-	column: any,
+export function getSqlColumnType(
+	column: ColumnMapping,
 	dialect: 'sqlite' | 'mysql' | 'postgres' = 'sqlite'
 ): string {
-	let sql = `${column.physical} `;
+	if (!column.type) return dialect === 'postgres' ? 'VARCHAR(255)' : 'TEXT';
 
-	// Add type
-	if (column.type) {
-		switch (dialect) {
-			case 'mysql':
-				sql += getMySQLColumnType(column);
-				break;
-			case 'postgres':
-				sql += getPostgresColumnType(column);
-				break;
-			case 'sqlite':
-			default:
-				sql += getSQLiteColumnType(column);
-				break;
-		}
+	const type = column.type.toLowerCase();
+
+	// Different dialects have different type names
+	switch (dialect) {
+		case 'mysql':
+			return getMySQLColumnType(column);
+		case 'postgres':
+			return getPostgresColumnType(column);
+		case 'sqlite':
+		default:
+			return getSQLiteColumnType(column);
 	}
-
-	// Add constraints
-	if (column.primaryKey) {
-		sql += ' PRIMARY KEY';
-	}
-
-	if (column.autoIncrement) {
-		switch (dialect) {
-			case 'mysql':
-				sql += ' AUTO_INCREMENT';
-				break;
-			case 'postgres':
-				if (!column.primaryKey) {
-					sql += ' GENERATED ALWAYS AS IDENTITY';
-				}
-				break;
-			case 'sqlite':
-			default:
-				sql += ' AUTOINCREMENT';
-				break;
-		}
-	}
-
-	if (column.nullable === false) {
-		sql += ' NOT NULL';
-	}
-
-	if (column.unique) {
-		sql += ' UNIQUE';
-	}
-
-	return sql;
 }
 
 /**
  * Get SQLite column type
- * @param column Column definition
- * @returns SQLite column type
  */
-function getSQLiteColumnType(column: any): string {
-	if (!column.type) return 'TEXT';
-
-	const type = column.type.toLowerCase();
+function getSQLiteColumnType(column: ColumnMapping): string {
+	const type = column.type?.toLowerCase();
 
 	switch (type) {
 		case 'integer':
 		case 'int':
 		case 'bigint':
 		case 'smallint':
+		case 'tinyint':
 			return 'INTEGER';
-		case 'number':
+		case 'real':
 		case 'float':
 		case 'double':
 		case 'decimal':
+		case 'number':
 			return 'REAL';
 		case 'boolean':
 		case 'bool':
-			return 'INTEGER'; // SQLite stores booleans as 0/1
+			return 'INTEGER';
 		case 'date':
 		case 'datetime':
 		case 'timestamp':
-			return 'TEXT'; // SQLite stores dates as ISO strings
-		case 'json':
-		case 'object':
-			return 'TEXT'; // SQLite stores JSON as text
+			return 'TEXT';
 		case 'blob':
 		case 'binary':
 			return 'BLOB';
-		case 'string':
-		case 'text':
 		case 'varchar':
+		case 'string':
 		case 'char':
+		case 'text':
 		default:
 			return 'TEXT';
 	}
@@ -618,13 +575,9 @@ function getSQLiteColumnType(column: any): string {
 
 /**
  * Get MySQL column type
- * @param column Column definition
- * @returns MySQL column type
  */
-function getMySQLColumnType(column: any): string {
-	if (!column.type) return 'VARCHAR(255)';
-
-	const type = column.type.toLowerCase();
+function getMySQLColumnType(column: ColumnMapping): string {
+	const type = column.type?.toLowerCase();
 
 	switch (type) {
 		case 'integer':
@@ -634,12 +587,17 @@ function getMySQLColumnType(column: any): string {
 			return 'BIGINT';
 		case 'smallint':
 			return 'SMALLINT';
-		case 'number':
+		case 'tinyint':
+			return 'TINYINT';
 		case 'float':
+		case 'number':
 			return 'FLOAT';
 		case 'double':
 			return 'DOUBLE';
 		case 'decimal':
+			if (column.precision && column.scale) {
+				return `DECIMAL(${column.precision},${column.scale})`;
+			}
 			return 'DECIMAL(10,2)';
 		case 'boolean':
 		case 'bool':
@@ -649,19 +607,16 @@ function getMySQLColumnType(column: any): string {
 		case 'datetime':
 		case 'timestamp':
 			return 'DATETIME';
-		case 'json':
-		case 'object':
-			return 'JSON';
 		case 'blob':
 		case 'binary':
 			return 'BLOB';
 		case 'text':
 			return 'TEXT';
-		case 'string':
 		case 'varchar':
-			return 'VARCHAR(255)';
+		case 'string':
+			return column.length ? `VARCHAR(${column.length})` : 'VARCHAR(255)';
 		case 'char':
-			return 'CHAR(1)';
+			return column.length ? `CHAR(${column.length})` : 'CHAR(1)';
 		default:
 			return 'VARCHAR(255)';
 	}
@@ -669,13 +624,9 @@ function getMySQLColumnType(column: any): string {
 
 /**
  * Get PostgreSQL column type
- * @param column Column definition
- * @returns PostgreSQL column type
  */
-function getPostgresColumnType(column: any): string {
-	if (!column.type) return 'VARCHAR(255)';
-
-	const type = column.type.toLowerCase();
+function getPostgresColumnType(column: ColumnMapping): string {
+	const type = column.type?.toLowerCase();
 
 	switch (type) {
 		case 'integer':
@@ -685,12 +636,17 @@ function getPostgresColumnType(column: any): string {
 			return 'BIGINT';
 		case 'smallint':
 			return 'SMALLINT';
-		case 'number':
+		case 'tinyint':
+			return 'SMALLINT';
 		case 'float':
+		case 'number':
 			return 'REAL';
 		case 'double':
 			return 'DOUBLE PRECISION';
 		case 'decimal':
+			if (column.precision && column.scale) {
+				return `DECIMAL(${column.precision},${column.scale})`;
+			}
 			return 'DECIMAL(10,2)';
 		case 'boolean':
 		case 'bool':
@@ -700,19 +656,19 @@ function getPostgresColumnType(column: any): string {
 		case 'datetime':
 		case 'timestamp':
 			return 'TIMESTAMP';
-		case 'json':
-		case 'object':
-			return 'JSONB';
 		case 'blob':
 		case 'binary':
 			return 'BYTEA';
 		case 'text':
 			return 'TEXT';
-		case 'string':
 		case 'varchar':
-			return 'VARCHAR(255)';
+		case 'string':
+			return column.length ? `VARCHAR(${column.length})` : 'VARCHAR(255)';
 		case 'char':
-			return 'CHAR(1)';
+			return column.length ? `CHAR(${column.length})` : 'CHAR(1)';
+		case 'json':
+		case 'jsonb':
+			return 'JSONB';
 		default:
 			return 'VARCHAR(255)';
 	}

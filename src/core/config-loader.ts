@@ -9,17 +9,13 @@ import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import Ajv from 'ajv';
 import { Logger, AppConfig } from './types';
-import { EntityConfig } from '../entity';
+import { EntityConfig } from '../entity/entity-config';
+import { entityJsonSchema } from '../entity/entity-schema';
 
 /**
  * Configuration loader options
  */
 export interface ConfigLoaderOptions {
-	/**
-	 * Path to schema directory
-	 */
-	schemaDir?: string;
-
 	/**
 	 * Path to config directory
 	 */
@@ -46,11 +42,6 @@ export interface ConfigLoaderOptions {
  * Handles loading and validating YAML configuration files
  */
 export class ConfigLoader {
-	/**
-	 * JSON schemas by name
-	 */
-	private schemas: Map<string, object> = new Map();
-
 	/**
 	 * Entity configurations by name
 	 */
@@ -82,7 +73,6 @@ export class ConfigLoader {
 	 */
 	constructor(options: ConfigLoaderOptions = {}) {
 		this.options = {
-			schemaDir: path.join(process.cwd(), 'schemas'),
 			configDir: path.join(process.cwd(), 'config'),
 			entitiesDir: path.join(process.cwd(), 'entities'),
 			validateSchemas: true,
@@ -100,6 +90,9 @@ export class ConfigLoader {
 			allErrors: true,
 			strict: false
 		});
+
+		// Register entity schema
+		this.validator.addSchema(entityJsonSchema, 'entity');
 
 		this.logger.debug('Configuration loader created');
 	}
@@ -124,9 +117,9 @@ export class ConfigLoader {
 			const content = fs.readFileSync(appConfigPath, 'utf8');
 			const config = yaml.load(content) as AppConfig;
 
-			// Validate configuration against schema if enabled
+			// Validate configuration if enabled
 			if (this.options.validateSchemas) {
-				await this.validateConfig('app', config);
+				this.validateConfig('app', config);
 			}
 
 			// Apply defaults
@@ -206,7 +199,7 @@ export class ConfigLoader {
 
 			// Validate configuration against schema if enabled
 			if (this.options.validateSchemas) {
-				await this.validateConfig('entity', config);
+				this.validateConfig('entity', config);
 			}
 
 			// Validate required fields
@@ -274,162 +267,35 @@ export class ConfigLoader {
 	}
 
 	/**
-	 * Load code implementations for hooks, computed properties, etc.
-	 * @param entity Entity configuration
-	 */
-	async loadImplementations(entity: EntityConfig): Promise<void> {
-		this.logger.debug(`Loading implementations for entity ${entity.entity}`);
-
-		// Load hook implementations
-		if (entity.hooks) {
-			for (const hookType of Object.keys(entity.hooks)) {
-				const hooks = (entity.hooks as any)[hookType] as any[];
-				if (hooks && Array.isArray(hooks)) {
-					for (const hook of hooks) {
-						if (hook.implementation && hook.implementation.startsWith('./')) {
-							try {
-								hook.implementationFn = await this.loadExternalCode(hook.implementation);
-							} catch (error) {
-								this.logger.error(`Failed to load hook implementation for ${entity.entity}.${hookType}.${hook.name}: ${error}`);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// Load computed property implementations
-		if (entity.computed) {
-			for (const prop of entity.computed) {
-				if (prop.implementation && prop.implementation.startsWith('./')) {
-					try {
-						prop.implementationFn = await this.loadExternalCode(prop.implementation);
-					} catch (error) {
-						this.logger.error(`Failed to load computed property implementation for ${entity.entity}.${prop.name}: ${error}`);
-					}
-				}
-			}
-		}
-
-		// Load validation rule implementations
-		if (entity.validation && entity.validation.rules) {
-			for (const [field, rules] of Object.entries(entity.validation.rules)) {
-				for (const rule of rules) {
-					if (rule.type === 'custom' && rule.implementation && rule.implementation.startsWith('./')) {
-						try {
-							rule.implementationFn = await this.loadExternalCode(rule.implementation);
-						} catch (error) {
-							this.logger.error(`Failed to load validation rule implementation for ${entity.entity}.${field}: ${error}`);
-						}
-					}
-				}
-			}
-		}
-
-		// Load workflow transition implementations
-		if (entity.workflows) {
-			for (const workflow of entity.workflows) {
-				for (const transition of workflow.transitions) {
-					if (transition.implementation && transition.implementation.startsWith('./')) {
-						try {
-							transition.implementationFn = await this.loadExternalCode(transition.implementation);
-						} catch (error) {
-							this.logger.error(`Failed to load workflow transition implementation for ${entity.entity}.${workflow.name}.${transition.action}: ${error}`);
-						}
-					}
-
-					// Load hook implementations
-					if (transition.hooks) {
-						for (const [hookName, hookPath] of Object.entries(transition.hooks)) {
-							if (hookPath && typeof hookPath === 'string' && hookPath.startsWith('./')) {
-								try {
-									(transition.hooks as any)[`${hookName}Fn`] = await this.loadExternalCode(hookPath);
-								} catch (error) {
-									this.logger.error(`Failed to load workflow transition hook implementation for ${entity.entity}.${workflow.name}.${transition.action}.${hookName}: ${error}`);
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Load a JSON schema
-	 * @param schemaName Schema name
-	 * @returns JSON schema object
-	 */
-	private async loadSchema(schemaName: string): Promise<object> {
-		// Check if schema is already loaded
-		if (this.schemas.has(schemaName)) {
-			return this.schemas.get(schemaName)!;
-		}
-
-		const schemaPath = path.join(this.options.schemaDir!, `${schemaName}.json`);
-
-		try {
-			this.logger.debug(`Loading schema from ${schemaPath}`);
-
-			// Check if schema file exists
-			if (!fs.existsSync(schemaPath)) {
-				throw new Error(`Schema file not found: ${schemaPath}`);
-			}
-
-			// Read and parse JSON
-			const content = fs.readFileSync(schemaPath, 'utf8');
-			const schema = JSON.parse(content);
-
-			// Store schema
-			this.schemas.set(schemaName, schema);
-
-			return schema;
-		} catch (error) {
-			this.logger.error(`Failed to load schema ${schemaName}: ${error}`);
-			throw new Error(`Failed to load schema ${schemaName}: ${error}`);
-		}
-	}
-
-	/**
-	 * Validate a configuration against a schema
-	 * @param schemaName Schema name
+	 * Validate an entity configuration against a JSON schema
+	 * @param type Schema type ('entity' or 'app')
 	 * @param config Configuration to validate
 	 */
-	private async validateConfig(schemaName: string, config: any): Promise<void> {
-		try {
-			// Get schema
-			const schema = await this.loadSchema(schemaName);
+	private validateConfig(type: string, config: any): void {
+		const validate = this.validator.getSchema(type);
 
-			// Compile validator function
-			const validate = this.validator.compile(schema);
+		if (!validate) {
+			this.logger.warn(`No schema found for ${type}, skipping validation`);
+			return;
+		}
 
-			// Validate
-			const valid = validate(config);
+		const valid = validate(config);
 
-			if (!valid) {
-				const errors = validate.errors?.map(err =>
-					`${err.instancePath} ${err.message}`
-				).join(', ');
+		if (!valid && validate.errors) {
+			const errors = validate.errors.map(err =>
+				`${err.instancePath} ${err.message}`
+			).join(', ');
 
-				throw new Error(`Invalid ${schemaName} configuration: ${errors}`);
-			}
-		} catch (error) {
-			// If schema doesn't exist, log warning but continue
-			if ((error as Error).message.includes('Schema file not found')) {
-				this.logger.warn(`Schema validation skipped: ${error}`);
-				return;
-			}
-
-			throw error;
+			throw new Error(`Invalid ${type} configuration: ${errors}`);
 		}
 	}
 
 	/**
-	 * Load external code file
+	 * Load external code (JavaScript or TypeScript)
 	 * @param filePath Path to code file
 	 * @returns Exported function or object
 	 */
-	private async loadExternalCode(filePath: string): Promise<any> {
+	async loadExternalCode(filePath: string): Promise<any> {
 		try {
 			// Resolve path
 			const resolvedPath = path.isAbsolute(filePath)
@@ -438,6 +304,11 @@ export class ConfigLoader {
 
 			this.logger.debug(`Loading external code from ${resolvedPath}`);
 
+			// Check if file exists
+			if (!fs.existsSync(resolvedPath)) {
+				throw new Error(`External code file not found: ${resolvedPath}`);
+			}
+
 			// Check file extension to determine module type
 			if (resolvedPath.endsWith('.mjs') || await this.isEsmModule(resolvedPath)) {
 				// ESM module
@@ -445,7 +316,8 @@ export class ConfigLoader {
 				return module.default || module;
 			} else {
 				// CommonJS module
-				return require(resolvedPath);
+				const module = require(resolvedPath);
+				return module.default || module;
 			}
 		} catch (error) {
 			this.logger.error(`Failed to load external code from ${filePath}: ${error}`);
@@ -465,10 +337,17 @@ export class ConfigLoader {
 				return true;
 			}
 
+			// Check package.json for type: module
+			const pkgPath = path.join(path.dirname(filePath), 'package.json');
+			if (fs.existsSync(pkgPath)) {
+				const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+				if (pkg.type === 'module') {
+					return true;
+				}
+			}
+
 			// Check for import/export statements
 			const content = fs.readFileSync(filePath, 'utf8');
-
-			// Simple heuristic: check for import/export statements
 			return /\bimport\s+|export\s+/.test(content);
 		} catch (error) {
 			return false;
@@ -492,43 +371,20 @@ export class ConfigLoader {
 	}
 
 	/**
-	 * Generate YAML for an entity
-	 * @param entity Entity configuration
-	 * @returns YAML string
+	 * Get an entity configuration by name
+	 * @param entityName Entity name
+	 * @returns Entity configuration
 	 */
-	generateEntityYaml(entity: EntityConfig): string {
-		return yaml.dump(entity, {
-			indent: 2,
-			lineWidth: 120,
-			sortKeys: false
-		});
+	getEntity(entityName: string): EntityConfig | undefined {
+		return this.entities.get(entityName);
 	}
+}
 
-	/**
-	 * Write entity configuration to YAML file
-	 * @param entity Entity configuration
-	 * @param outputDir Output directory
-	 * @returns Path to the written file
-	 */
-	writeEntityYaml(entity: EntityConfig, outputDir?: string): string {
-		const dir = outputDir || this.options.entitiesDir;
-
-		if (!dir) {
-			throw new Error('Output directory not specified');
-		}
-
-		// Create directory if it doesn't exist
-		if (!fs.existsSync(dir)) {
-			fs.mkdirSync(dir, { recursive: true });
-		}
-
-		const filePath = path.join(dir, `${entity.entity.toLowerCase()}.yaml`);
-		const yaml = this.generateEntityYaml(entity);
-
-		fs.writeFileSync(filePath, yaml, 'utf8');
-
-		this.logger.debug(`Wrote entity configuration to ${filePath}`);
-
-		return filePath;
-	}
+/**
+ * Create a config loader instance
+ * @param options Configuration loader options
+ * @returns Config loader instance
+ */
+export function createConfigLoader(options: ConfigLoaderOptions = {}): ConfigLoader {
+	return new ConfigLoader(options);
 }
