@@ -7,7 +7,7 @@ import { Express, Request, Response, NextFunction } from 'express';
 
 import { DatabaseAdapter } from '../database/core/types';
 import { DbConfig } from '../database/core/connection-types';
-import { EntityDao } from '../database';
+import { EntityDao } from '@/entity/entity-manager';
 
 /**
  * Application configuration

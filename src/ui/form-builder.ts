@@ -6,7 +6,7 @@
  * and customization options.
  */
 
-import { EntityMapping } from '../entity/entity-schema';
+import { EntityConfig } from '../entity/entity-schema';
 import { FormConfig, FormFieldConfig, FormMode, ComponentType, FormSectionConfig } from './ui-schema';
 
 /**
@@ -112,7 +112,7 @@ export interface FormBuilderOptions {
 	/**
 	 * Available entity mappings (for relation fields)
 	 */
-	entityMappings?: Record<string, EntityMapping>;
+	entityMappings?: Record<string, EntityConfig>;
 }
 
 /**
@@ -133,19 +133,19 @@ export class FormBuilder {
 	/**
 	 * Entity mapping
 	 */
-	private entity: EntityMapping;
+	private entity: EntityConfig;
 
 	/**
 	 * Available entity mappings
 	 */
-	private entityMappings: Record<string, EntityMapping>;
+	private entityMappings: Record<string, EntityConfig>;
 
 	/**
 	 * Constructor
 	 * @param entity Entity mapping
 	 * @param entityMappings Available entity mappings
 	 */
-	constructor(entity: EntityMapping, entityMappings: Record<string, EntityMapping> = {}) {
+	constructor(entity: EntityConfig, entityMappings: Record<string, EntityConfig> = {}) {
 		this.entity = entity;
 		this.entityMappings = { ...entityMappings, [entity.entity]: entity };
 	}
@@ -382,7 +382,7 @@ export class FormBuilder {
 	 * @param mapping Entity mapping
 	 * @returns Display field name
 	 */
-	private getDisplayField(mapping: EntityMapping): string {
+	private getDisplayField(mapping: EntityConfig): string {
 		// Common display field names
 		const displayFieldCandidates = ['name', 'title', 'label', 'description'];
 
@@ -406,9 +406,9 @@ export class FormBuilder {
  * @returns Form configuration
  */
 export function generateForm(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: FormBuilderOptions,
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): FormConfig {
 	const builder = new FormBuilder(entity, entityMappings);
 	return builder.buildForm(options);
@@ -422,9 +422,9 @@ export function generateForm(
  * @returns Create form configuration
  */
 export function generateCreateForm(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.Create,
@@ -442,9 +442,9 @@ export function generateCreateForm(
  * @returns Edit form configuration
  */
 export function generateEditForm(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.Edit,
@@ -463,9 +463,9 @@ export function generateEditForm(
  * @returns View form configuration
  */
 export function generateViewForm(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.View,

@@ -3,7 +3,7 @@
  * State machine for entity workflows defined in YAML
  */
 
-import { EntityMapping, Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
+import { EntityConfig, Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
 import { EntityDao } from '../database/entity-dao';
 import { HookError } from './hook-context';
 
@@ -81,7 +81,7 @@ export class WorkflowEngine {
 	 * Register entity workflows
 	 * @param entity Entity configuration
 	 */
-	async registerWorkflows(entity: EntityMapping): Promise<void> {
+	async registerWorkflows(entity: EntityConfig): Promise<void> {
 		if (!entity.workflows || entity.workflows.length === 0) {
 			return;
 		}

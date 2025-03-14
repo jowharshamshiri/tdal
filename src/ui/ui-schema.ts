@@ -5,7 +5,7 @@
  * schema. It includes types for pages, layouts, components, and their properties.
  */
 
-import { EntityMapping } from "../entity/entity-schema";
+import { EntityConfig } from "../entity/entity-schema";
 
 /**
  * Available UI component types
@@ -501,7 +501,7 @@ export function getComponentSchema(type: ComponentType): any {
  */
 export function validateComponent(
 	component: ComponentConfig,
-	entities: Record<string, EntityMapping>
+	entities: Record<string, EntityConfig>
 ): string[] {
 	const errors: string[] = [];
 

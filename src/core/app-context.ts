@@ -25,7 +25,7 @@ export class AppContext {
 	/**
 	 * Entity configurations by name
 	 */
-	private entityConfigs: Map<string, EntityMapping> = new Map();
+	private entityConfigs: Map<string, EntityConfig> = new Map();
 
 	/**
 	 * Registered service definitions
@@ -78,7 +78,7 @@ export class AppContext {
 	 * @param entities Entity configurations
 	 * @returns Initialized application context
 	 */
-	async initialize(entities: Map<string, EntityMapping>): Promise<AppContext> {
+	async initialize(entities: Map<string, EntityConfig>): Promise<AppContext> {
 		try {
 			this.logger.info('Initializing application context');
 
@@ -261,7 +261,7 @@ export class AppContext {
 	 * @param entityName Entity name
 	 * @returns Entity configuration
 	 */
-	getEntityMapping(entityName: string): EntityMapping {
+	getEntityConfig(entityName: string): EntityConfig {
 		const config = this.entityConfigs.get(entityName);
 		if (!config) {
 			throw new Error(`Entity configuration not found for entity: ${entityName}`);
@@ -273,7 +273,7 @@ export class AppContext {
 	 * Get all entity configurations
 	 * @returns Map of entity name to entity configuration
 	 */
-	getAllEntityMappings(): Map<string, EntityMapping> {
+	getAllEntityConfigs(): Map<string, EntityConfig> {
 		return new Map(this.entityConfigs);
 	}
 

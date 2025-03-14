@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { EntityMapping, ColumnMapping, ValidationRules } from './entity-mapping';
+import { EntityConfig, ColumnMapping, ValidationRules } from './entity-config';
 import { generateEntityInterface, mapTypeScriptToDbType } from './entity-schema';
 import { EntityApiConfig } from '@/core/types';
 
@@ -15,7 +15,7 @@ import { EntityApiConfig } from '@/core/types';
  * @param entity Entity configuration
  * @returns YAML string
  */
-export function generateYaml(entity: EntityMapping): string {
+export function generateYaml(entity: EntityConfig): string {
 	return yaml.dump(entity, {
 		indent: 2,
 		lineWidth: 100,
@@ -29,7 +29,7 @@ export function generateYaml(entity: EntityMapping): string {
  * @param outputDir Output directory
  * @returns Path to the written file
  */
-export function writeEntityYaml(entity: EntityMapping, outputDir: string): string {
+export function writeEntityYaml(entity: EntityConfig, outputDir: string): string {
 	// Create output directory if it doesn't exist
 	if (!fs.existsSync(outputDir)) {
 		fs.mkdirSync(outputDir, { recursive: true });
@@ -47,7 +47,7 @@ export function writeEntityYaml(entity: EntityMapping, outputDir: string): strin
  * @param entity Entity configuration
  * @returns TypeScript code string
  */
-export function generateEntityTypeScript(entity: EntityMapping): string {
+export function generateEntityTypeScript(entity: EntityConfig): string {
 	return generateEntityInterface(entity);
 }
 
@@ -57,7 +57,7 @@ export function generateEntityTypeScript(entity: EntityMapping): string {
  * @param outputDir Output directory
  * @returns Path to the written file
  */
-export function writeEntityTypeScript(entity: EntityMapping, outputDir: string): string {
+export function writeEntityTypeScript(entity: EntityConfig, outputDir: string): string {
 	// Create output directory if it doesn't exist
 	if (!fs.existsSync(outputDir)) {
 		fs.mkdirSync(outputDir, { recursive: true });
@@ -83,7 +83,7 @@ export function generateEntityFromTypeScript(
 	tsSource: string,
 	tableName: string,
 	idField: string
-): EntityMapping {
+): EntityConfig {
 	const lines = tsSource.split('\n');
 	let interfaceName = '';
 	const columns: ColumnMapping[] = [];
@@ -176,7 +176,7 @@ export function generateEntityFromTypeScript(
 export async function generateEntityFromDatabase(
 	tableName: string,
 	db: any // Database adapter with schema introspection
-): Promise<EntityMapping | null> {
+): Promise<EntityConfig | null> {
 	try {
 		// This is a placeholder - actual implementation would depend
 		// on the database adapter's schema introspection capabilities
@@ -234,9 +234,9 @@ export function scaffoldEntity(
 	entityName: string,
 	tableName: string = entityName.toLowerCase(),
 	outputDir: string
-): EntityMapping {
+): EntityConfig {
 	// Create basic entity definition
-	const entity: EntityMapping = {
+	const entity: EntityConfig = {
 		entity: entityName,
 		table: tableName,
 		idField: 'id',
@@ -312,7 +312,7 @@ export function scaffoldEntity(
  * @param apiConfig API configuration
  * @returns Updated entity
  */
-export function addApiConfig(entity: EntityMapping, apiConfig: EntityApiConfig): EntityMapping {
+export function addApiConfig(entity: EntityConfig, apiConfig: EntityApiConfig): EntityConfig {
 	return {
 		...entity,
 		api: {
@@ -328,7 +328,7 @@ export function addApiConfig(entity: EntityMapping, apiConfig: EntityApiConfig):
  * @param validationRules Validation rules
  * @returns Updated entity
  */
-export function addValidationRules(entity: EntityMapping, validationRules: ValidationRules): EntityMapping {
+export function addValidationRules(entity: EntityConfig, validationRules: ValidationRules): EntityConfig {
 	return {
 		...entity,
 		validation: {
@@ -347,7 +347,7 @@ export function addValidationRules(entity: EntityMapping, validationRules: Valid
  * @param relation Relation to add
  * @returns Updated entity
  */
-export function addRelation(entity: EntityMapping, relation: any): EntityMapping {
+export function addRelation(entity: EntityConfig, relation: any): EntityConfig {
 	const relations = entity.relations ? [...entity.relations] : [];
 
 	// Check if relation already exists
@@ -412,9 +412,9 @@ function mapDbColumnTypeToTs(dbType: string): string {
  * @param filePath Path to YAML file
  * @returns Entity configuration
  */
-export function parseEntityFile(filePath: string): EntityMapping {
+export function parseEntityFile(filePath: string): EntityConfig {
 	const content = fs.readFileSync(filePath, 'utf8');
-	return yaml.load(content) as EntityMapping;
+	return yaml.load(content) as EntityConfig;
 }
 
 /**
@@ -422,8 +422,8 @@ export function parseEntityFile(filePath: string): EntityMapping {
  * @param dirPath Path to directory containing YAML files
  * @returns Map of entity name to entity configuration
  */
-export function loadEntities(dirPath: string): Map<string, EntityMapping> {
-	const entities = new Map<string, EntityMapping>();
+export function loadEntities(dirPath: string): Map<string, EntityConfig> {
+	const entities = new Map<string, EntityConfig>();
 
 	if (!fs.existsSync(dirPath)) {
 		throw new Error(`Entities directory not found: ${dirPath}`);
@@ -448,7 +448,7 @@ export function loadEntities(dirPath: string): Map<string, EntityMapping> {
  * @returns SQL statement for creating the table
  */
 export function generateSchemaSQL(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	dialect: 'sqlite' | 'mysql' | 'postgres' = 'sqlite'
 ): string {
 	// Import from entity-schema.ts to generate SQL

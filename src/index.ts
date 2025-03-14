@@ -24,7 +24,7 @@ export * from './database/query/entity-query-builder';
 export * from './database/query/sqlite-query-builder';
 
 // Export ORM components
-export * from './entity/entity-mapping';
+export * from './entity/entity-config';
 export * from './database/orm/relation-types';
 export * from './database/orm/date-functions';
 

@@ -3,7 +3,7 @@
  * Provides JSON Schema for YAML validation and TypeScript interfaces
  */
 
-import { EntityMapping } from "./entity-mapping";
+import { EntityConfig } from "./entity-config";
 
 /**
  * JSON Schema for entity validation
@@ -411,7 +411,7 @@ export const entityJsonSchema = {
  * @param entity Entity configuration
  * @returns TypeScript interface as string
  */
-export function generateEntityInterface(entity: EntityMapping): string {
+export function generateEntityInterface(entity: EntityConfig): string {
 	let interfaceCode = `/**
  * Generated interface for ${entity.entity}
  * Automatically generated from YAML schema
@@ -724,7 +724,7 @@ function getPostgresColumnType(column: any): string {
  * @param ajv Ajv instance
  * @returns Validation result
  */
-export function validateEntity(entity: EntityMapping, ajv: any): { valid: boolean; errors: any[] } {
+export function validateEntity(entity: EntityConfig, ajv: any): { valid: boolean; errors: any[] } {
 	const validate = ajv.compile(entityJsonSchema);
 	const valid = validate(entity);
 

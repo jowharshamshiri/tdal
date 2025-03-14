@@ -3,7 +3,7 @@
  * Processes validation rules defined in YAML
  */
 
-import { ValidationRule, EntityMapping, Logger } from '../core/types';
+import { ValidationRule, EntityConfig, Logger } from '../core/types';
 
 /**
  * Validation error
@@ -26,7 +26,7 @@ export interface ValidationContext {
 	/** Entity data being validated */
 	entity: Record<string, any>;
 	/** Entity configuration */
-	entityConfig: EntityMapping;
+	entityConfig: EntityConfig;
 	/** Is this a create operation? */
 	isCreate: boolean;
 	/** Logger instance */
@@ -225,7 +225,7 @@ export class ValidationEngine {
 	 * Load custom rule implementations from entity configuration
 	 * @param entityConfig Entity configuration
 	 */
-	async loadCustomRules(entityConfig: EntityMapping): Promise<void> {
+	async loadCustomRules(entityConfig: EntityConfig): Promise<void> {
 		if (!entityConfig.validation?.rules) return;
 
 		for (const [field, rules] of Object.entries(entityConfig.validation.rules)) {
@@ -267,7 +267,7 @@ export class ValidationEngine {
 	 */
 	async validate(
 		data: Record<string, any>,
-		entityConfig: EntityMapping,
+		entityConfig: EntityConfig,
 		isCreate: boolean = true
 	): Promise<ValidationError[] | null> {
 		// Skip validation if no rules defined

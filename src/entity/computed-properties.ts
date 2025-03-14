@@ -4,7 +4,7 @@
  */
 
 import { Logger } from '../database/core/types';
-import { ComputedProperty, EntityMapping } from './entity-mapping';
+import { ComputedProperty, EntityConfig } from './entity-config';
 
 /**
  * Compute property implementations
@@ -22,7 +22,7 @@ export interface ComputedPropertyImplementations {
  * @returns Map of property implementations
  */
 export async function loadComputedPropertyImplementations(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	logger: Logger,
 	configLoader: any
 ): Promise<ComputedPropertyImplementations> {
@@ -228,7 +228,7 @@ export function getComputedPropertyOrder(
  * @returns Function to process all computed properties
  */
 export function createComputedPropertiesProcessor(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	implementations: ComputedPropertyImplementations
 ): (entity: any) => any {
 	if (!entity.computed || entity.computed.length === 0) {

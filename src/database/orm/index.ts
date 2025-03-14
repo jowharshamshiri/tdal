@@ -14,6 +14,6 @@ export * from "./date-functions";
  * @param mapping Entity mapping configuration
  * @returns Typed entity mapping
  */
-export function createEntityMapping<T>(mapping: Record<string, unknown>): T {
+export function createEntityConfig<T>(mapping: Record<string, unknown>): T {
 	return mapping as T;
 }

@@ -3,7 +3,7 @@
  * Provides entity lifecycle management and DAO factory
  */
 
-import { EntityHook, EntityMapping, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical } from './entity-mapping';
+import { EntityHook, EntityConfig, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
 import { processComputedProperties, loadComputedPropertyImplementations } from './computed-properties';
 import { HookContext, Logger } from '@/core/types';
@@ -53,7 +53,7 @@ export class EntityHookHandler {
 	private implementations: EntityHookImplementations = {};
 	private loadedHooks: Set<string> = new Set();
 	private logger: Logger;
-	private config: EntityMapping;
+	private config: EntityConfig;
 	private configLoader: any;
 
 	/**
@@ -62,7 +62,7 @@ export class EntityHookHandler {
 	 * @param logger Logger instance
 	 * @param configLoader Configuration loader for loading external code
 	 */
-	constructor(config: EntityMapping, logger: Logger, configLoader: any) {
+	constructor(config: EntityConfig, logger: Logger, configLoader: any) {
 		this.config = config;
 		this.logger = logger;
 		this.configLoader = configLoader;
@@ -210,7 +210,7 @@ export class EntityDao<T, IdType = number> {
 	/**
 	 * Entity mapping for the DAO
 	 */
-	protected readonly entityMapping: EntityMapping;
+	protected readonly entityMapping: EntityConfig;
 
 	/**
 	 * Hook handler for entity lifecycle events
@@ -235,7 +235,7 @@ export class EntityDao<T, IdType = number> {
 	 * @param configLoader Optional configuration loader for hooks and computed properties
 	 */
 	constructor(
-		entityMapping: EntityMapping,
+		entityMapping: EntityConfig,
 		db?: DatabaseAdapter,
 		logger?: Logger,
 		configLoader?: any
@@ -428,7 +428,7 @@ export class EntityDao<T, IdType = number> {
 	 * Get the entity mapping
 	 * @returns Entity mapping
 	 */
-	getEntityMapping(): EntityMapping {
+	getEntityConfig(): EntityConfig {
 		return this.entityMapping;
 	}
 
@@ -546,7 +546,7 @@ export class EntityDao<T, IdType = number> {
 		return this.db.transaction(async (db) => {
 			// Create a new instance of this DAO with the transaction's database connection
 			const transactionDao = new (this.constructor as new (
-				mapping: EntityMapping,
+				mapping: EntityConfig,
 				db: DatabaseAdapter,
 				logger?: Logger,
 				configLoader?: any
@@ -1702,7 +1702,7 @@ export class EntityDao<T, IdType = number> {
  * @returns Entity DAO instance
  */
 export function createEntityDao<T>(
-	config: EntityMapping,
+	config: EntityConfig,
 	db: DatabaseAdapter,
 	logger?: Logger,
 	configLoader?: any

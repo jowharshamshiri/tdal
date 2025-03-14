@@ -5,7 +5,7 @@
  * from entity definitions, with support for columns, filters, sorting, and actions.
  */
 
-import { EntityMapping } from '../entity/entity-schema';
+import { EntityConfig } from '../entity/entity-schema';
 import {
 	ComponentType,
 	DataTableConfig,
@@ -105,7 +105,7 @@ export interface DataTableBuilderOptions {
 	/**
 	 * Available entity mappings (for relation columns)
 	 */
-	entityMappings?: Record<string, EntityMapping>;
+	entityMappings?: Record<string, EntityConfig>;
 }
 
 /**
@@ -147,19 +147,19 @@ export class DataTableBuilder {
 	/**
 	 * Entity mapping
 	 */
-	private entity: EntityMapping;
+	private entity: EntityConfig;
 
 	/**
 	 * Available entity mappings
 	 */
-	private entityMappings: Record<string, EntityMapping>;
+	private entityMappings: Record<string, EntityConfig>;
 
 	/**
 	 * Constructor
 	 * @param entity Entity mapping
 	 * @param entityMappings Available entity mappings
 	 */
-	constructor(entity: EntityMapping, entityMappings: Record<string, EntityMapping> = {}) {
+	constructor(entity: EntityConfig, entityMappings: Record<string, EntityConfig> = {}) {
 		this.entity = entity;
 		this.entityMappings = { ...entityMappings, [entity.entity]: entity };
 	}
@@ -587,7 +587,7 @@ export class DataTableBuilder {
 	 * @param mapping Entity mapping
 	 * @returns Display field name
 	 */
-	private getDisplayField(mapping: EntityMapping): string {
+	private getDisplayField(mapping: EntityConfig): string {
 		// Common display field names
 		const displayFieldCandidates = ['name', 'title', 'label', 'description'];
 
@@ -611,9 +611,9 @@ export class DataTableBuilder {
  * @returns Data table configuration
  */
 export function generateDataTable(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: DataTableBuilderOptions = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	const builder = new DataTableBuilder(entity, entityMappings);
 	return builder.buildDataTable(options);
@@ -627,9 +627,9 @@ export function generateDataTable(
  * @returns List table configuration
  */
 export function generateListTable(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	return generateDataTable(entity, {
 		title: `${entity.entity} List`,
@@ -655,9 +655,9 @@ export function generateListTable(
  * @returns Compact table configuration
  */
 export function generateCompactTable(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	// Identify the most important columns (typically the first 3-4 non-ID columns)
 	const importantColumns = entity.columns
@@ -687,9 +687,9 @@ export function generateCompactTable(
  * @returns Read-only table configuration
  */
 export function generateReadOnlyTable(
-	entity: EntityMapping,
+	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityMapping> = {}
+	entityMappings: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	return generateDataTable(entity, {
 		title: `${entity.entity} Data`,

@@ -19,7 +19,7 @@ import {
 	AggregateFunction,
 } from "../core/types";
 import { DbConnection } from "../core/connection-types";
-import { EntityMapping } from "../../entity/entity-mapping";
+import { EntityConfig } from "../../entity/entity-config";
 import { QueryBuilder } from "../query";
 
 /**

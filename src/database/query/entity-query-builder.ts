@@ -11,10 +11,10 @@ import {
 	WhereCondition
 } from "../core/types";
 import {
-	EntityMapping,
+	EntityConfig,
 	mapColumnToPhysical,
 	mapRecordToPhysical
-} from "../../entity/entity-mapping";
+} from "../../entity/entity-config";
 import {
 	Relation,
 	ManyToManyRelation,
@@ -36,7 +36,7 @@ export interface EntityQueryBuilder extends QueryBuilder {
 	 * Get the entity mapping this query builder is using
 	 * @returns Entity mapping
 	 */
-	getEntityMapping(): EntityMapping;
+	getEntityConfig(): EntityConfig;
 
 	/**
 	 * Select specific logical columns from the entity
@@ -274,7 +274,7 @@ export interface EntityQueryBuilderFactory {
 	 * @param entityMapping Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityMapping): EntityQueryBuilder;
+	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder;
 
 	/**
 	 * Create an entity query builder for a one-to-many relationship
@@ -284,7 +284,7 @@ export interface EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createOneToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: Relation,
 		sourceId: number | string
 	): EntityQueryBuilder;
@@ -297,7 +297,7 @@ export interface EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createManyToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: Relation,
 		sourceId: number | string
 	): EntityQueryBuilder;
@@ -310,7 +310,7 @@ export abstract class EntityQueryBuilderBase implements EntityQueryBuilder {
 	/**
 	 * Get the entity mapping
 	 */
-	abstract getEntityMapping(): EntityMapping;
+	abstract getEntityConfig(): EntityConfig;
 
 	/**
 	 * Map a logical column name to a physical column name
@@ -392,7 +392,7 @@ export interface EntityQueryBuilderFactory {
 	 * @param entityMapping Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityMapping): EntityQueryBuilder;
+	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder;
 
 	/**
 	 * Create an entity query builder for a one-to-many relationship
@@ -402,7 +402,7 @@ export interface EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createOneToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: Relation,
 		sourceId: number | string
 	): EntityQueryBuilder;
@@ -415,7 +415,7 @@ export interface EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createManyToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: Relation,
 		sourceId: number | string
 	): EntityQueryBuilder;
@@ -428,14 +428,14 @@ export interface EntityQueryBuilderFactory {
 export class GenericEntityQueryBuilder implements EntityQueryBuilder {
 	constructor(
 		protected queryBuilder: QueryBuilder,
-		protected mapping: EntityMapping,
+		protected mapping: EntityConfig,
 		protected adapter: DatabaseAdapter
 	) { }
 
 	/**
 	 * Get the entity mapping
 	 */
-	getEntityMapping(): EntityMapping {
+	getEntityConfig(): EntityConfig {
 		return this.mapping;
 	}
 
@@ -958,7 +958,7 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 	 * @param entityMapping Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityMapping): EntityQueryBuilder {
+	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder {
 		const queryBuilder = this.adapter.createQueryBuilder();
 		return new GenericEntityQueryBuilder(queryBuilder, entityMapping, this.adapter);
 	}
@@ -971,7 +971,7 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createOneToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: OneToManyRelation,
 		sourceId: number | string
 	): EntityQueryBuilder {
@@ -980,7 +980,7 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 		const queryBuilder = this.adapter.createQueryBuilder();
 
 		// Assume the target entity has a matching mapping
-		const targetMapping: EntityMapping = {
+		const targetMapping: EntityConfig = {
 			entity: relation.targetEntity,
 			table: relation.targetEntity.toLowerCase(),
 			idField: "id", // Assume a generic ID field
@@ -1007,7 +1007,7 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 	 * @returns Entity query builder for the target entity
 	 */
 	createManyToManyQueryBuilder(
-		sourceMapping: EntityMapping,
+		sourceMapping: EntityConfig,
 		relation: ManyToManyRelation,
 		sourceId: number | string
 	): EntityQueryBuilder {
@@ -1016,7 +1016,7 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 		const queryBuilder = this.adapter.createQueryBuilder();
 
 		// Assume the target entity has a matching mapping
-		const targetMapping: EntityMapping = {
+		const targetMapping: EntityConfig = {
 			entity: relation.targetEntity,
 			table: relation.targetEntity.toLowerCase(),
 			idField: "id", // Assume a generic ID field

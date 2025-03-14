@@ -8,13 +8,13 @@ import {
 } from "./test-setup";
 import { DatabaseAdapter } from "../src/database/core/types";
 import { EntityDao } from "../src/entity/entity-manager";
-import { EntityMapping } from "../src/database/orm/entity-mapping";
+import { EntityConfig } from "../src/database/orm/entity-mapping";
 import { User, UserMapping } from "./models/user";
 import { Relation } from "../src/database/orm/relation-types";
 
 // Create a concrete implementation of EntityDao for testing
 class TestUserDao extends EntityDao<User> {
-	protected readonly entityMapping: EntityMapping = {
+	protected readonly entityMapping: EntityConfig = {
 		...UserMapping,
 		// Fix the relations type by properly casting each relation
 		relations: UserMapping.relations
