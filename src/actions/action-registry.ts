@@ -7,6 +7,8 @@ import { Logger } from '../core/types';
 import { EntityConfig, EntityAction } from '../entity/entity-config';
 import { HookContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
+import { executeHookWithTimeout, HookImplementation, createHook } from '../hooks/hooks-executor';
+import { HookError } from '../hooks/hook-context';
 import * as path from 'path';
 
 /**
@@ -60,6 +62,31 @@ export interface ActionResult<T = any> {
 }
 
 /**
+ * Action execution options
+ */
+export interface ActionExecutionOptions {
+	/**
+	 * Whether to execute in a transaction
+	 */
+	transactional?: boolean;
+
+	/**
+	 * Transaction isolation level
+	 */
+	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
+
+	/**
+	 * Whether to throw errors (true) or return error results (false)
+	 */
+	throwErrors?: boolean;
+
+	/**
+	 * Timeout in milliseconds
+	 */
+	timeout?: number;
+}
+
+/**
  * Action registry
  * Manages entity actions
  */
@@ -75,16 +102,31 @@ export class ActionRegistry {
 	private entityActions: Map<string, Map<string, ActionImplementation>> = new Map();
 
 	/**
+	 * Action hooks by entity and action name
+	 */
+	private actionHooks: Map<string, Map<string, {
+		before: HookImplementation[],
+		after: HookImplementation[]
+	}>> = new Map();
+
+	/**
 	 * Logger instance
 	 */
 	private logger: Logger;
 
 	/**
+	 * Configuration loader
+	 */
+	private configLoader: any;
+
+	/**
 	 * Constructor
 	 * @param logger Logger instance
+	 * @param configLoader Configuration loader for external code
 	 */
-	constructor(logger: Logger) {
+	constructor(logger: Logger, configLoader?: any) {
 		this.logger = logger;
+		this.configLoader = configLoader;
 	}
 
 	/**
@@ -93,7 +135,7 @@ export class ActionRegistry {
 	 * @param action Action configuration
 	 * @returns Whether registration was successful
 	 */
-	registerAction(entityName: string, action: EntityAction): boolean {
+	async registerAction(entityName: string, action: EntityAction): Promise<boolean> {
 		try {
 			// Generate action key
 			const actionKey = `${entityName}.${action.name}`;
@@ -121,23 +163,29 @@ export class ActionRegistry {
 				implementationFn = action.implementation;
 			} else if (typeof action.implementation === 'string') {
 				if (action.implementation.startsWith('./') || action.implementation.startsWith('../') || path.isAbsolute(action.implementation)) {
-					// External file path - will be loaded when the action is executed
-					implementationFn = async (params: any, context: HookContext) => {
-						try {
-							const resolvedPath = path.resolve(process.cwd(), action.implementation as string);
-							const module = await import(resolvedPath);
-							const fn = module.default || module;
+					// External file path - load it now
+					if (this.configLoader) {
+						const module = await this.configLoader.loadExternalCode(action.implementation);
+						implementationFn = module.default || module;
+					} else {
+						// Create a function that will load the module at execution time
+						implementationFn = async (params: any, context: HookContext) => {
+							try {
+								const resolvedPath = path.resolve(process.cwd(), action.implementation as string);
+								const module = await import(resolvedPath);
+								const fn = module.default || module;
 
-							if (typeof fn !== 'function') {
-								throw new Error(`Action implementation is not a function`);
+								if (typeof fn !== 'function') {
+									throw new Error(`Action implementation is not a function`);
+								}
+
+								return await fn(params, context);
+							} catch (error) {
+								this.logger.error(`Error executing action ${actionKey}: ${error.message}`);
+								throw error;
 							}
-
-							return await fn(params, context);
-						} catch (error) {
-							this.logger.error(`Error executing action ${actionKey}: ${error.message}`);
-							throw error;
-						}
-					};
+						};
+					}
 				} else {
 					// Inline code string
 					implementationFn = new Function(
@@ -168,6 +216,18 @@ export class ActionRegistry {
 
 			this.entityActions.get(entityName)!.set(action.name, implementation);
 
+			// Initialize action hooks map
+			if (!this.actionHooks.has(entityName)) {
+				this.actionHooks.set(entityName, new Map());
+			}
+
+			if (!this.actionHooks.get(entityName)!.has(action.name)) {
+				this.actionHooks.get(entityName)!.set(action.name, {
+					before: [],
+					after: []
+				});
+			}
+
 			this.logger.info(`Registered action ${actionKey}`);
 			return true;
 		} catch (error) {
@@ -182,7 +242,7 @@ export class ActionRegistry {
 	 * @param entityConfig Entity configuration
 	 * @returns Number of successfully registered actions
 	 */
-	registerEntityActions(entityName: string, entityConfig: EntityConfig): number {
+	async registerEntityActions(entityName: string, entityConfig: EntityConfig): Promise<number> {
 		let successCount = 0;
 
 		if (!entityConfig.actions || entityConfig.actions.length === 0) {
@@ -190,12 +250,40 @@ export class ActionRegistry {
 		}
 
 		for (const action of entityConfig.actions) {
-			if (this.registerAction(entityName, action)) {
+			if (await this.registerAction(entityName, action)) {
 				successCount++;
 			}
 		}
 
 		return successCount;
+	}
+
+	/**
+	 * Register a hook for an action
+	 * @param entityName Entity name
+	 * @param actionName Action name
+	 * @param hook Hook implementation
+	 * @param phase Hook phase ('before' or 'after')
+	 */
+	registerActionHook(
+		entityName: string,
+		actionName: string,
+		hook: HookImplementation,
+		phase: 'before' | 'after' = 'after'
+	): void {
+		if (!this.actionHooks.has(entityName)) {
+			this.actionHooks.set(entityName, new Map());
+		}
+
+		if (!this.actionHooks.get(entityName)!.has(actionName)) {
+			this.actionHooks.get(entityName)!.set(actionName, {
+				before: [],
+				after: []
+			});
+		}
+
+		this.actionHooks.get(entityName)!.get(actionName)![phase].push(hook);
+		this.logger.debug(`Registered ${phase} hook ${hook.name} for action ${entityName}.${actionName}`);
 	}
 
 	/**
@@ -232,13 +320,15 @@ export class ActionRegistry {
 	 * @param actionName Action name
 	 * @param params Action parameters
 	 * @param context Hook context
+	 * @param options Execution options
 	 * @returns Action result
 	 */
 	async executeAction<T = any>(
 		entityName: string,
 		actionName: string,
 		params: any,
-		context: HookContext
+		context: HookContext,
+		options: ActionExecutionOptions = {}
 	): Promise<ActionResult<T>> {
 		try {
 			// Get action implementation
@@ -253,51 +343,109 @@ export class ActionRegistry {
 				};
 			}
 
-			// Check if the action is transactional
-			const isTransactional = action.metadata.transactional === true;
+			// Default timeout to 30 seconds if not specified
+			const timeout = options.timeout || 30000;
 
-			// Execute action
+			// Get hooks for the action
+			const hooks = this.actionHooks.get(entityName)?.get(actionName);
+
+			// Execute before hooks if present
+			let processedParams = params;
+			if (hooks && hooks.before.length > 0) {
+				for (const hook of hooks.before) {
+					try {
+						const result = await executeHookWithTimeout(
+							hook.fn,
+							[{ params: processedParams, action: actionName }, context],
+							hook.timeout || timeout
+						);
+
+						if (result && result.params) {
+							processedParams = result.params;
+						}
+					} catch (error) {
+						this.logger.error(`Error executing before hook for action ${entityName}.${actionName}: ${error.message}`);
+
+						if (options.throwErrors) {
+							throw error;
+						}
+
+						return {
+							success: false,
+							error: `Action pre-processing failed: ${error.message}`,
+							statusCode: 500
+						};
+					}
+				}
+			}
+
+			// Execute the action with timeout
 			let result: any;
 
-			if (isTransactional) {
-				// Execute with transaction
-				const db = context.db || context.appContext?.getDatabase();
+			try {
+				result = await executeHookWithTimeout(
+					action.fn,
+					[processedParams, context],
+					timeout
+				);
+			} catch (error) {
+				this.logger.error(`Error executing action ${entityName}.${actionName}: ${error.message}`);
 
-				if (!db) {
-					this.logger.error(`No database available for transactional action ${entityName}.${actionName}`);
-					return {
-						success: false,
-						error: 'Database not available for transactional action',
-						statusCode: 500
-					};
+				if (options.throwErrors) {
+					throw error;
 				}
 
-				result = await db.transaction(async (txDb: DatabaseAdapter) => {
-					// Create transaction context
-					const txContext = { ...context, db: txDb };
+				return {
+					success: false,
+					error: `Action execution failed: ${error.message}`,
+					statusCode: error instanceof HookError ? error.statusCode : 500
+				};
+			}
 
-					// Execute action
-					return await action.fn(params, txContext);
-				});
-			} else {
-				// Execute without transaction
-				result = await action.fn(params, context);
+			// Execute after hooks if present
+			let processedResult = result;
+			if (hooks && hooks.after.length > 0) {
+				for (const hook of hooks.after) {
+					try {
+						const hookResult = await executeHookWithTimeout(
+							hook.fn,
+							[{ result: processedResult, action: actionName }, context],
+							hook.timeout || timeout
+						);
+
+						if (hookResult && hookResult.result !== undefined) {
+							processedResult = hookResult.result;
+						}
+					} catch (error) {
+						this.logger.error(`Error executing after hook for action ${entityName}.${actionName}: ${error.message}`);
+
+						if (options.throwErrors) {
+							throw error;
+						}
+
+						// Continue with the original result even if after hooks fail
+					}
+				}
 			}
 
 			// Return success result
 			return {
 				success: true,
-				data: result,
+				data: processedResult,
 				statusCode: 200
 			};
 		} catch (error) {
 			this.logger.error(`Error executing action ${entityName}.${actionName}: ${error.message}`);
 
 			// Return error result
+			if (options.throwErrors) {
+				throw error;
+			}
+
 			return {
 				success: false,
 				error: `Action execution failed: ${error.message}`,
-				statusCode: 500
+				statusCode: error instanceof HookError ? error.statusCode : 500
 			};
 		}
 	}
@@ -328,5 +476,24 @@ export class ActionRegistry {
 		return Array.from(entityActionMap.values())
 			.map(action => action.metadata)
 			.filter(action => action.httpMethod && action.route);
+	}
+
+	/**
+	 * Create an action hook
+	 * @param name Hook name
+	 * @param fn Hook function
+	 * @param options Hook options
+	 * @returns Hook implementation
+	 */
+	createActionHook(
+		name: string,
+		fn: (data: any, context: HookContext) => Promise<any> | any,
+		options: {
+			priority?: number;
+			timeout?: number;
+			condition?: (data: any, context: HookContext) => boolean | Promise<boolean>;
+		} = {}
+	): HookImplementation {
+		return createHook(name, fn, options);
 	}
 }

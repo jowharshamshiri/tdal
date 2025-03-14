@@ -3,42 +3,12 @@
  * Executes entity actions with transaction support
  */
 
-import { Request, Response, NextFunction } from 'express';
-import { ActionRegistry, ActionResult } from './action-registry';
+import { ActionRegistry, ActionResult, ActionExecutionOptions } from './action-registry';
 import { AppContext } from '../core/app-context';
 import { Logger, HookContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
-import { createControllerContext } from '../entity/entity-manager';
-
-/**
- * Action execution options
- */
-export interface ActionExecutionOptions {
-	/**
-	 * Whether to execute in a transaction
-	 */
-	transactional?: boolean;
-
-	/**
-	 * Transaction isolation level
-	 */
-	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
-
-	/**
-	 * Whether to throw errors (true) or return error results (false)
-	 */
-	throwErrors?: boolean;
-
-	/**
-	 * Extra context data
-	 */
-	contextData?: Record<string, any>;
-
-	/**
-	 * Timeout in milliseconds
-	 */
-	timeout?: number;
-}
+import { createHookContext, HookError } from '../hooks/hook-context';
+import { EntityConfig } from '@/entity';
 
 /**
  * Action executor
@@ -61,6 +31,11 @@ export class ActionExecutor {
 	private db: DatabaseAdapter;
 
 	/**
+	 * Configuration loader
+	 */
+	private configLoader: any;
+
+	/**
 	 * Constructor
 	 * @param appContext Application context
 	 */
@@ -68,6 +43,7 @@ export class ActionExecutor {
 		this.actionRegistry = appContext.getActionRegistry();
 		this.logger = appContext.getLogger();
 		this.db = appContext.getDatabase();
+		this.configLoader = appContext.getService('configLoader');
 	}
 
 	/**
@@ -108,7 +84,6 @@ export class ActionExecutor {
 				...context,
 				data: {
 					...(context.data || {}),
-					...(options.contextData || {})
 				}
 			};
 
@@ -225,102 +200,49 @@ export class ActionExecutor {
 	}
 
 	/**
-	 * Create action middleware
-	 * @param entityName Entity name
-	 * @param actionName Action name
-	 * @param options Execution options
-	 * @returns Express middleware
+	 * Load action implementations for an entity
+	 * @param entity Entity configuration
 	 */
-	middleware(
-		entityName: string,
-		actionName: string,
-		options: ActionExecutionOptions = {}
-	): (req: Request, res: Response, next: NextFunction) => Promise<void> {
-		return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+	async registerActions(entity: EntityConfig): Promise<void> {
+		if (!entity.actions || entity.actions.length === 0) {
+			return;
+		}
+
+		for (const action of entity.actions) {
 			try {
-				// Create context
-				const context = createControllerContext(
-					this.db,
-					this.logger,
-					entityName,
-					'action',
-					req,
-					res,
-					next
-				);
-
-				// Add action info to context
-				context.action = actionName;
-
-				// Get parameters from request
-				const params = {
-					...req.params,
-					...req.query,
-					...req.body,
-					files: (req as any).files,
-					file: (req as any).file
-				};
-
-				// Get entity manager
-				const entityManager = this.appContext.getEntityManager(entityName);
-
-				// Process API request
-				const processedParams = await entityManager.processApiRequest(
-					params,
-					'action',
-					context
-				);
-
-				// Execute action
-				const result = await this.execute(
-					entityName,
-					actionName,
-					processedParams,
-					context,
-					options
-				);
-
-				if (!result.success) {
-					// Handle error
-					const status = result.statusCode || 500;
-
-					res.status(status).json({
-						error: 'ActionError',
-						message: result.error || 'Action execution failed',
-						status
-					});
-					return;
-				}
-
-				// Process API response
-				const processedResult = await entityManager.processApiResponse(
-					result.data,
-					'action',
-					context
-				);
-
-				// Send response
-				res.status(result.statusCode || 200).json(processedResult);
+				await this.actionRegistry.registerAction(entity.entity, action);
 			} catch (error) {
-				this.logger.error(`Action middleware error: ${error.message}`);
-
-				// Forward to error handler
-				next(error);
+				this.logger.error(`Failed to register action '${action.name}' for entity ${entity.entity}:`, error);
 			}
+		}
+	}
+
+	/**
+	 * Create a result with success status
+	 * @param data Result data
+	 * @param statusCode HTTP status code (default: 200)
+	 * @returns Action result
+	 */
+	createSuccessResult<T>(data: T, statusCode: number = 200): ActionResult<T> {
+		return {
+			success: true,
+			data,
+			statusCode
 		};
 	}
 
 	/**
-	 * Get API route handler for an action
-	 * @param entityName Entity name
-	 * @param actionName Action name
-	 * @returns Express route handler
+	 * Create a result with error status
+	 * @param message Error message
+	 * @param statusCode HTTP status code (default: 400)
+	 * @returns Action result
 	 */
-	getApiHandler(
-		entityName: string,
-		actionName: string
-	): (req: Request, res: Response, next: NextFunction) => Promise<void> {
-		return this.middleware(entityName, actionName);
+	createErrorResult(message: string, statusCode: number = 400): ActionResult<void> {
+		return {
+			success: false,
+			error: message,
+			statusCode
+		};
 	}
 }
 

@@ -5,179 +5,11 @@
 
 import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
-import { processComputedProperties, loadComputedPropertyImplementations } from './computed-properties';
-import { HookContext, Logger, ControllerContext, ActionFunction } from '@/core/types';
+import { processComputedProperties, loadComputedPropertyImplementations, ComputedPropertyImplementations } from './computed-properties';
+import { HookContext, Logger, ControllerContext, ActionFunction, HookFunction } from '@/core/types';
 import { AggregateOptions, DatabaseContext, DeleteOptions, FindOptions, findRelation, isRelationType, JoinOptions, ManyToManyRelation, ManyToOneRelation, OneToManyRelation, OneToOneRelation, QueryOptions, Relation, RelationOptions, TransactionIsolationLevel, UpdateOptions } from '@/database';
-
-/**
- * Entity hook implementations
- * Contains the actual implementation of hooks defined in YAML
- */
-export interface EntityHookImplementations {
-	beforeCreate?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	afterCreate?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	beforeUpdate?: Array<(id: any, entity: any, context: HookContext) => Promise<any>>;
-	afterUpdate?: Array<(id: any, entity: any, context: HookContext) => Promise<any>>;
-	beforeDelete?: Array<(id: any, context: HookContext) => Promise<boolean>>;
-	afterDelete?: Array<(id: any, context: HookContext) => Promise<void>>;
-	beforeGetById?: Array<(id: any, context: HookContext) => Promise<any>>;
-	afterGetById?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	beforeGetAll?: Array<(params: any, context: HookContext) => Promise<any>>;
-	afterGetAll?: Array<(entities: any[], context: HookContext) => Promise<any[]>>;
-	// API-specific hooks
-	beforeApi?: Array<(request: any, context: ControllerContext) => Promise<any>>;
-	afterApi?: Array<(response: any, context: ControllerContext) => Promise<any>>;
-}
-
-/**
- * Action implementation registry
- * Maps action names to their implementations
- */
-export interface ActionImplementations {
-	[actionName: string]: ActionFunction;
-}
-
-/**
- * Entity hook handler
- * Used to execute hooks defined in YAML
- */
-export class EntityHookHandler {
-	private implementations: EntityHookImplementations = {};
-	private loadedHooks: Set<string> = new Set();
-	private logger: Logger;
-	private config: EntityConfig;
-	private configLoader: any;
-
-	/**
-	 * Constructor
-	 * @param config Entity configuration
-	 * @param logger Logger instance
-	 * @param configLoader Configuration loader for loading external code
-	 */
-	constructor(config: EntityConfig, logger: Logger, configLoader: any) {
-		this.config = config;
-		this.logger = logger;
-		this.configLoader = configLoader;
-	}
-
-	/**
-	 * Initialize all hooks
-	 */
-	async initialize(): Promise<void> {
-		if (!this.config.hooks) {
-			return;
-		}
-
-		// Initialize all hook types
-		for (const hookType of Object.keys(this.config.hooks || {})) {
-			const hooks = (this.config.hooks as any)[hookType];
-			if (!hooks || !Array.isArray(hooks)) continue;
-
-			if (!this.implementations[hookType as keyof EntityHookImplementations]) {
-				this.implementations[hookType as keyof EntityHookImplementations] = [];
-			}
-
-			for (const hook of hooks) {
-				try {
-					await this.loadHook(hookType, hook);
-				} catch (error) {
-					this.logger.error(`Failed to load hook ${hook.name} for ${this.config.entity}: ${error}`);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Load a specific hook
-	 * @param hookType Hook type (beforeCreate, afterUpdate, etc.)
-	 * @param hook Hook definition
-	 */
-	private async loadHook(hookType: string, hook: any): Promise<void> {
-		const hookKey = `${hookType}:${hook.name}`;
-
-		// Skip if already loaded
-		if (this.loadedHooks.has(hookKey)) {
-			return;
-		}
-
-		try {
-			let implementation: Function;
-
-			// If implementation is a file path, load it
-			if (hook.implementation && hook.implementation.startsWith('./')) {
-				const hookModule = await this.configLoader.loadExternalCode(hook.implementation);
-				implementation = hookModule.default || hookModule;
-			} else {
-				// Otherwise, it's an inline implementation
-				// Convert the string to a function
-				implementation = new Function('entity', 'context', `return (async (entity, context) => {
-          ${hook.implementation}
-        })(entity, context);`);
-			}
-
-			// Store condition as function if provided
-			let condition: Function | undefined;
-			if (hook.condition) {
-				condition = new Function('entity', 'context', `return ${hook.condition};`);
-			}
-
-			// Create the hook function wrapper
-			const hookFn = async (entity: any, context: HookContext) => {
-				// Skip if condition is not met
-				if (condition && !(await condition(entity, context))) {
-					return entity;
-				}
-
-				// Execute the hook
-				return await implementation(entity, context);
-			};
-
-			// Add to implementations
-			const implArray = this.implementations[hookType as keyof EntityHookImplementations] as Array<any>;
-			if (implArray) {
-				implArray.push(hookFn);
-			}
-
-			this.loadedHooks.add(hookKey);
-			this.logger.debug(`Loaded hook ${hookKey} for ${this.config.entity}`);
-		} catch (error) {
-			this.logger.error(`Failed to load hook ${hookKey} for ${this.config.entity}: ${error}`);
-			throw error;
-		}
-	}
-
-	/**
-	 * Execute a hook
-	 * @param hookType Hook type (beforeCreate, afterUpdate, etc.)
-	 * @param params Hook parameters
-	 * @param context Hook context
-	 * @returns Hook result
-	 */
-	async executeHook(
-		hookType: keyof EntityHookImplementations,
-		params: any,
-		context: HookContext
-	): Promise<any> {
-		const hooks = this.implementations[hookType];
-		if (!hooks || !hooks.length) {
-			return params; // No hooks to execute, return params unchanged
-		}
-
-		try {
-			let result = params;
-
-			// Execute all hooks of this type in sequence
-			for (const hook of hooks) {
-				result = await hook(result, context);
-			}
-
-			return result;
-		} catch (error) {
-			this.logger.error(`Error executing ${hookType} hook for ${this.config.entity}: ${error}`);
-			throw error;
-		}
-	}
-}
+import { executeHookWithTimeout, HookExecutor, HookImplementation } from '@/hooks/hooks-executor';
+import { HookError } from '@/hooks/hook-context';
 
 /**
  * Action handler for entity actions
@@ -321,13 +153,6 @@ export class EntityActionHandler {
 	}
 }
 
-/**
- * Computed property implementations
- * Maps property names to their implementation functions
- */
-export interface ComputedPropertyImplementations {
-	[propertyName: string]: (entity: any) => any;
-}
 
 /**
  * Enhanced Data Access Object class with common CRUD operations,
@@ -352,6 +177,11 @@ export class EntityDao<T, IdType = number> {
 	private hookHandler?: EntityHookHandler;
 
 	/**
+	 * Hook executor for entity lifecycle hooks
+	 */
+	private hookExecutors: Map<string, HookExecutor<any>> = new Map();
+
+	/**
 	 * Action handler for entity actions
 	 */
 	private actionHandler?: EntityActionHandler;
@@ -367,12 +197,12 @@ export class EntityDao<T, IdType = number> {
 	private logger?: Logger;
 
 	/**
-	 * Constructor
-	 * @param entityMapping Entity mapping configuration
-	 * @param db Optional database adapter instance (uses singleton if not provided)
-	 * @param logger Optional logger instance
-	 * @param configLoader Optional configuration loader for hooks and computed properties
-	 */
+ * Constructor
+ * @param entityMapping Entity mapping configuration
+ * @param db Optional database adapter instance (uses singleton if not provided)
+ * @param logger Optional logger instance
+ * @param configLoader Optional configuration loader for hooks and computed properties
+ */
 	constructor(
 		entityMapping: EntityConfig,
 		db?: DatabaseAdapter,
@@ -388,31 +218,9 @@ export class EntityDao<T, IdType = number> {
 
 		// Initialize hooks, actions, and computed properties if logger and configLoader are provided
 		if (logger && configLoader) {
-			this.hookHandler = new EntityHookHandler(entityMapping, logger, configLoader);
-			this.actionHandler = new EntityActionHandler(entityMapping, logger, configLoader);
-			this.initialize(configLoader);
-		}
-	}
-
-	/**
-	 * Initialize hooks, actions, and computed properties
-	 * @param configLoader Configuration loader
-	 */
-	private async initialize(configLoader: any): Promise<void> {
-		// Initialize hook handler
-		if (this.hookHandler) {
-			await this.hookHandler.initialize();
-		}
-
-		// Initialize action handler
-		if (this.actionHandler) {
-			await this.actionHandler.initialize();
-		}
-
-		// Initialize computed properties
-		if (this.entityMapping.computed && this.entityMapping.computed.length > 0 && this.logger) {
-			const implementations = await this.loadComputedPropertyImplementations(configLoader);
-			this.computedPropertiesProcessor = (entity: any) => this.processComputedProperties(entity, implementations);
+			this.initialize(configLoader).catch(error => {
+				logger.error(`Failed to initialize entity dao for ${entityMapping.entity}: ${error.message}`);
+			});
 		}
 	}
 
@@ -432,13 +240,20 @@ export class EntityDao<T, IdType = number> {
 			try {
 				let implementation: (entity: any) => any;
 
-				if (prop.implementation.startsWith('./')) {
-					// External file
-					const module = await configLoader.loadExternalCode(prop.implementation);
-					implementation = module.default || module;
+				if (typeof prop.implementation === 'string') {
+					if (prop.implementation.startsWith('./')) {
+						// External file
+						const module = await configLoader.loadExternalCode(prop.implementation);
+						implementation = module.default || module;
+					} else {
+						// Inline implementation
+						implementation = this.createComputedPropertyFunction(prop);
+					}
+				} else if (typeof prop.implementation === 'function') {
+					// Direct function reference
+					implementation = prop.implementation;
 				} else {
-					// Inline implementation
-					implementation = this.createComputedPropertyFunction(prop);
+					throw new Error(`Invalid implementation for computed property ${prop.name}`);
 				}
 
 				implementations[prop.name] = implementation;
@@ -599,48 +414,21 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Find all entities
-	 * @param options Optional query options
-	 * @param context Optional hook context
-	 * @returns Array of entities
-	 */
-	async findAll(options?: QueryOptions, context?: HookContext): Promise<T[]> {
+ * Find a single entity by conditions
+ * @param conditions Field-value pairs to filter by
+ * @param options Optional find options
+ * @param context Optional hook context
+ * @returns The entity or undefined if not found
+ */
+	async findOneBy(conditions: Partial<T>, options?: FindOptions, context?: HookContext): Promise<T | undefined> {
 		const ctx = context || this.createDefaultContext();
 
-		// Execute before hooks
-		let processedOptions = options;
-		if (this.hookHandler) {
-			processedOptions = await this.hookHandler.executeHook('beforeGetAll', options, ctx);
-		}
+		// Process conditions through hooks
+		const processedConditions = await this.executeHooks('beforeFindBy', { ...conditions }, ctx);
 
-		const queryOptions = this.enhanceQueryOptions(processedOptions);
-		const results = await this.db.findAll<Record<string, unknown>>(
-			this.tableName,
-			queryOptions
-		);
-
-		// Map results and apply computed properties
-		const mappedResults = results.map((result) => this.mapToEntity(result) as T);
-		const withComputed = mappedResults.map(entity => this.computedPropertiesProcessor(entity));
-
-		// Execute after hooks
-		if (this.hookHandler) {
-			return await this.hookHandler.executeHook('afterGetAll', withComputed, ctx);
-		}
-
-		return withComputed;
-	}
-
-	/**
-	 * Find a single entity by conditions
-	 * @param conditions Field-value pairs to filter by
-	 * @param options Optional find options
-	 * @returns The entity or undefined if not found
-	 */
-	async findOneBy(conditions: Partial<T>, options?: FindOptions): Promise<T | undefined> {
 		const physicalConditions = mapRecordToPhysical(
 			this.entityMapping,
-			conditions as unknown as Record<string, unknown>
+			processedConditions as unknown as Record<string, unknown>
 		);
 
 		const findOptions = this.enhanceFindOptions(options);
@@ -657,7 +445,10 @@ export class EntityDao<T, IdType = number> {
 
 		// Map result and apply computed properties
 		const mappedResult = this.mapToEntity(result) as T;
-		return this.computedPropertiesProcessor(mappedResult);
+		const withComputed = this.computedPropertiesProcessor(mappedResult);
+
+		// Process result through hooks
+		return await this.executeHooks('afterFindBy', withComputed, ctx);
 	}
 
 	/**
@@ -697,56 +488,12 @@ export class EntityDao<T, IdType = number> {
 				configLoader?: any
 			) => this)(this.entityMapping, db, this.logger);
 
+			// Copy hook executors to the new DAO instance
+			(transactionDao as any).hookExecutors = this.hookExecutors;
+			(transactionDao as any).computedPropertiesProcessor = this.computedPropertiesProcessor;
+
 			return callback(transactionDao);
 		}, isolationLevel);
-	}
-
-	/**
-	 * Find entity by ID
-	 * @param id The entity ID
-	 * @param options Optional find options
-	 * @param context Optional hook context
-	 * @returns The entity or undefined if not found
-	 */
-	async findById(id: IdType, options?: FindOptions, context?: HookContext): Promise<T | undefined> {
-		const ctx = context || this.createDefaultContext();
-
-		// Execute before hooks
-		let processedId = id;
-		if (this.hookHandler) {
-			processedId = await this.hookHandler.executeHook('beforeGetById', id, ctx);
-		}
-
-		const findOptions = this.enhanceFindOptions(options);
-
-		try {
-			const result = await this.db.findById<Record<string, unknown>>(
-				this.tableName,
-				this.physicalIdField,
-				processedId as unknown as number | string,
-				findOptions
-			);
-
-			if (!result) {
-				return undefined;
-			}
-
-			// Map result and apply computed properties
-			const mappedResult = this.mapToEntity(result) as T;
-			const withComputed = this.computedPropertiesProcessor(mappedResult);
-
-			// Execute after hooks
-			if (this.hookHandler) {
-				return await this.hookHandler.executeHook('afterGetById', withComputed, ctx);
-			}
-
-			return withComputed;
-		} catch (error) {
-			if (this.logger) {
-				this.logger.error(`Error finding entity by ID: ${error}`);
-			}
-			return undefined;
-		}
 	}
 
 	/**
@@ -830,14 +577,20 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Check if an entity exists
-	 * @param id The entity ID
-	 * @returns Whether the entity exists
-	 */
-	async exists(id: IdType): Promise<boolean> {
+ * Check if an entity exists
+ * @param id The entity ID
+ * @param context Optional hook context
+ * @returns Whether the entity exists
+ */
+	async exists(id: IdType, context?: HookContext): Promise<boolean> {
+		const ctx = context || this.createDefaultContext();
+
 		try {
+			// Process ID through hooks
+			const processedId = await this.executeHooks('beforeGetById', id, ctx);
+
 			const exists = await this.db.exists(this.tableName, {
-				[this.physicalIdField]: id,
+				[this.physicalIdField]: processedId,
 			});
 
 			return exists;
@@ -845,7 +598,7 @@ export class EntityDao<T, IdType = number> {
 			if (this.logger) {
 				this.logger.error(`Error checking if entity exists: ${error}`);
 			}
-			return false;
+			throw error;
 		}
 	}
 
@@ -885,58 +638,6 @@ export class EntityDao<T, IdType = number> {
 		}
 
 		return id as unknown as IdType;
-	}
-
-	/**
-	 * Update an entity
-	 * @param id The entity ID
-	 * @param data The data to update
-	 * @param context Optional hook context
-	 * @returns Number of affected rows
-	 */
-	async update(
-		id: IdType,
-		data: Partial<T>,
-		context?: HookContext
-	): Promise<number> {
-		const ctx = context || this.createDefaultContext();
-
-		// Execute before hooks
-		let processedData = { ...data };
-		if (this.hookHandler) {
-			processedData = await this.hookHandler.executeHook('beforeUpdate', { id, ...data }, ctx);
-		}
-
-		this.applyTimestamps(processedData, "update");
-
-		try {
-			// Convert booleans to database-specific format
-			const convertedData = this.convertToDbValues(processedData);
-
-			const physicalData = mapRecordToPhysical(
-				this.entityMapping,
-				convertedData
-			);
-
-			const result = await this.db.update<Record<string, unknown>>(
-				this.tableName,
-				this.physicalIdField,
-				id as unknown as number | string,
-				physicalData
-			);
-
-			// Execute after hooks
-			if (this.hookHandler) {
-				await this.hookHandler.executeHook('afterUpdate', { id, ...processedData }, ctx);
-			}
-
-			return result;
-		} catch (error) {
-			if (this.logger) {
-				this.logger.error(`Error updating entity: ${error}`);
-			}
-			return 0;
-		}
 	}
 
 	/**
@@ -991,29 +692,47 @@ export class EntityDao<T, IdType = number> {
 		// If the ID field exists and has a value, update; otherwise, create
 		const idValue = (data as any)[this.idField];
 
+		const ctx = context || this.createDefaultContext();
+
 		if (idValue !== undefined && idValue !== null) {
-			await this.update(idValue as IdType, data, context);
+			// Run update operation
+			const updateData = { ...data };
+			// Remove ID from update data to avoid attempting to update the ID
+			delete (updateData as any)[this.idField];
+
+			await this.update(idValue as IdType, updateData, ctx);
 			return idValue as IdType;
 		} else {
-			return this.create(data, context);
+			// Run create operation
+			return this.create(data, ctx);
 		}
 	}
 
 	/**
-	 * Perform a bulk insert of multiple entities
-	 * @param dataArray Array of entity data
-	 * @returns Number of inserted entities
-	 */
-	async bulkCreate(dataArray: Partial<T>[]): Promise<number> {
+ * Perform a bulk insert of multiple entities
+ * @param dataArray Array of entity data
+ * @param context Optional hook context
+ * @returns Number of inserted entities
+ */
+	async bulkCreate(dataArray: Partial<T>[], context?: HookContext): Promise<number> {
 		if (dataArray.length === 0) return 0;
 
-		// Apply timestamps to all items
-		dataArray.forEach(data => {
-			this.applyTimestamps(data, "create");
-		});
+		const ctx = context || this.createDefaultContext();
+
+		// Process each entity through beforeCreate hooks
+		const processedArray = [];
+		for (const data of dataArray) {
+			// Process through hooks
+			const processedData = await this.executeHooks('beforeCreate', { ...data }, ctx);
+
+			// Apply timestamps
+			this.applyTimestamps(processedData, "create");
+
+			processedArray.push(processedData);
+		}
 
 		// Convert booleans and map to physical columns
-		const physicalDataArray = dataArray.map(data => {
+		const physicalDataArray = processedArray.map(data => {
 			const convertedData = this.convertToDbValues(data);
 			return mapRecordToPhysical(
 				this.entityMapping,
@@ -1021,7 +740,16 @@ export class EntityDao<T, IdType = number> {
 			);
 		});
 
-		return this.db.bulkInsert(this.tableName, physicalDataArray);
+		// Perform bulk insert
+		const result = await this.db.bulkInsert(this.tableName, physicalDataArray);
+
+		// Process each entity through afterCreate hooks
+		// Note: We don't have individual IDs here, so we pass null as ID
+		for (const data of processedArray) {
+			await this.executeHooks('afterCreate', { id: null, ...data }, ctx);
+		}
+
+		return result;
 	}
 
 	/**
@@ -1064,45 +792,66 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Find related entities through a relationship
-	 * @param id ID of the source entity
-	 * @param relationName Name of the relationship
-	 * @param options Query options
-	 * @returns Array of related entities
-	 */
+ * Find related entities through a relationship
+ * @param id ID of the source entity
+ * @param relationName Name of the relationship
+ * @param options Query options
+ * @param context Optional hook context
+ * @returns Array of related entities
+ */
 	async findRelated<R>(
 		id: IdType,
 		relationName: string,
-		options?: QueryOptions
+		options?: QueryOptions,
+		context?: HookContext
 	): Promise<R[]> {
+		const ctx = context || this.createDefaultContext();
+
+		// Process parameters through hooks
+		const processedParams = await this.executeHooks('beforeFindRelated', { id, relationName }, ctx);
+		const processedId = processedParams.id;
+		const processedRelationName = processedParams.relationName;
+
 		if (!this.entityMapping.relations) {
 			throw new Error(
 				`No relationships defined for entity ${this.entityMapping.entity}`
 			);
 		}
 
-		const relation = findRelation(this.entityMapping.relations, relationName);
+		const relation = findRelation(this.entityMapping.relations, processedRelationName);
 
 		if (!relation) {
 			throw new Error(
-				`Relationship ${relationName} not found on entity ${this.entityMapping.entity}`
+				`Relationship ${processedRelationName} not found on entity ${this.entityMapping.entity}`
 			);
 		}
 
 		// Handle different relationship types
+		let results: R[];
+
 		if (isRelationType<ManyToManyRelation>(relation, "manyToMany")) {
-			return this.findManyToManyRelated<R>(id, relation, options);
+			results = await this.findManyToManyRelated<R>(processedId, relation, options);
 		} else if (isRelationType<OneToManyRelation>(relation, "oneToMany")) {
-			return this.findOneToManyRelated<R>(id, relation, options);
+			results = await this.findOneToManyRelated<R>(processedId, relation, options);
 		} else if (isRelationType<ManyToOneRelation>(relation, "manyToOne")) {
-			return this.findManyToOneRelated<R>(id, relation, options);
+			results = await this.findManyToOneRelated<R>(processedId, relation, options);
 		} else if (isRelationType<OneToOneRelation>(relation, "oneToOne")) {
-			return this.findOneToOneRelated<R>(id, relation, options);
+			results = await this.findOneToOneRelated<R>(processedId, relation, options);
 		} else {
 			throw new Error(
-				`Unsupported relationship type for findRelated: ${relationName}`
+				`Unsupported relationship type for findRelated: ${processedRelationName}`
 			);
 		}
+
+		// Process results through hooks
+		return await this.executeHooks('afterFindRelated', results, {
+			...ctx,
+			data: {
+				...ctx.data,
+				id: processedId,
+				relationName: processedRelationName
+			}
+		});
 	}
 
 	/**
@@ -1212,12 +961,18 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Find entities by conditions with improved type handling
-	 * @param conditions Field-value pairs to filter by
-	 * @param options Optional query options
-	 * @returns Array of entities
-	 */
-	async findBy(conditions: Partial<T>, options?: QueryOptions): Promise<T[]> {
+ * Find entities by conditions with improved type handling
+ * @param conditions Field-value pairs to filter by
+ * @param options Optional query options
+ * @param context Optional hook context
+ * @returns Array of entities
+ */
+	async findBy(conditions: Partial<T>, options?: QueryOptions, context?: HookContext): Promise<T[]> {
+		const ctx = context || this.createDefaultContext();
+
+		// Process conditions through hooks
+		const processedConditions = await this.executeHooks('beforeFindBy', { ...conditions }, ctx);
+
 		// Convert boolean conditions to 0/1 for SQLite
 		const convertedConditions: Record<string, unknown> = {};
 
@@ -1225,7 +980,7 @@ export class EntityDao<T, IdType = number> {
 		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
 		const booleanColumnNames = booleanColumns.map(col => col.logical);
 
-		for (const [key, value] of Object.entries(conditions)) {
+		for (const [key, value] of Object.entries(processedConditions)) {
 			if (booleanColumnNames.includes(key) && typeof value === "boolean") {
 				convertedConditions[key] = value ? 1 : 0;
 			} else {
@@ -1248,7 +1003,10 @@ export class EntityDao<T, IdType = number> {
 
 		// Map results and apply computed properties
 		const mappedResults = results.map((result) => this.mapToEntity(result) as T);
-		return mappedResults.map(entity => this.computedPropertiesProcessor(entity));
+		const withComputed = mappedResults.map(entity => this.computedPropertiesProcessor(entity));
+
+		// Process results through hooks
+		return await this.executeHooks('afterFindBy', withComputed, ctx);
 	}
 
 	/**
@@ -1351,70 +1109,72 @@ export class EntityDao<T, IdType = number> {
 	): Promise<any> {
 		const ctx = context || this.createDefaultContext();
 
-		if (!this.actionHandler) {
-			throw new Error(`Action handler not initialized for entity ${this.entityMapping.entity}`);
-		}
-
 		// Find the action definition
 		const actionConfig = findAction(this.entityMapping, actionName);
 		if (!actionConfig) {
-			throw new Error(`Action ${actionName} not found for entity ${this.entityMapping.entity}`);
+			throw new HookError(`Action ${actionName} not found for entity ${this.entityMapping.entity}`, 404);
 		}
 
-		// Execute the action
-		return this.actionHandler.executeAction(actionName, params, ctx);
-	}
+		try {
+			// Process parameters through hooks
+			const processedParams = await this.executeHooks('beforeAction', {
+				actionName,
+				params
+			}, {
+				...ctx,
+				action: actionName
+			});
 
+			let implementationFn: (params: any, context: HookContext) => Promise<any>;
+
+			// Load the implementation if it's a string path
+			if (typeof actionConfig.implementation === 'string') {
+				if (actionConfig.implementation.startsWith('./')) {
+					// This should be already loaded by the ActionRegistry
+					throw new HookError(`Action ${actionName} implementation not loaded by the action registry`, 500);
+				} else {
+					// Inline code string
+					implementationFn = new Function(
+						'params',
+						'context',
+						`return (async (params, context) => { ${actionConfig.implementation} })(params, context);`
+					) as any;
+				}
+			} else if (typeof actionConfig.implementation === 'function') {
+				implementationFn = actionConfig.implementation;
+			} else {
+				throw new HookError(`Invalid implementation for action ${actionName}`, 500);
+			}
+
+			// Execute the action with timeout
+			const result = await executeHookWithTimeout(
+				implementationFn,
+				[processedParams.params, ctx],
+				10000 // Default timeout of 10 seconds
+			);
+
+			// Process result through hooks
+			return await this.executeHooks('afterAction', {
+				actionName,
+				result
+			}, {
+				...ctx,
+				action: actionName
+			});
+		} catch (error) {
+			this.logger?.error(`Error executing action ${actionName}: ${error.message}`);
+			throw new HookError(
+				`Action execution failed: ${error.message}`,
+				(error as any).statusCode || 500
+			);
+		}
+	}
 	/**
 	 * Get API configuration for this entity
 	 * @returns API configuration or undefined if not exposed
 	 */
 	getApiConfig() {
 		return this.entityMapping.api;
-	}
-
-	/**
-	 * Process an API request through the entity's API hooks
-	 * @param request The API request
-	 * @param operation The API operation (getAll, getById, create, update, delete, action)
-	 * @param context Controller context
-	 * @returns Processed request
-	 */
-	async processApiRequest(request: any, operation: string, context: ControllerContext): Promise<any> {
-		if (!this.hookHandler) {
-			return request;
-		}
-
-		// Enhanced context with operation info
-		const enhancedContext = {
-			...context,
-			operation
-		};
-
-		// Execute beforeApi hooks
-		return await this.hookHandler.executeHook('beforeApi', request, enhancedContext);
-	}
-
-	/**
-	 * Process an API response through the entity's API hooks
-	 * @param response The API response
-	 * @param operation The API operation (getAll, getById, create, update, delete, action)
-	 * @param context Controller context
-	 * @returns Processed response
-	 */
-	async processApiResponse(response: any, operation: string, context: ControllerContext): Promise<any> {
-		if (!this.hookHandler) {
-			return response;
-		}
-
-		// Enhanced context with operation info
-		const enhancedContext = {
-			...context,
-			operation
-		};
-
-		// Execute afterApi hooks
-		return await this.hookHandler.executeHook('afterApi', response, enhancedContext);
 	}
 
 	/**
@@ -1500,19 +1260,6 @@ export class EntityDao<T, IdType = number> {
 				sql: 'BETWEEN ? AND ?',
 				params: [low, high]
 			}),
-		};
-	}
-
-	/**
-	 * Create a default hook context
-	 * @returns Default hook context
-	 */
-	protected createDefaultContext(): HookContext {
-		return {
-			db: this.db,
-			logger: this.logger,
-			entityName: this.entityMapping.entity,
-			data: {}
 		};
 	}
 
@@ -1944,6 +1691,337 @@ export class EntityDao<T, IdType = number> {
 		}
 
 		return result;
+	}
+
+	/**
+	 * Initialize hooks for the entity
+	 * @param configLoader Configuration loader
+	 */
+	private async initializeHooks(configLoader: any): Promise<void> {
+		if (!this.entityMapping.hooks) {
+			return;
+		}
+
+		for (const [hookType, hooks] of Object.entries(this.entityMapping.hooks)) {
+			if (!Array.isArray(hooks) || hooks.length === 0) {
+				continue;
+			}
+
+			// Create hook executor for this hook type
+			const executor = createHookExecutor(this.logger);
+
+			// Load and add each hook
+			for (const hook of hooks) {
+				try {
+					const hookImpl = await this.loadHookImplementation(hook, hookType, configLoader);
+					executor.add(hookImpl);
+				} catch (error) {
+					this.logger?.error(`Failed to load hook ${hookType}.${hook.name}: ${error.message}`);
+				}
+			}
+
+			// Store the executor
+			this.hookExecutors.set(hookType, executor);
+		}
+	}
+
+	/**
+	 * Get all registered hook types
+	 * @returns Array of hook types
+	 */
+	getHookTypes(): string[] {
+		return Array.from(this.hookExecutors.keys());
+	}
+
+	/**
+	 * Check if a specific hook type has any hooks
+	 * @param hookType Hook type
+	 * @returns Whether the hook type has any hooks
+	 */
+	hasHooks(hookType: string): boolean {
+		const executor = this.hookExecutors.get(hookType);
+		return !!executor && executor.hasHooks();
+	}
+
+	/**
+	 * Get count of hooks for a specific hook type
+	 * @param hookType Hook type
+	 * @returns Number of hooks registered for the type
+	 */
+	getHookCount(hookType: string): number {
+		const executor = this.hookExecutors.get(hookType);
+		return executor ? executor.count() : 0;
+	}
+
+	/**
+	 * Load a hook implementation
+	 * @param hook Hook definition
+	 * @param hookType Hook type
+	 * @param configLoader Configuration loader
+	 * @returns Hook implementation
+	 */
+	private async loadHookImplementation(
+		hook: any,
+		hookType: string,
+		configLoader: any
+	): Promise<HookImplementation> {
+		let fn: HookFunction;
+
+		// Load implementation based on type
+		if (typeof hook.implementation === 'function') {
+			// Direct function reference
+			fn = hook.implementation;
+		} else if (typeof hook.implementation === 'string') {
+			if (hook.implementation.startsWith('./') || hook.implementation.startsWith('../')) {
+				// External file
+				const module = await configLoader.loadExternalCode(hook.implementation);
+				fn = module.default || module;
+			} else {
+				// Inline implementation
+				fn = new Function(
+					'entity',
+					'context',
+					`return (async (entity, context) => {
+          ${hook.implementation}
+        })(entity, context);`
+				) as HookFunction;
+			}
+		} else {
+			throw new Error(`Invalid hook implementation for ${hookType}.${hook.name}`);
+		}
+
+		// Create condition function if specified
+		let condition: ((data: any, context: HookContext) => boolean | Promise<boolean>) | undefined;
+		if (hook.condition) {
+			condition = new Function(
+				'entity',
+				'context',
+				`return ${hook.condition};`
+			) as (data: any, context: HookContext) => boolean;
+		}
+
+		// Create hook implementation
+		return {
+			name: `${this.entityMapping.entity}.${hookType}.${hook.name}`,
+			fn,
+			isAsync: hook.async !== false, // Default to async=true
+			priority: hook.priority || 10,
+			timeout: hook.timeout,
+			condition
+		};
+	}
+
+	/**
+	 * Execute hooks for a given hook type
+	 * @param hookType Hook type
+	 * @param data Data to pass to hooks
+	 * @param context Hook context
+	 * @returns Result after all hooks have executed
+	 */
+	protected async executeHooks<D = any>(
+		hookType: string,
+		data: D,
+		context: HookContext
+	): Promise<D> {
+		const executor = this.hookExecutors.get(hookType);
+
+		if (!executor || !executor.hasHooks()) {
+			return data;
+		}
+
+		return executor.execute(data, { context });
+	}
+
+	/**
+	 * Initialize the entity DAO
+	 * @param configLoader Configuration loader
+	 */
+	public async initialize(configLoader: any): Promise<void> {
+		// Initialize hooks
+		await this.initializeHooks(configLoader);
+
+		// Initialize computed properties
+		if (this.entityMapping.computed && this.entityMapping.computed.length > 0 && this.logger) {
+			const implementations = await this.loadComputedPropertyImplementations(configLoader);
+			this.computedPropertiesProcessor = (entity: any) => this.processComputedProperties(entity, implementations);
+		}
+	}
+
+	/**
+	 * Update an entity
+	 * @param id The entity ID
+	 * @param data The data to update
+	 * @param context Optional hook context
+	 * @returns Number of affected rows
+	 */
+	async update(
+		id: IdType,
+		data: Partial<T>,
+		context?: HookContext
+	): Promise<number> {
+		const ctx = context || this.createDefaultContext();
+
+		// Execute before hooks
+		let processedData = await this.executeHooks('beforeUpdate', { id, ...data }, ctx);
+
+		this.applyTimestamps(processedData, "update");
+
+		try {
+			// Convert booleans to database-specific format
+			const convertedData = this.convertToDbValues(processedData);
+
+			const physicalData = mapRecordToPhysical(
+				this.entityMapping,
+				convertedData
+			);
+
+			const result = await this.db.update<Record<string, unknown>>(
+				this.tableName,
+				this.physicalIdField,
+				id as unknown as number | string,
+				physicalData
+			);
+
+			// Execute after hooks
+			await this.executeHooks('afterUpdate', { id, ...processedData }, ctx);
+
+			return result;
+		} catch (error) {
+			if (this.logger) {
+				this.logger.error(`Error updating entity: ${error}`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Find all entities
+	 * @param options Optional query options
+	 * @param context Optional hook context
+	 * @returns Array of entities
+	 */
+	async findAll(options?: QueryOptions, context?: HookContext): Promise<T[]> {
+		const ctx = context || this.createDefaultContext();
+
+		// Execute before hooks
+		let processedOptions = await this.executeHooks('beforeGetAll', options, ctx);
+
+		const queryOptions = this.enhanceQueryOptions(processedOptions);
+		const results = await this.db.findAll<Record<string, unknown>>(
+			this.tableName,
+			queryOptions
+		);
+
+		// Map results and apply computed properties
+		const mappedResults = results.map((result) => this.mapToEntity(result) as T);
+		const withComputed = mappedResults.map(entity => this.computedPropertiesProcessor(entity));
+
+		// Execute after hooks
+		return await this.executeHooks('afterGetAll', withComputed, ctx);
+	}
+
+	/**
+	 * Find entity by ID
+	 * @param id The entity ID
+	 * @param options Optional find options
+	 * @param context Optional hook context
+	 * @returns The entity or undefined if not found
+	 */
+	async findById(id: IdType, options?: FindOptions, context?: HookContext): Promise<T | undefined> {
+		const ctx = context || this.createDefaultContext();
+
+		// Execute before hooks
+		let processedId = await this.executeHooks('beforeGetById', id, ctx);
+
+		const findOptions = this.enhanceFindOptions(options);
+
+		try {
+			const result = await this.db.findById<Record<string, unknown>>(
+				this.tableName,
+				this.physicalIdField,
+				processedId as unknown as number | string,
+				findOptions
+			);
+
+			if (!result) {
+				return undefined;
+			}
+
+			// Map result and apply computed properties
+			const mappedResult = this.mapToEntity(result) as T;
+			const withComputed = this.computedPropertiesProcessor(mappedResult);
+
+			// Execute after hooks
+			return await this.executeHooks('afterGetById', withComputed, ctx);
+		} catch (error) {
+			if (this.logger) {
+				this.logger.error(`Error finding entity by ID: ${error}`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Process an API request through the entity's API hooks
+	 * @param request The API request
+	 * @param operation The API operation (getAll, getById, create, update, delete, action)
+	 * @param context Controller context
+	 * @returns Processed request
+	 */
+	async processApiRequest(
+		request: any,
+		operation: string,
+		context: HookContext
+	): Promise<any> {
+		// Enhanced context with operation info
+		const enhancedContext = {
+			...context,
+			operation
+		};
+
+		// Execute beforeApi hooks
+		return await this.executeHooks('beforeApi', request, enhancedContext);
+	}
+
+	/**
+	 * Process an API response through the entity's API hooks
+	 * @param response The API response
+	 * @param operation The API operation (getAll, getById, create, update, delete, action)
+	 * @param context Controller context
+	 * @returns Processed response
+	 */
+	async processApiResponse(
+		response: any,
+		operation: string,
+		context: HookContext
+	): Promise<any> {
+		// Enhanced context with operation info
+		const enhancedContext = {
+			...context,
+			operation
+		};
+
+		// Execute afterApi hooks
+		return await this.executeHooks('afterApi', response, enhancedContext);
+	}
+
+	/**
+	 * Create a default hook context
+	 * @returns Default hook context
+	 */
+	protected createDefaultContext(): HookContext {
+		return {
+			db: this.db,
+			logger: this.logger,
+			entityName: this.entityMapping.entity,
+			data: {},
+			getService: <T>(_name: string): T => {
+				throw new Error('Service not available in default context');
+			},
+			getEntityManager: <T>(_name: string): any => {
+				return this;
+			}
+		};
 	}
 }
 

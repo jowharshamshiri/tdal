@@ -469,22 +469,10 @@ export interface HookContext {
 }
 
 /**
- * Entity computed property implementation function
- */
-export type ComputedPropertyFunction<T = any> = (entity: T) => any;
-
-/**
  * Hook function
+ * Generic function that takes data and context and returns a result
  */
-export type HookFunction<T = any> = (
-	data: T,
-	context: HookContext
-) => Promise<T | void> | T | void;
-
-/**
- * Entity lifecycle hook implementation function
- */
-export type EntityHookFunction<T> = (entity: T, context: HookContext) => Promise<T | void> | T | void;
+export type HookFunction<T = any> = (data: T, context: HookContext) => Promise<any> | any;
 
 /**
  * Validation function

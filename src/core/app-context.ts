@@ -3,15 +3,21 @@
  * Provides a central dependency container and context for the application
  */
 
-import { DatabaseContext, DatabaseAdapter } from '../database';
 import * as path from 'path';
+import express, { Express, Router } from 'express';
 import { AppConfig, Logger, ServiceDefinition, EntityApiConfig, MiddlewareConfig } from './types';
 import { EntityConfig } from '@/entity/entity-config';
 import { EntityDao } from '@/entity/entity-manager';
 import { ActionRegistry } from '@/actions/action-registry';
 import { RouteRegistry } from '@/api/route-registry';
 import { ApiGenerator } from '@/api/api-generator';
-import { Express, Router } from 'express';
+import { DatabaseContext, DatabaseAdapter } from '../database';
+import {
+	HookImplementation,
+	StandardHookType,
+	createHookExecutor,
+	HookExecutor
+} from '../hooks/hooks-executor';
 
 /**
  * Application Context class
@@ -52,6 +58,11 @@ export class AppContext {
 	 * Middleware configurations
 	 */
 	private middlewareConfigs: Map<string, MiddlewareConfig> = new Map();
+
+	/**
+	 * Global hooks by hook type
+	 */
+	private globalHooks: Map<string, HookExecutor<any>> = new Map();
 
 	/**
 	 * API generator
@@ -507,6 +518,50 @@ export class AppContext {
 	 */
 	getRouteRegistry(): RouteRegistry {
 		return this.routeRegistry;
+	}
+
+	/**
+	 * Register a global hook
+	 * @param hookType Hook type
+	 * @param hook Hook implementation
+	 */
+	registerGlobalHook<T = any>(hookType: string, hook: HookImplementation<T>): void {
+		// Get or create hook executor for this hook type
+		let executor = this.globalHooks.get(hookType);
+		if (!executor) {
+			executor = createHookExecutor<T>(this.logger);
+			this.globalHooks.set(hookType, executor);
+		}
+
+		// Add hook to executor
+		executor.add(hook);
+		this.logger.debug(`Registered global hook ${hook.name} for hook type ${hookType}`);
+	}
+
+	/**
+	 * Get global hooks for a specific hook type
+	 * @param hookType Hook type
+	 * @returns Hook executor or undefined if no hooks registered for this type
+	 */
+	getGlobalHooks<T = any>(hookType: string): HookExecutor<T> | undefined {
+		return this.globalHooks.get(hookType) as HookExecutor<T> | undefined;
+	}
+
+	/**
+	 * Apply global hooks to an entity
+	 * @param entityName Entity name
+	 */
+	applyGlobalHooksToEntity(entityName: string): void {
+		const entityManager = this.getEntityManager(entityName);
+
+		// For each hook type with global hooks
+		for (const [hookType, executor] of this.globalHooks.entries()) {
+			if (executor.hasHooks()) {
+				// Apply hooks to entity manager
+				(entityManager as any).addExternalHooks(hookType, executor);
+				this.logger.debug(`Applied global hooks for type ${hookType} to entity ${entityName}`);
+			}
+		}
 	}
 
 	/**

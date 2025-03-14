@@ -5,7 +5,7 @@
 
 import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
 import { EntityConfig, EntityDao } from '../entity';
-import { HookError } from './hook-context';
+import { HookError } from '../hooks/hook-context';
 
 /**
  * Workflow transition result

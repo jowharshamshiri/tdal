@@ -8,6 +8,7 @@ import { AppContext } from '../core/app-context';
 import { Logger, ControllerContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
 import { EntityDao } from '../entity/entity-manager';
+import { EntityConfig } from '@/entity';
 
 /**
  * API context options
