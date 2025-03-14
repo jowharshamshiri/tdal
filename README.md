@@ -1,10 +1,10 @@
 # tdal
 
-# YAMLang: A Declarative YAML-Driven Application Framework
+# TDAL: A Declarative YAML-Driven Application Framework
 
 ## Project Vision
 
-YAMLang is a revolutionary framework that allows developers to build full-stack web applications using primarily YAML configuration files. The core principle is **"configuration over code"** while still maintaining the flexibility to implement complex business logic when needed.
+TDAL is a revolutionary framework that allows developers to build full-stack web applications using primarily YAML configuration files. The core principle is **"configuration over code"** while still maintaining the flexibility to implement complex business logic when needed.
 
 Our vision is to drastically reduce the amount of boilerplate code needed to build modern web applications by providing a declarative approach to defining:
 
@@ -31,7 +31,7 @@ The framework is built on several key principles:
 
 ## System Architecture
 
-YAMLang is structured around a core engine that processes YAML configuration files and generates or executes the appropriate code at each layer of the application:
+TDAL is structured around a core engine that processes YAML configuration files and generates or executes the appropriate code at each layer of the application:
 
 ```
 ┌─────────────────────┐
@@ -39,7 +39,7 @@ YAMLang is structured around a core engine that processes YAML configuration fil
 └───────────┬─────────┘
             │
 ┌───────────▼─────────┐
-│   YAMLang Engine     │
+│   TDAL Engine     │
 └───────────┬─────────┘
             │
 ┌───────────▼─────────┐
@@ -375,7 +375,7 @@ workflows:
 
 ## Database Integration
 
-YAMLang provides a database-agnostic approach with adapters for various database systems:
+TDAL provides a database-agnostic approach with adapters for various database systems:
 
 ### Database Configuration
 
@@ -409,7 +409,7 @@ The framework generates a data access layer based on entity definitions:
 
 ## API Generation
 
-YAMLang automatically generates REST APIs for entities:
+TDAL automatically generates REST APIs for entities:
 
 1. **Standard CRUD Endpoints** - GET, POST, PUT, DELETE operations
 2. **Custom Actions** - Additional endpoints for business operations
@@ -453,7 +453,7 @@ actions:
 
 ## Authentication and Authorization
 
-YAMLang's auth system is designed to be flexible and secure:
+TDAL's auth system is designed to be flexible and secure:
 
 ### Authentication
 
@@ -473,7 +473,7 @@ YAMLang's auth system is designed to be flexible and secure:
 
 ## Business Logic
 
-YAMLang supports embedding business logic directly in YAML:
+TDAL supports embedding business logic directly in YAML:
 
 ### Hook System
 
@@ -581,7 +581,7 @@ validation:
 
 ## UI Generation
 
-YAMLang can generate frontend code for various frameworks:
+TDAL can generate frontend code for various frameworks:
 
 ### Page Definitions
 
@@ -626,7 +626,7 @@ pages:
 
 ### Component Library
 
-YAMLang provides a library of built-in components:
+TDAL provides a library of built-in components:
 
 1. **Form** - Auto-generated forms for entities
 2. **DataTable** - Table with sorting, filtering, pagination
@@ -676,7 +676,7 @@ layouts:
 
 ## Event System
 
-YAMLang includes a powerful event system:
+TDAL includes a powerful event system:
 
 ```yaml
 events:
@@ -729,7 +729,7 @@ Event handlers can:
 
 ## Plugin System
 
-YAMLang's plugin system enables extensibility:
+TDAL's plugin system enables extensibility:
 
 ```yaml
 plugins:
@@ -767,7 +767,7 @@ Plugins can hook into various extension points:
 
 ## Development Experience
 
-YAMLang prioritizes developer experience:
+TDAL prioritizes developer experience:
 
 ### Command Line Interface
 
@@ -838,7 +838,7 @@ The framework generates documentation based on YAML:
 
 ## Testing Framework
 
-YAMLang includes a testing framework:
+TDAL includes a testing framework:
 
 ```yaml
 tests:
@@ -871,7 +871,7 @@ tests:
 
 ## Deployment and DevOps
 
-YAMLang supports various deployment options:
+TDAL supports various deployment options:
 
 ```yaml
 deployment:
@@ -930,7 +930,7 @@ infrastructure:
 
 ### Workflow Engine
 
-YAMLang includes a state machine for workflows:
+TDAL includes a state machine for workflows:
 
 ```yaml
 workflows:
@@ -1044,7 +1044,7 @@ cache:
 
 ### Core Engine
 
-The YAMLang engine handles:
+The TDAL engine handles:
 
 1. **Configuration Loading** - Loading and validating YAML
 2. **Schema Validation** - Ensuring YAML is valid
@@ -1053,7 +1053,7 @@ The YAMLang engine handles:
 
 ### Code Generation
 
-YAMLang generates:
+TDAL generates:
 
 1. **Entity Models** - TypeScript interfaces
 2. **Database Schema** - Migration files
@@ -1139,7 +1139,7 @@ The runtime framework provides:
 
 ### Rapid Prototyping
 
-YAMLang is perfect for quickly building MVPs:
+TDAL is perfect for quickly building MVPs:
 
 1. **Define entities** - Create your data model
 2. **Expose APIs** - Generate REST endpoints
@@ -1148,7 +1148,7 @@ YAMLang is perfect for quickly building MVPs:
 
 ### Enterprise Applications
 
-For enterprise use, YAMLang offers:
+For enterprise use, TDAL offers:
 
 1. **Role-based security** - Fine-grained permissions
 2. **Workflow management** - Business process automation
@@ -1158,7 +1158,7 @@ For enterprise use, YAMLang offers:
 
 ### Content Management
 
-YAMLang can serve as a flexible CMS:
+TDAL can serve as a flexible CMS:
 
 1. **Content modeling** - Define content types
 2. **API-first** - Headless CMS capabilities
@@ -1496,7 +1496,7 @@ ui:
 10. **Format Response** - Format the response
 11. **Send Response** - Send the HTTP response
 
-## Contributing to YAMLang
+## Contributing to TDAL
 
 ### Getting Started
 
@@ -1535,11 +1535,11 @@ npm test
 
 ## Conclusion
 
-YAMLang is a revolutionary framework that enables developers to build full-stack applications with minimal code. By focusing on configuration over code, it drastically reduces development time while maintaining flexibility for complex scenarios.
+TDAL is a revolutionary framework that enables developers to build full-stack applications with minimal code. By focusing on configuration over code, it drastically reduces development time while maintaining flexibility for complex scenarios.
 
 The framework's core philosophy of "simplicity by default, complexity when needed" means that it can scale from simple prototypes to complex enterprise applications.
 
-We believe that YAMLang represents the future of application development, where developers can focus on business logic and user experience rather than boilerplate code.
+We believe that TDAL represents the future of application development, where developers can focus on business logic and user experience rather than boilerplate code.
 
 We're committed to building a framework that is:
 
