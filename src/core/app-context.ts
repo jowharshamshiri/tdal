@@ -3,9 +3,11 @@
  * Provides a central dependency container and context for the application
  */
 
-import { DatabaseContext, EntityDao, DatabaseAdapter } from '../database';
+import { DatabaseContext, DatabaseAdapter } from '../database';
 import * as path from 'path';
 import { AppConfig, Logger, ServiceDefinition } from './types';
+import { EntityConfig } from '@/entity/entity-config';
+import { EntityDao } from '@/entity/entity-manager';
 
 /**
  * Application Context class

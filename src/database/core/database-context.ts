@@ -7,8 +7,8 @@ import * as path from "path";
 import { DatabaseAdapter } from "./types";
 import { DbConfig, SQLiteConfig, PostgresConfig } from "./connection-types";
 import { DatabaseFactory } from "./database-factory";
-import { Logger } from "../core/types";
-import { AppContext } from "../core/app-context";
+import { Logger } from "../../core/types";
+import { AppContext } from "../../core/app-context";
 
 /**
  * Default SQLite configuration
@@ -153,8 +153,8 @@ export class DatabaseContext {
 		this.appContext = context;
 
 		// If the context provides a logger, use it
-		if (context && context.logger) {
-			this.logger = context.logger;
+		if (context && context.getLogger()) {
+			this.logger = context.getLogger();
 		}
 	}
 
