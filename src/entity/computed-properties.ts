@@ -3,15 +3,56 @@
  * Handles computed property definitions and processing
  */
 
-import { Logger } from '../database/core/types';
-import { ComputedProperty, EntityConfig } from './entity-config';
+import { Logger } from "@/core/types";
+import { ComputedProperty, EntityConfig } from "@/entity/entity-config";
+import { HookContext } from "@/hooks/hook-context";
 
 /**
  * Compute property implementations
  * Maps property names to their implementation functions
  */
 export interface ComputedPropertyImplementations {
-	[propertyName: string]: (entity: any) => any;
+	[propertyName: string]: (entity: any, context?: HookContext) => any;
+}
+
+/**
+ * Computed property processing options
+ */
+export interface ComputedPropertyOptions {
+	/**
+	 * Whether to cache computed values
+	 */
+	cache?: boolean;
+
+	/**
+	 * Hook context for computations
+	 */
+	context?: HookContext;
+
+	/**
+	 * Whether to skip specific properties
+	 */
+	skipProperties?: string[];
+}
+
+/**
+ * Result of a computed property dependency analysis
+ */
+export interface DependencyAnalysisResult {
+	/**
+	 * Ordered list of properties to compute
+	 */
+	order: string[];
+
+	/**
+	 * Dependency graph mapping properties to their dependencies
+	 */
+	graph: Map<string, string[]>;
+
+	/**
+	 * Properties with circular dependencies
+	 */
+	circularDependencies: string[][];
 }
 
 /**
@@ -34,21 +75,29 @@ export async function loadComputedPropertyImplementations(
 
 	for (const prop of entity.computed) {
 		try {
-			let implementation: (entity: any) => any;
+			let implementation: (entity: any, context?: HookContext) => any;
 
-			if (prop.implementation.startsWith('./')) {
-				// External file
-				const module = await configLoader.loadExternalCode(prop.implementation);
-				implementation = module.default || module;
+			if (typeof prop.implementation === 'string') {
+				if (prop.implementation.startsWith('./') || prop.implementation.startsWith('../')) {
+					// External file
+					const modulePath = prop.implementation;
+					const module = await configLoader.loadExternalCode(modulePath);
+					implementation = module.default || module;
+				} else {
+					// Inline implementation
+					implementation = createComputedPropertyFunction(prop);
+				}
+			} else if (typeof prop.implementation === 'function') {
+				// Direct function reference
+				implementation = prop.implementation;
 			} else {
-				// Inline implementation
-				implementation = createComputedPropertyFunction(prop);
+				throw new Error(`Invalid implementation for computed property ${prop.name}`);
 			}
 
 			implementations[prop.name] = implementation;
 			logger.debug(`Loaded computed property ${prop.name} for ${entity.entity}`);
 		} catch (error) {
-			logger.error(`Failed to load computed property ${prop.name} for ${entity.entity}: ${error}`);
+			logger.error(`Failed to load computed property ${prop.name} for ${entity.entity}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -60,12 +109,24 @@ export async function loadComputedPropertyImplementations(
  * @param prop Computed property definition
  * @returns Implementation function
  */
-function createComputedPropertyFunction(prop: ComputedProperty): (entity: any) => any {
-	// Create a function from the implementation string
-	return new Function(
-		'entity',
-		`return (${prop.implementation})(entity);`
-	) as (entity: any) => any;
+export function createComputedPropertyFunction(prop: ComputedProperty): (entity: any, context?: HookContext) => any {
+	try {
+		// Create a function from the implementation string
+		return new Function(
+			'entity',
+			'context',
+			`
+      try {
+        return (${prop.implementation})(entity, context);
+      } catch (error) {
+        console.error('Error in computed property ${prop.name}:', error);
+        return undefined;
+      }
+      `
+		) as (entity: any, context?: HookContext) => any;
+	} catch (error) {
+		throw new Error(`Failed to create function for computed property ${prop.name}: ${error instanceof Error ? error.message : String(error)}`);
+	}
 }
 
 /**
@@ -74,11 +135,13 @@ function createComputedPropertyFunction(prop: ComputedProperty): (entity: any) =
  * 
  * @param entity Entity object
  * @param implementations Computed property implementations
+ * @param options Processing options
  * @returns Entity with computed properties
  */
 export function processComputedProperties<T>(
 	entity: T,
-	implementations: ComputedPropertyImplementations
+	implementations: ComputedPropertyImplementations,
+	options: ComputedPropertyOptions = {}
 ): T {
 	if (!entity || Object.keys(implementations).length === 0) {
 		return entity;
@@ -86,19 +149,24 @@ export function processComputedProperties<T>(
 
 	// Create a new object to avoid modifying the original
 	const result = { ...entity };
+	const { skipProperties = [], context } = options;
 
 	// Get property order to handle dependencies correctly
 	const propertyOrder = getComputedPropertyOrder(
-		Object.keys(implementations),
-		prop => implementations[prop].toString().match(/entity\.(\w+)/g)?.map(m => m.replace('entity.', '')) || []
+		Object.keys(implementations).filter(prop => !skipProperties.includes(prop)),
+		prop => extractDependenciesFromImplementation(implementations[prop])
 	);
 
 	// Calculate each computed property in the correct order
 	for (const propName of propertyOrder) {
 		try {
-			result[propName as keyof T] = implementations[propName](entity) as T[keyof T];
+			result[propName as keyof T] = implementations[propName](result, context) as T[keyof T];
 		} catch (error) {
-			console.error(`Error calculating computed property ${propName}:`, error);
+			if (context?.logger) {
+				context.logger.error(`Error calculating computed property ${propName}: ${error instanceof Error ? error.message : String(error)}`);
+			} else {
+				console.error(`Error calculating computed property ${propName}:`, error);
+			}
 		}
 	}
 
@@ -109,17 +177,19 @@ export function processComputedProperties<T>(
  * Process computed properties for an array of entities
  * @param entities Array of entity objects
  * @param implementations Computed property implementations
+ * @param options Processing options
  * @returns Entities with computed properties
  */
 export function processComputedPropertiesForArray<T>(
 	entities: T[],
-	implementations: ComputedPropertyImplementations
+	implementations: ComputedPropertyImplementations,
+	options: ComputedPropertyOptions = {}
 ): T[] {
 	if (!entities || entities.length === 0 || Object.keys(implementations).length === 0) {
 		return entities;
 	}
 
-	return entities.map(entity => processComputedProperties(entity, implementations));
+	return entities.map(entity => processComputedProperties(entity, implementations, options));
 }
 
 /**
@@ -142,9 +212,50 @@ export function haveDependenciesChanged(
 	}
 
 	// Check if any dependency has changed
-	return dependencies.some(dep =>
-		oldEntity[dep] !== newEntity[dep]
-	);
+	return dependencies.some(dep => {
+		const oldValue = oldEntity?.[dep];
+		const newValue = newEntity?.[dep];
+
+		// Handle primitive values
+		if (typeof oldValue !== 'object' || typeof newValue !== 'object') {
+			return oldValue !== newValue;
+		}
+
+		// Handle arrays
+		if (Array.isArray(oldValue) && Array.isArray(newValue)) {
+			return JSON.stringify(oldValue) !== JSON.stringify(newValue);
+		}
+
+		// Handle objects
+		if (oldValue && newValue) {
+			return JSON.stringify(oldValue) !== JSON.stringify(newValue);
+		}
+
+		// Handle null/undefined
+		return oldValue !== newValue;
+	});
+}
+
+/**
+ * Extract dependencies from a computed property implementation
+ * @param implementation Implementation function
+ * @returns Array of property dependencies
+ */
+export function extractDependenciesFromImplementation(
+	implementation: (entity: any, context?: HookContext) => any
+): string[] {
+	if (!implementation) return [];
+
+	// Get the function source code
+	const fnStr = implementation.toString();
+
+	// Extract property accesses like entity.propertyName
+	const matches = fnStr.match(/entity\.([a-zA-Z0-9_$]+)/g) || [];
+
+	// Remove the "entity." prefix and deduplicate
+	const properties = [...new Set(matches.map(m => m.replace('entity.', '')))];
+
+	return properties;
 }
 
 /**
@@ -169,6 +280,84 @@ export function buildDependencyGraph(
 }
 
 /**
+ * Detect circular dependencies in the dependency graph
+ * @param graph Dependency graph
+ * @returns Array of circular dependency paths
+ */
+export function detectCircularDependencies(
+	graph: Map<string, string[]>
+): string[][] {
+	const circularPaths: string[][] = [];
+	const visiting = new Set<string>();
+	const visited = new Set<string>();
+
+	// Helper function for depth-first search
+	const dfs = (node: string, path: string[] = []): void => {
+		// Skip if already fully visited
+		if (visited.has(node)) return;
+
+		// Circular dependency found
+		if (visiting.has(node)) {
+			// Find the start of the cycle
+			const cycleStart = path.indexOf(node);
+			if (cycleStart !== -1) {
+				const cycle = path.slice(cycleStart).concat(node);
+				circularPaths.push(cycle);
+			}
+			return;
+		}
+
+		// Mark as visiting
+		visiting.add(node);
+		path.push(node);
+
+		// Visit dependencies
+		const dependencies = graph.get(node) || [];
+		for (const dependency of dependencies) {
+			if (graph.has(dependency)) {
+				dfs(dependency, [...path]);
+			}
+		}
+
+		// Mark as visited and remove from visiting
+		visiting.delete(node);
+		visited.add(node);
+	};
+
+	// Visit all nodes
+	for (const node of graph.keys()) {
+		if (!visited.has(node)) {
+			dfs(node);
+		}
+	}
+
+	return circularPaths;
+}
+
+/**
+ * Analyze dependencies for computed properties
+ * @param propertyNames Names of computed properties
+ * @param getDependenciesFn Function to get dependencies for a property
+ * @returns Dependency analysis result
+ */
+export function analyzeDependencies(
+	propertyNames: string[],
+	getDependenciesFn: (prop: string) => string[]
+): DependencyAnalysisResult {
+	const graph = buildDependencyGraph(propertyNames, getDependenciesFn);
+	const circularDependencies = detectCircularDependencies(graph);
+
+	// Get sorted order
+	const order = getComputedPropertyOrder(propertyNames, getDependenciesFn);
+
+	return {
+		order,
+		graph,
+		circularDependencies
+	};
+}
+
+/**
  * Sort computed properties by dependencies using topological sort
  * Ensures properties are calculated in the correct order
  * 
@@ -189,18 +378,22 @@ export function getComputedPropertyOrder(
 	const visited = new Set<string>();
 	const visiting = new Set<string>();
 
+	// Filter to only include properties that exist in the graph
+	const validProperties = propertyNames.filter(prop => graph.has(prop));
+
 	// Topological sort with cycle detection
 	function visit(prop: string): void {
 		if (visited.has(prop)) return;
 		if (visiting.has(prop)) {
-			throw new Error(`Cyclic dependency detected in computed properties: ${prop}`);
+			// Handle circular dependency by continuing
+			return;
 		}
 
 		visiting.add(prop);
 
 		const dependencies = graph.get(prop) || [];
 		for (const dep of dependencies) {
-			// Only consider dependencies that are computed properties
+			// Only consider dependencies that are computed properties in our graph
 			if (graph.has(dep)) {
 				visit(dep);
 			}
@@ -212,7 +405,7 @@ export function getComputedPropertyOrder(
 	}
 
 	// Visit all properties
-	for (const prop of graph.keys()) {
+	for (const prop of validProperties) {
 		if (!visited.has(prop)) {
 			visit(prop);
 		}
@@ -230,38 +423,75 @@ export function getComputedPropertyOrder(
 export function createComputedPropertiesProcessor(
 	entity: EntityConfig,
 	implementations: ComputedPropertyImplementations
-): (entity: any) => any {
+): (entity: any, options?: ComputedPropertyOptions) => any {
 	if (!entity.computed || entity.computed.length === 0) {
 		return (entity) => entity;
 	}
 
 	// Get property dependencies from the entity config
-	const propToDepMap = new Map<string, string[]>();
+	const propToDependencyMap = new Map<string, string[]>();
+
+	// Initialize with explicit dependencies from config
 	for (const prop of entity.computed) {
-		propToDepMap.set(prop.name, prop.dependencies || []);
+		propToDependencyMap.set(prop.name, prop.dependencies || []);
+	}
+
+	// Enhance with extracted dependencies from implementations
+	for (const [propName, impl] of Object.entries(implementations)) {
+		const extractedDeps = extractDependenciesFromImplementation(impl);
+		const existingDeps = propToDependencyMap.get(propName) || [];
+		propToDependencyMap.set(propName, [...new Set([...existingDeps, ...extractedDeps])]);
 	}
 
 	// Get the correct order to process properties
 	const propertyOrder = getComputedPropertyOrder(
 		Object.keys(implementations),
-		prop => propToDepMap.get(prop) || []
+		prop => propToDependencyMap.get(prop) || []
 	);
 
 	// Create a function that applies properties in the right order
-	return (entityObj: any) => {
+	return (entityObj: any, options: ComputedPropertyOptions = {}) => {
+		if (!entityObj) return entityObj;
+
 		const result = { ...entityObj };
+		const { skipProperties = [], context } = options;
 
 		for (const propName of propertyOrder) {
+			// Skip specified properties
+			if (skipProperties.includes(propName)) continue;
+
 			const implementation = implementations[propName];
 			if (implementation) {
 				try {
-					result[propName] = implementation(result);
+					result[propName] = implementation(result, context);
 				} catch (error) {
-					console.error(`Error calculating computed property ${propName}:`, error);
+					if (context?.logger) {
+						context.logger.error(`Error calculating computed property ${propName}: ${error instanceof Error ? error.message : String(error)}`);
+					} else {
+						console.error(`Error calculating computed property ${propName}:`, error);
+					}
 				}
 			}
 		}
 
 		return result;
+	};
+}
+
+/**
+ * Create an optimized batch processor for computed properties
+ * @param entity Entity configuration
+ * @param implementations Computed property implementations
+ * @returns Function to process computed properties for an array of entities
+ */
+export function createBatchComputedPropertiesProcessor(
+	entity: EntityConfig,
+	implementations: ComputedPropertyImplementations
+): (entities: any[], options?: ComputedPropertyOptions) => any[] {
+	const singleProcessor = createComputedPropertiesProcessor(entity, implementations);
+
+	return (entities: any[], options: ComputedPropertyOptions = {}) => {
+		if (!entities || entities.length === 0) return entities;
+		return entities.map(entity => singleProcessor(entity, options));
 	};
 }
