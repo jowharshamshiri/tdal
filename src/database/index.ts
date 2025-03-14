@@ -6,6 +6,8 @@
 export * from "./core/types";
 export * from "./core/connection-types";
 
+export * from "./orm";
+
 // Database context
 export { DatabaseContext } from "./core/database-context";
 

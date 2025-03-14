@@ -21,5 +21,5 @@ export * from "./date-functions";
  * @returns Typed entity mapping
  */
 export function createEntityMapping<T>(mapping: Record<string, unknown>): T {
-  return mapping as T;
+	return mapping as T;
 }

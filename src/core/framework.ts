@@ -1,91 +1,144 @@
 /**
- * Main Framework Entry Point
- * Bootstraps the entire application from YAML configuration
+ * Framework
+ * Main entry point for the application framework
  */
 
 import * as path from 'path';
-import express from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import compression from 'compression';
 import helmet from 'helmet';
-import { ApplicationContext } from './app-context';
+import { AppContext } from './app-context';
 import { ConfigLoader } from './config-loader';
-import { AppConfig, EntityConfig, Logger } from './types';
+import { Logger, AppConfig } from './core/types';
+import { DatabaseContext } from './database-context';
 
 /**
- * Simple console logger implementation
+ * Framework options
  */
-class ConsoleLogger implements Logger {
-	debug(message: string, ...args: any[]): void {
-		console.debug(`[DEBUG] ${message}`, ...args);
-	}
+export interface FrameworkOptions {
+	/**
+	 * Path to application configuration file
+	 */
+	configPath?: string;
 
-	info(message: string, ...args: any[]): void {
-		console.info(`[INFO] ${message}`, ...args);
-	}
+	/**
+	 * Path to entities directory
+	 */
+	entitiesDir?: string;
 
-	warn(message: string, ...args: any[]): void {
-		console.warn(`[WARN] ${message}`, ...args);
-	}
+	/**
+	 * Path to schema directory
+	 */
+	schemaDir?: string;
 
-	error(message: string, ...args: any[]): void {
-		console.error(`[ERROR] ${message}`, ...args);
-	}
+	/**
+	 * Logger instance
+	 */
+	logger?: Logger;
+
+	/**
+	 * Express application instance
+	 * If not provided, a new instance will be created
+	 */
+	app?: Express;
 }
 
 /**
  * Framework class
- * Main entry point for the YAML-driven web application framework
+ * Main entry point for the application framework
  */
 export class Framework {
-	private logger: Logger;
+	/**
+	 * Application context
+	 */
+	private context: AppContext | null = null;
+
+	/**
+	 * Configuration loader
+	 */
 	private configLoader: ConfigLoader;
-	private context: ApplicationContext | null = null;
+
+	/**
+	 * Express application
+	 */
+	private app: Express;
+
+	/**
+	 * Application configuration
+	 */
 	private config: AppConfig | null = null;
-	private entities: Map<string, EntityConfig> = new Map();
+
+	/**
+	 * HTTP server instance
+	 */
+	private server: any = null;
+
+	/**
+	 * Logger instance
+	 */
+	private logger: Logger;
 
 	/**
 	 * Constructor
-	 * @param logger Optional custom logger 
+	 * @param options Framework options
 	 */
-	constructor(logger?: Logger) {
-		this.logger = logger || new ConsoleLogger();
-		this.configLoader = new ConfigLoader(this.logger);
+	constructor(options: FrameworkOptions = {}) {
+		// Set up logger
+		this.logger = options.logger || {
+			debug: console.debug,
+			info: console.info,
+			warn: console.warn,
+			error: console.error
+		};
+
+		// Create Express app if not provided
+		this.app = options.app || express();
+
+		// Create configuration loader
+		this.configLoader = new ConfigLoader({
+			schemaDir: options.schemaDir,
+			entitiesDir: options.entitiesDir,
+			logger: this.logger
+		});
+
+		this.logger.info('Framework instance created');
 	}
 
 	/**
 	 * Initialize the framework
-	 * @param configPath Path to app.yaml config file
+	 * @param configPath Path to application configuration file
+	 * @returns Initialized framework instance
 	 */
-	async initialize(configPath: string): Promise<ApplicationContext> {
+	async initialize(configPath?: string): Promise<Framework> {
 		try {
-			this.logger.info('Initializing framework...');
+			this.logger.info('Initializing framework');
 
 			// Load application configuration
 			this.config = await this.configLoader.loadAppConfig(configPath);
-			this.logger.info(`Loaded configuration for app: ${this.config.name} v${this.config.version}`);
+
+			this.logger.info(`Loaded configuration for ${this.config.name} v${this.config.version}`);
 
 			// Load entity configurations
-			const entitiesDir = path.resolve(path.dirname(configPath), this.config.entitiesDir);
-			this.entities = await this.configLoader.loadEntities(entitiesDir);
-			this.logger.info(`Loaded ${this.entities.size} entities`);
+			const entitiesDir = this.config.entitiesDir || path.join(process.cwd(), 'entities');
+			const entities = await this.configLoader.loadEntities(entitiesDir);
 
-			// Create application context
-			this.context = new ApplicationContext(this.config, this.logger);
+			this.logger.info(`Loaded ${entities.size} entities`);
 
-			// Initialize application context
-			await this.context.initialize(this.entities);
+			// Create and initialize application context
+			this.context = new AppContext(this.config, this.logger);
+			await this.context.initialize(entities);
 
-			// Configure Express application
-			this.configureExpressApp();
+			// Set up Express middleware
+			this.setupMiddleware();
 
-			// Register routes and controllers
-			await this.registerRoutes();
+			// Set up routes
+			await this.setupRoutes();
 
-			this.logger.info('Framework initialization complete');
+			this.logger.info('Framework initialized successfully');
 
-			return this.context;
+			return this;
 		} catch (error) {
 			this.logger.error(`Framework initialization failed: ${error}`);
 			throw new Error(`Framework initialization failed: ${error}`);
@@ -93,140 +146,309 @@ export class Framework {
 	}
 
 	/**
-	 * Configure the Express application
+	 * Set up Express middleware
 	 */
-	private configureExpressApp(): void {
-		if (!this.context) throw new Error('Context not initialized');
-
-		const { app, config } = this.context;
-
-		// Add basic middleware
-		app.use(cors());
-		app.use(bodyParser.json());
-		app.use(bodyParser.urlencoded({ extended: true }));
-		app.use(compression());
-
-		// Add security middleware in production
-		if (config.production) {
-			app.use(helmet());
+	private setupMiddleware(): void {
+		// Skip if no Express app
+		if (!this.app) {
+			return;
 		}
 
-		// Add request logging
-		app.use((req, res, next) => {
+		this.logger.debug('Setting up Express middleware');
+
+		// Basic middleware
+		this.app.use(cors());
+		this.app.use(bodyParser.json());
+		this.app.use(bodyParser.urlencoded({ extended: true }));
+		this.app.use(compression());
+
+		// Security middleware in production
+		if (this.config && this.config.production) {
+			this.app.use(helmet());
+		}
+
+		// Request logging
+		this.app.use((req: Request, res: Response, next: NextFunction) => {
 			this.logger.debug(`${req.method} ${req.path}`);
 			next();
 		});
-
-		// Add error handling
-		app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-			this.logger.error(`Error processing request: ${err.message}`);
-			res.status(err.status || 500).json({
-				error: 'Internal Server Error',
-				message: config.production ? 'An error occurred' : err.message
-			});
-		});
 	}
 
 	/**
-	 * Register all routes and controllers
+	 * Set up Express routes
 	 */
-	private async registerRoutes(): Promise<void> {
-		if (!this.context) throw new Error('Context not initialized');
+	private async setupRoutes(): Promise<void> {
+		// Skip if no Express app or context
+		if (!this.app || !this.context) {
+			return;
+		}
 
-		try {
-			// Dynamically import API generator
-			const { ApiGenerator } = await import('../api/api-generator');
+		this.logger.debug('Setting up routes');
 
-			// Create API generator
-			const apiGenerator = new ApiGenerator(this.context, this.logger);
+		// Add API base path
+		const apiBasePath = this.config?.apiBasePath || '/api';
 
-			// Generate APIs for all entities with api.exposed = true
-			for (const [entityName, entityConfig] of this.entities.entries()) {
-				if (entityConfig.api?.exposed) {
-					await apiGenerator.generateApi(entityConfig);
-					this.logger.info(`Generated API for entity: ${entityName}`);
+		// Add health check endpoint
+		this.app.get('/health', (req: Request, res: Response) => {
+			res.json({
+				status: 'ok',
+				name: this.config?.name,
+				version: this.config?.version
+			});
+		});
+
+		// Generate API routes for entities
+		if (this.context) {
+			const entities = this.context.getAllEntityConfigs();
+
+			// Create API generator dynamically
+			try {
+				// Import API generator - could be moved to a separate module in a real implementation
+				const ApiGenerator = await this.loadApiGenerator();
+
+				if (ApiGenerator) {
+					const generator = new ApiGenerator(this.context, this.app, apiBasePath, this.logger);
+
+					// Generate API routes for each entity with exposed API
+					for (const [entityName, entityConfig] of entities.entries()) {
+						if (entityConfig.api && entityConfig.api.exposed) {
+							await generator.generateEntityApi(entityConfig);
+							this.logger.info(`Generated API for entity: ${entityName}`);
+						}
+					}
 				}
+			} catch (error) {
+				this.logger.error(`Failed to generate API routes: ${error}`);
 			}
-
-			// Add generic routes
-			this.addGenericRoutes();
-
-		} catch (error) {
-			this.logger.error(`Failed to register routes: ${error}`);
-			throw new Error(`Failed to register routes: ${error}`);
 		}
 	}
 
 	/**
-	 * Add generic framework routes
+	 * Load API generator dynamically
+	 * This is a placeholder for a real implementation that would load the ApiGenerator class
 	 */
-	private addGenericRoutes(): void {
-		if (!this.context) throw new Error('Context not initialized');
+	private async loadApiGenerator(): Promise<any> {
+		// In a real implementation, this would dynamically import the ApiGenerator class
+		// For now, we'll return a simple placeholder
+		return class ApiGenerator {
+			constructor(
+				private context: AppContext,
+				private app: Express,
+				private basePath: string,
+				private logger: Logger
+			) { }
 
-		const { app, config } = this.context;
+			async generateEntityApi(entityConfig: any): Promise<void> {
+				const entityName = entityConfig.entity;
+				const entityBasePath = entityConfig.api?.basePath || this.basePath + '/' + entityName.toLowerCase();
 
-		// Health check endpoint
-		app.get('/health', (req, res) => {
-			res.json({ status: 'ok', version: config.version });
-		});
+				// Get entity manager
+				const entityManager = this.context.getEntityManager(entityName);
 
-		// Root endpoint with app info
-		app.get('/', (req, res) => {
-			res.json({
-				name: config.name,
-				version: config.version,
-				apiBasePath: config.apiBasePath
-			});
-		});
+				// Add basic CRUD routes
+				const router = express.Router();
+
+				// GET /api/entity - Get all
+				if (entityConfig.api?.operations?.getAll !== false) {
+					router.get('/', async (req, res) => {
+						try {
+							const entities = await entityManager.findAll();
+							res.json(entities);
+						} catch (error) {
+							this.logger.error(`Error in GET ${entityBasePath}: ${error}`);
+							res.status(500).json({ error: 'Internal server error' });
+						}
+					});
+				}
+
+				// GET /api/entity/:id - Get by ID
+				if (entityConfig.api?.operations?.getById !== false) {
+					router.get('/:id', async (req, res) => {
+						try {
+							const entity = await entityManager.findById(req.params.id);
+
+							if (!entity) {
+								return res.status(404).json({ error: 'Not found' });
+							}
+
+							res.json(entity);
+						} catch (error) {
+							this.logger.error(`Error in GET ${entityBasePath}/${req.params.id}: ${error}`);
+							res.status(500).json({ error: 'Internal server error' });
+						}
+					});
+				}
+
+				// POST /api/entity - Create
+				if (entityConfig.api?.operations?.create !== false) {
+					router.post('/', async (req, res) => {
+						try {
+							const id = await entityManager.create(req.body);
+							const entity = await entityManager.findById(id);
+
+							res.status(201).json(entity);
+						} catch (error) {
+							this.logger.error(`Error in POST ${entityBasePath}: ${error}`);
+							res.status(500).json({ error: 'Internal server error' });
+						}
+					});
+				}
+
+				// PUT /api/entity/:id - Update
+				if (entityConfig.api?.operations?.update !== false) {
+					router.put('/:id', async (req, res) => {
+						try {
+							const id = req.params.id;
+							await entityManager.update(id, req.body);
+
+							const entity = await entityManager.findById(id);
+
+							if (!entity) {
+								return res.status(404).json({ error: 'Not found' });
+							}
+
+							res.json(entity);
+						} catch (error) {
+							this.logger.error(`Error in PUT ${entityBasePath}/${req.params.id}: ${error}`);
+							res.status(500).json({ error: 'Internal server error' });
+						}
+					});
+				}
+
+				// DELETE /api/entity/:id - Delete
+				if (entityConfig.api?.operations?.delete !== false) {
+					router.delete('/:id', async (req, res) => {
+						try {
+							const id = req.params.id;
+							const result = await entityManager.delete(id);
+
+							if (result === 0) {
+								return res.status(404).json({ error: 'Not found' });
+							}
+
+							res.status(204).end();
+						} catch (error) {
+							this.logger.error(`Error in DELETE ${entityBasePath}/${req.params.id}: ${error}`);
+							res.status(500).json({ error: 'Internal server error' });
+						}
+					});
+				}
+
+				// Register routes
+				this.app.use(entityBasePath, router);
+
+				this.logger.debug(`Registered API routes for ${entityName} at ${entityBasePath}`);
+			}
+		};
 	}
 
 	/**
 	 * Start the server
-	 * @returns HTTP server instance
+	 * @param port Port to listen on (overrides config)
+	 * @param host Host to listen on (overrides config)
+	 * @returns Server instance
 	 */
-	async start(): Promise<any> {
-		if (!this.context || !this.config) {
-			throw new Error('Framework not initialized. Call initialize() first.');
+	async start(port?: number, host?: string): Promise<any> {
+		if (!this.app) {
+			throw new Error('Cannot start server: Express app not initialized');
 		}
 
-		return new Promise((resolve) => {
-			const server = this.context!.app.listen(this.config!.port, () => {
-				this.logger.info(`Server started on port ${this.config!.port}`);
-				resolve(server);
-			});
+		if (!this.config) {
+			throw new Error('Cannot start server: Configuration not loaded');
+		}
+
+		const serverPort = port || this.config.port || 3000;
+		const serverHost = host || this.config.host || 'localhost';
+
+		return new Promise((resolve, reject) => {
+			try {
+				this.server = this.app.listen(serverPort, serverHost, () => {
+					this.logger.info(`Server started at http://${serverHost}:${serverPort}`);
+					resolve(this.server);
+				});
+			} catch (error) {
+				this.logger.error(`Failed to start server: ${error}`);
+				reject(error);
+			}
 		});
 	}
 
 	/**
-	 * Stop the server and clean up
+	 * Stop the server
 	 */
 	async stop(): Promise<void> {
-		if (this.context) {
-			await this.context.cleanup();
-			this.logger.info('Framework stopped');
+		this.logger.info('Stopping server');
+
+		// Close HTTP server
+		if (this.server) {
+			await new Promise<void>((resolve, reject) => {
+				this.server.close((err?: Error) => {
+					if (err) {
+						this.logger.error(`Error closing server: ${err}`);
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
+			});
 		}
+
+		// Shut down application context
+		if (this.context) {
+			await this.context.shutdown();
+		}
+
+		this.logger.info('Server stopped');
 	}
 
 	/**
 	 * Get the application context
 	 * @returns Application context
 	 */
-	getContext(): ApplicationContext {
+	getContext(): AppContext {
 		if (!this.context) {
-			throw new Error('Framework not initialized. Call initialize() first.');
+			throw new Error('Application context not initialized');
 		}
+
 		return this.context;
+	}
+
+	/**
+	 * Get the Express application
+	 * @returns Express application
+	 */
+	getApp(): Express {
+		return this.app;
+	}
+
+	/**
+	 * Get the configuration loader
+	 * @returns Configuration loader
+	 */
+	getConfigLoader(): ConfigLoader {
+		return this.configLoader;
+	}
+
+	/**
+	 * Get the application configuration
+	 * @returns Application configuration
+	 */
+	getConfig(): AppConfig {
+		if (!this.config) {
+			throw new Error('Application configuration not loaded');
+		}
+
+		return this.config;
 	}
 }
 
 /**
- * Create and initialize the framework
- * @param configPath Path to app.yaml config file
- * @param logger Optional custom logger
+ * Create and initialize a framework instance
+ * @param options Framework options
  * @returns Initialized framework instance
  */
-export async function createApp(configPath: string, logger?: Logger): Promise<Framework> {
-	const framework = new Framework(logger);
-	await framework.initialize(configPath);
+export async function createFramework(options: FrameworkOptions = {}): Promise<Framework> {
+	const framework = new Framework(options);
+	await framework.initialize(options.configPath);
 	return framework;
 }

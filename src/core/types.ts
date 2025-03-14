@@ -1,86 +1,191 @@
 /**
- * Core type definitions for the YAML-driven web application framework
+ * Core framework types
+ * Defines the fundamental types used throughout the framework
  */
 
 import { Express, Request, Response, NextFunction } from 'express';
-import { EntityDao } from '../database/entity-dao';
-import { DatabaseAdapter } from '../database/database-adapter';
+
+import { DatabaseAdapter } from '../database/core/types';
+import { DbConfig } from '../database/core/connection-types';
+import { EntityDao } from '../database';
 
 /**
- * Application configuration object
+ * Application configuration
  */
 export interface AppConfig {
-	/** Application name */
+	/**
+	 * Application name
+	 */
 	name: string;
-	/** Application version */
-	version: string;
-	/** Server port */
-	port: number;
-	/** Base API path */
-	apiBasePath: string;
-	/** Database configuration */
-	database: DatabaseConfig;
-	/** Authentication configuration */
-	auth?: AuthConfig;
-	/** Path to entities directory */
-	entitiesDir: string;
-	/** Production mode flag */
-	production: boolean;
-}
 
-/**
- * Database configuration
- */
-export interface DatabaseConfig {
-	/** Database type (sqlite, postgres, mysql) */
-	type: 'sqlite' | 'postgres' | 'mysql';
-	/** Connection details */
-	connection: {
-		/** SQLite filename or connection string for other DBs */
-		filename?: string;
-		/** Database host */
-		host?: string;
-		/** Database port */
-		port?: number;
-		/** Database name */
-		database?: string;
-		/** Database user */
-		user?: string;
-		/** Database password */
-		password?: string;
-		/** SSL configuration */
-		ssl?: boolean;
+	/**
+	 * Application version
+	 */
+	version: string;
+
+	/**
+	 * Server port
+	 */
+	port: number;
+
+	/**
+	 * Server host
+	 */
+	host?: string;
+
+	/**
+	 * API base path
+	 */
+	apiBasePath?: string;
+
+	/**
+	 * Path to entities directory
+	 */
+	entitiesDir?: string;
+
+	/**
+	 * Database configuration
+	 */
+	database?: DbConfig;
+
+	/**
+	 * Authentication configuration
+	 */
+	auth?: AuthConfig;
+
+	/**
+	 * CORS configuration
+	 */
+	cors?: CorsConfig;
+
+	/**
+	 * Logging configuration
+	 */
+	logging?: LoggingConfig;
+
+	/**
+	 * Whether the application is running in production mode
+	 */
+	production?: boolean;
+
+	/**
+	 * Framework-specific options
+	 */
+	framework?: {
+		/**
+		 * Enable automatic API generation
+		 */
+		enableApi?: boolean;
+
+		/**
+		 * Enable automatic schema synchronization
+		 */
+		syncSchema?: boolean;
+
+		/**
+		 * Enable database migrations
+		 */
+		enableMigrations?: boolean;
+
+		/**
+		 * Path to migrations directory
+		 */
+		migrationsDir?: string;
 	};
-	/** Whether to synchronize schema automatically */
-	synchronize?: boolean;
-	/** Connection pool options */
-	pool?: {
-		min?: number;
-		max?: number;
-	};
+
+	/**
+	 * Custom application options
+	 */
+	[key: string]: any;
 }
 
 /**
  * Authentication configuration
  */
 export interface AuthConfig {
-	/** Auth provider type */
-	provider: 'jwt' | 'oauth2';
-	/** Secret key for token signing */
-	secret: string;
-	/** Access token expiry */
-	tokenExpiry: string;
-	/** Refresh token expiry */
+	/**
+	 * Authentication provider
+	 */
+	provider: 'jwt' | 'oauth2' | 'custom';
+
+	/**
+	 * Secret key for token signing
+	 */
+	secret?: string;
+
+	/**
+	 * Token expiration time
+	 */
+	tokenExpiry?: string;
+
+	/**
+	 * Refresh token expiration time
+	 */
 	refreshTokenExpiry?: string;
-	/** User entity name */
-	userEntity: string;
-	/** Username field in user entity */
-	usernameField: string;
-	/** Password field in user entity */
-	passwordField: string;
-	/** User role field */
-	roleField?: string;
-	/** Available roles */
+
+	/**
+	 * User entity name
+	 */
+	userEntity?: string;
+
+	/**
+	 * Username field
+	 */
+	usernameField?: string;
+
+	/**
+	 * Password field
+	 */
+	passwordField?: string;
+
+	/**
+	 * OAuth2 configuration
+	 */
+	oauth2?: {
+		/**
+		 * OAuth2 providers
+		 */
+		providers: {
+			/**
+			 * Provider name
+			 */
+			name: string;
+
+			/**
+			 * Client ID
+			 */
+			clientId: string;
+
+			/**
+			 * Client secret
+			 */
+			clientSecret: string;
+
+			/**
+			 * Authorization URL
+			 */
+			authorizationUrl: string;
+
+			/**
+			 * Token URL
+			 */
+			tokenUrl: string;
+
+			/**
+			 * Callback URL
+			 */
+			callbackUrl: string;
+
+			/**
+			 * Scopes
+			 */
+			scopes: string[];
+		}[];
+	};
+
+	/**
+	 * Available roles
+	 */
 	roles?: Role[];
 }
 
@@ -88,320 +193,642 @@ export interface AuthConfig {
  * Role definition
  */
 export interface Role {
-	/** Role name */
+	/**
+	 * Role name
+	 */
 	name: string;
-	/** Role description */
-	description: string;
-	/** Parent role for inheritance */
+
+	/**
+	 * Role description
+	 */
+	description?: string;
+
+	/**
+	 * Parent role (for inheritance)
+	 */
 	inherits?: string;
-}
 
-/**
- * Entity definition from YAML
- */
-export interface EntityConfig {
-	/** Entity name */
-	entity: string;
-	/** Database table name */
-	table: string;
-	/** ID field name */
-	idField: string;
-	/** Column definitions */
-	columns: EntityColumn[];
-	/** Entity relationships */
-	relations?: EntityRelation[];
-	/** Timestamp configuration */
-	timestamps?: {
-		createdAt?: string;
-		updatedAt?: string;
-		deletedAt?: string;
-	};
-	/** Soft delete configuration */
-	softDelete?: {
-		column: string;
-		deletedValue: any;
-		nonDeletedValue: any;
-	};
-	/** API configuration */
-	api?: EntityApiConfig;
-	/** Hooks for entity lifecycle */
-	hooks?: EntityHooks;
-	/** Custom actions */
-	actions?: EntityAction[];
-	/** Validation rules */
-	validation?: ValidationRules;
-	/** Computed properties */
-	computed?: ComputedProperty[];
-	/** Workflow definitions */
-	workflows?: Workflow[];
-}
-
-/**
- * Entity column definition
- */
-export interface EntityColumn {
-	/** Logical column name (in code) */
-	logical: string;
-	/** Physical column name (in database) */
-	physical: string;
-	/** Whether this is a primary key */
-	primaryKey?: boolean;
-	/** Whether the column auto-increments */
-	autoIncrement?: boolean;
-	/** Whether the column can be null */
-	nullable?: boolean;
-	/** Column data type */
-	type?: string;
-	/** Whether the column has a unique constraint */
-	unique?: boolean;
-	/** Column comment */
-	comment?: string;
-	/** Foreign key reference */
-	foreignKey?: string;
-}
-
-/**
- * Entity relation definition
- */
-export interface EntityRelation {
-	/** Relation name */
-	name: string;
-	/** Relation type */
-	type: 'oneToOne' | 'oneToMany' | 'manyToOne' | 'manyToMany';
-	/** Source entity */
-	sourceEntity: string;
-	/** Target entity */
-	targetEntity: string;
-	/** Source column */
-	sourceColumn: string;
-	/** Target column */
-	targetColumn: string;
-	/** For many-to-many, junction table */
-	junctionTable?: string;
-	/** For many-to-many, junction source column */
-	junctionSourceColumn?: string;
-	/** For many-to-many, junction target column */
-	junctionTargetColumn?: string;
-	/** For one-to-one, whether this is the owner side */
-	isOwner?: boolean;
-	/** Inverse relation name */
-	inverseName?: string;
-}
-
-/**
- * Entity API configuration
- */
-export interface EntityApiConfig {
-	/** Whether to expose entity via REST API */
-	exposed: boolean;
-	/** Base path for the entity API */
-	basePath?: string;
-	/** Which operations to enable */
-	operations?: {
-		getAll?: boolean;
-		getById?: boolean;
-		create?: boolean;
-		update?: boolean;
-		delete?: boolean;
-	};
-	/** Role-based permissions */
-	permissions?: {
-		getAll?: string[];
-		getById?: string[];
-		create?: string[];
-		update?: string[];
-		delete?: string[];
-	};
-	/** Field-level permissions */
-	fields?: Record<string, {
-		read?: string[];
-		write?: string[];
-	}>;
-	/** Record-level access control */
-	recordAccess?: {
-		condition: string;
-	};
-}
-
-/**
- * Entity lifecycle hooks
- */
-export interface EntityHooks {
-	/** Before create hooks */
-	beforeCreate?: Hook[];
-	/** After create hooks */
-	afterCreate?: Hook[];
-	/** Before update hooks */
-	beforeUpdate?: Hook[];
-	/** After update hooks */
-	afterUpdate?: Hook[];
-	/** Before delete hooks */
-	beforeDelete?: Hook[];
-	/** After delete hooks */
-	afterDelete?: Hook[];
-	/** Before getById hooks */
-	beforeGetById?: Hook[];
-	/** After getById hooks */
-	afterGetById?: Hook[];
-	/** Before getAll hooks */
-	beforeGetAll?: Hook[];
-	/** After getAll hooks */
-	afterGetAll?: Hook[];
-}
-
-/**
- * Hook definition
- */
-export interface Hook {
-	/** Hook name */
-	name: string;
-	/** Inline implementation or path to external file */
-	implementation: string;
-	/** Optional condition for hook execution */
-	condition?: string;
-}
-
-/**
- * Custom entity action
- */
-export interface EntityAction {
-	/** Action name */
-	name: string;
-	/** HTTP path for the action */
-	path: string;
-	/** HTTP method */
-	method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-	/** Authorized roles */
-	auth?: string[];
-	/** Action implementation */
-	implementation: string;
-}
-
-/**
- * Entity validation rules
- */
-export interface ValidationRules {
-	/** Field-specific rules */
-	rules: Record<string, ValidationRule[]>;
-}
-
-/**
- * Validation rule
- */
-export interface ValidationRule {
-	/** Rule type */
-	type: 'required' | 'minLength' | 'maxLength' | 'min' | 'max' | 'pattern' | 'email' | 'custom';
-	/** Rule value (if applicable) */
-	value?: any;
-	/** Error message */
-	message: string;
-	/** Custom implementation (for custom rules) */
-	implementation?: string;
-}
-
-/**
- * Computed property
- */
-export interface ComputedProperty {
-	/** Property name */
-	name: string;
-	/** Fields this property depends on */
-	dependencies?: string[];
-	/** Property implementation */
-	implementation: string;
-}
-
-/**
- * Entity workflow
- */
-export interface Workflow {
-	/** Workflow name */
-	name: string;
-	/** Workflow states */
-	states: WorkflowState[];
-	/** State transitions */
-	transitions: WorkflowTransition[];
-}
-
-/**
- * Workflow state
- */
-export interface WorkflowState {
-	/** State name */
-	name: string;
-	/** Whether this is the initial state */
-	initial?: boolean;
-}
-
-/**
- * Workflow transition
- */
-export interface WorkflowTransition {
-	/** Source state */
-	from: string;
-	/** Target state */
-	to: string;
-	/** Transition action name */
-	action: string;
-	/** Roles that can perform this transition */
+	/**
+	 * Role permissions
+	 */
 	permissions?: string[];
-	/** Transition hooks */
-	hooks?: {
-		before?: string;
-		after?: string;
-	};
 }
 
 /**
- * Hook context provided to hook implementations
+ * CORS configuration
  */
-export interface HookContext {
-	/** Entity DAO */
-	entityDao: EntityDao<any>;
-	/** Current user (if authenticated) */
-	user?: {
-		id: number | string;
-		username: string;
-		role: string;
-	};
-	/** Original HTTP request */
-	req?: Request;
-	/** HTTP response */
-	res?: Response;
-	/** Express next function */
-	next?: NextFunction;
-	/** Database access */
-	db: DatabaseAdapter;
-	/** Logger */
-	logger: Logger;
-	/** Service container */
-	services: Record<string, any>;
+export interface CorsConfig {
+	/**
+	 * Allowed origins
+	 */
+	origin?: string | string[] | boolean;
+
+	/**
+	 * Allowed methods
+	 */
+	methods?: string | string[];
+
+	/**
+	 * Allowed headers
+	 */
+	allowedHeaders?: string | string[];
+
+	/**
+	 * Exposed headers
+	 */
+	exposedHeaders?: string | string[];
+
+	/**
+	 * Whether to allow credentials
+	 */
+	credentials?: boolean;
+
+	/**
+	 * Max age
+	 */
+	maxAge?: number;
+}
+
+/**
+ * Logging configuration
+ */
+export interface LoggingConfig {
+	/**
+	 * Log level
+	 */
+	level?: 'debug' | 'info' | 'warn' | 'error';
+
+	/**
+	 * Whether to pretty print logs
+	 */
+	pretty?: boolean;
+
+	/**
+	 * Log file path
+	 */
+	file?: string;
 }
 
 /**
  * Logger interface
  */
 export interface Logger {
+	/**
+	 * Log debug message
+	 */
 	debug(message: string, ...args: any[]): void;
+
+	/**
+	 * Log info message
+	 */
 	info(message: string, ...args: any[]): void;
+
+	/**
+	 * Log warning message
+	 */
 	warn(message: string, ...args: any[]): void;
+
+	/**
+	 * Log error message
+	 */
 	error(message: string, ...args: any[]): void;
 }
 
 /**
- * Application context
+ * Base application context interface
  */
 export interface AppContext {
-	/** Express application instance */
-	app: Express;
-	/** Application configuration */
-	config: AppConfig;
-	/** Database adapter */
-	db: DatabaseAdapter;
-	/** Entity managers */
-	entities: Record<string, EntityDao<any>>;
-	/** Logger */
-	logger: Logger;
-	/** Service container */
-	services: Record<string, any>;
+	/**
+	 * Get the Express application
+	 */
+	getApp(): Express;
+
+	/**
+	 * Get the application configuration
+	 */
+	getConfig(): AppConfig;
+
+	/**
+	 * Get the database adapter
+	 */
+	getDatabase(): DatabaseAdapter;
+
+	/**
+	 * Get an entity manager by entity name
+	 */
+	getEntityManager<T>(entityName: string): EntityDao<T>;
+
+	/**
+	 * Get a service by name
+	 */
+	getService<T>(name: string): T;
+
+	/**
+	 * Get the logger
+	 */
+	getLogger(): Logger;
+
+	/**
+	 * Shutdown the application
+	 */
+	shutdown(): Promise<void>;
 }
+
+/**
+ * Service definition
+ */
+export interface ServiceDefinition {
+	/**
+	 * Service name
+	 */
+	name: string;
+
+	/**
+	 * Service implementation
+	 */
+	implementation: any;
+
+	/**
+	 * Service dependencies
+	 */
+	dependencies?: string[];
+
+	/**
+	 * Whether this is a singleton service
+	 */
+	singleton?: boolean;
+}
+
+/**
+ * API Controller interface
+ */
+export interface ApiController {
+	/**
+	 * Get all entities
+	 */
+	getAll(req: Request, res: Response, next: NextFunction): Promise<void>;
+
+	/**
+	 * Get entity by ID
+	 */
+	getById(req: Request, res: Response, next: NextFunction): Promise<void>;
+
+	/**
+	 * Create entity
+	 */
+	create(req: Request, res: Response, next: NextFunction): Promise<void>;
+
+	/**
+	 * Update entity
+	 */
+	update(req: Request, res: Response, next: NextFunction): Promise<void>;
+
+	/**
+	 * Delete entity
+	 */
+	delete(req: Request, res: Response, next: NextFunction): Promise<void>;
+
+	/**
+	 * Custom action
+	 */
+	[key: string]: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+}
+
+/**
+ * Hook context for entity lifecycle hooks
+ */
+export interface HookContext {
+	/**
+	 * Database adapter
+	 */
+	db: DatabaseAdapter;
+
+	/**
+	 * Application context
+	 */
+	appContext?: AppContext;
+
+	/**
+	 * Current user (if authenticated)
+	 */
+	user?: {
+		id: number | string;
+		username: string;
+		role: string;
+	};
+
+	/**
+	 * Original entity data (for update/delete hooks)
+	 */
+	originalEntity?: Record<string, unknown>;
+
+	/**
+	 * Request object (if hook is triggered by an API call)
+	 */
+	request?: Request | any;
+
+	/**
+	 * Response object (if hook is triggered by an API call)
+	 */
+	response?: Response | any;
+
+	/**
+	 * Express next function (if hook is triggered by an API call)
+	 */
+	next?: NextFunction;
+
+	/**
+	 * Entity name
+	 */
+	entityName?: string;
+
+	/**
+	 * Operation name
+	 */
+	operation?: 'create' | 'update' | 'delete' | 'find' | 'findById' | 'custom' | 'getAll' | 'getById';
+
+	/**
+	 * Logger instance
+	 */
+	logger?: Logger;
+
+	/**
+	 * Additional context data
+	 */
+	data?: Record<string, unknown>;
+
+	/**
+	 * Service container
+	 */
+	services?: Record<string, any>;
+}
+
+/**
+ * Entity computed property implementation function
+ */
+export type ComputedPropertyFunction<T = any> = (entity: T) => any;
+
+/**
+ * Hook function
+ */
+export type HookFunction<T = any> = (
+	data: T,
+	context: HookContext
+) => Promise<T | void> | T | void;
+
+/**
+ * Entity lifecycle hook implementation function
+ */
+export type EntityHookFunction<T> = (entity: T, context: HookContext) => Promise<T | void> | T | void;
+
+/**
+ * Validation function
+ */
+export type ValidationFunction<T = any> = (
+	value: any,
+	entity: T,
+	context: HookContext
+) => boolean | string | { valid: boolean; message?: string };
+
+/**
+ * Validator function for entity validation
+ */
+export type ValidatorFunction<T> = (entity: T) => boolean | string | { valid: boolean; message?: string };
+
+/**
+ * Action implementation function
+ */
+export type ActionFunction = (params: any, context: HookContext) => Promise<any> | any;
+
+/**
+ * Pagination options
+ */
+export interface PaginationOptions {
+	/**
+	 * Page number
+	 */
+	page?: number;
+
+	/**
+	 * Page size
+	 */
+	limit?: number;
+
+	/**
+	 * Sort field
+	 */
+	sort?: string;
+
+	/**
+	 * Sort direction
+	 */
+	order?: 'asc' | 'desc';
+
+	/**
+	 * Offset
+	 */
+	offset?: number;
+}
+
+/**
+ * Pagination result
+ */
+export interface PaginationResult<T> {
+	/**
+	 * Items on the current page
+	 */
+	items: T[];
+
+	/**
+	 * Total number of items
+	 */
+	total: number;
+
+	/**
+	 * Current page number
+	 */
+	page: number;
+
+	/**
+	 * Page size
+	 */
+	limit: number;
+
+	/**
+	 * Total number of pages
+	 */
+	pages: number;
+
+	/**
+	 * Whether there is a next page
+	 */
+	hasNext: boolean;
+
+	/**
+	 * Whether there is a previous page
+	 */
+	hasPrev: boolean;
+}
+
+/**
+ * Search options
+ */
+export interface SearchOptions {
+	/**
+	 * Search query
+	 */
+	query: string;
+
+	/**
+	 * Fields to search in
+	 */
+	fields: string[];
+
+	/**
+	 * Whether to use fuzzy search
+	 */
+	fuzzy?: boolean;
+
+	/**
+	 * Pagination options
+	 */
+	pagination?: PaginationOptions;
+}
+
+/**
+ * File upload options
+ */
+export interface FileUploadOptions {
+	/**
+	 * Field name
+	 */
+	field: string;
+
+	/**
+	 * Allowed file types
+	 */
+	allowedTypes?: string[];
+
+	/**
+	 * Maximum file size in bytes
+	 */
+	maxSize?: number;
+
+	/**
+	 * Upload directory
+	 */
+	destination?: string;
+
+	/**
+	 * Storage adapter
+	 */
+	storage?: 'local' | 's3' | 'azure' | 'gcs' | 'custom';
+
+	/**
+	 * Storage options
+	 */
+	storageOptions?: Record<string, any>;
+}
+
+/**
+ * Entity change event
+ */
+export interface EntityChangeEvent<T = any> {
+	/**
+	 * Event type
+	 */
+	type: 'create' | 'update' | 'delete';
+
+	/**
+	 * Entity name
+	 */
+	entityName: string;
+
+	/**
+	 * Entity ID
+	 */
+	entityId: number | string;
+
+	/**
+	 * Entity data
+	 */
+	data: T;
+
+	/**
+	 * Previous entity data (for update and delete)
+	 */
+	previousData?: T;
+
+	/**
+	 * User who made the change
+	 */
+	user?: {
+		id: number | string;
+		username: string;
+	};
+
+	/**
+	 * Timestamp
+	 */
+	timestamp: Date;
+}
+
+/**
+ * Event subscriber interface
+ */
+export interface EventSubscriber {
+	/**
+	 * Event types to subscribe to
+	 */
+	events: string[];
+
+	/**
+	 * Handle event
+	 */
+	handleEvent(event: string, data: any): Promise<void> | void;
+}
+
+/**
+ * Transaction options
+ */
+export interface TransactionOptions {
+	/**
+	 * Transaction isolation level
+	 */
+	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
+
+	/**
+	 * Transaction timeout in milliseconds
+	 */
+	timeout?: number;
+}
+
+/**
+ * Workflow context
+ */
+export interface WorkflowContext extends HookContext {
+	/**
+	 * Workflow name
+	 */
+	workflowName: string;
+
+	/**
+	 * Current state
+	 */
+	currentState: string;
+
+	/**
+	 * Target state
+	 */
+	targetState: string;
+
+	/**
+	 * Transition action
+	 */
+	action: string;
+}
+
+/**
+ * Workflow transition implementation function
+ */
+export type TransitionFunction<T = any> = (
+	entity: T,
+	fromState?: string,
+	toState?: string,
+	context?: HookContext | WorkflowContext
+) => Promise<T | boolean> | T | boolean;
+
+/**
+ * Application plugin
+ */
+export interface Plugin {
+	/**
+	 * Plugin name
+	 */
+	name: string;
+
+	/**
+	 * Plugin version
+	 */
+	version: string;
+
+	/**
+	 * Initialize plugin
+	 */
+	initialize(context: AppContext): Promise<void> | void;
+
+	/**
+	 * Shutdown plugin
+	 */
+	shutdown?(): Promise<void> | void;
+
+	/**
+	 * Plugin dependencies
+	 */
+	dependencies?: string[];
+}
+
+/**
+ * Migration interface
+ */
+export interface Migration {
+	/**
+	 * Migration ID
+	 */
+	id: string;
+
+	/**
+	 * Migration name
+	 */
+	name: string;
+
+	/**
+	 * Migration timestamp
+	 */
+	timestamp: number;
+
+	/**
+	 * Execute migration
+	 */
+	up(db: DatabaseAdapter): Promise<void>;
+
+	/**
+	 * Rollback migration
+	 */
+	down(db: DatabaseAdapter): Promise<void>;
+}
+
+/**
+ * API controller method context
+ */
+export interface ControllerContext extends HookContext {
+	/**
+	 * Entity name
+	 */
+	entityName: string;
+
+	/**
+	 * Requested operation
+	 */
+	operation: 'getAll' | 'getById' | 'create' | 'update' | 'delete' | 'custom';
+
+	/**
+	 * Route parameters
+	 */
+	params: Record<string, string>;
+
+	/**
+	 * Query parameters
+	 */
+	query: Record<string, string>;
+
+	/**
+	 * Request body
+	 */
+	body: any;
+}
+
+/**
+ * API controller method
+ */
+export type ControllerMethod = (context: ControllerContext) => Promise<any> | any;
