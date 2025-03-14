@@ -162,3 +162,5 @@ export function createEmptyHookContext(
 		}
 	};
 }
+
+export { HookContext };

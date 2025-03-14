@@ -1,13 +1,14 @@
 /**
  * Validation Engine
- * Processes validation rules defined in YAML
+ * Processes validation rules defined in entity configurations
  */
 
-import { EntityConfig, ValidationRule } from '@/entity';
-import { Logger } from '../core/types';
+import { EntityConfig, ValidationRule } from '@/entity/entity-config';
+import { Logger } from '@/core/types';
+import { HookContext } from '@/hooks/hook-context';
 
 /**
- * Validation error
+ * Validation error interface
  */
 export interface ValidationError {
 	/** Field name */
@@ -30,12 +31,14 @@ export interface ValidationContext {
 	entityConfig: EntityConfig;
 	/** Is this a create operation? */
 	isCreate: boolean;
+	/** Hook context */
+	hookContext?: HookContext;
 	/** Logger instance */
 	logger?: Logger;
 }
 
 /**
- * Custom validation function
+ * Custom validation function type
  */
 export type ValidationFunction = (
 	value: any,
@@ -43,12 +46,12 @@ export type ValidationFunction = (
 ) => boolean | string | Promise<boolean | string>;
 
 /**
- * Rule implementation
+ * Rule implementation interface
  */
 interface RuleImplementation {
 	/** Rule implementation function */
 	validate: ValidationFunction;
-	/** Async flag */
+	/** Whether the rule is asynchronous */
 	isAsync: boolean;
 }
 
@@ -205,6 +208,20 @@ export class ValidationEngine {
 			},
 			isAsync: false
 		});
+
+		// URL format
+		this.builtInRules.set('url', {
+			validate: (value) => {
+				if (value === undefined || value === null) return true;
+				try {
+					new URL(value);
+					return true;
+				} catch {
+					return false;
+				}
+			},
+			isAsync: false
+		});
 	}
 
 	/**
@@ -236,11 +253,14 @@ export class ValidationEngine {
 						let implementation: ValidationFunction;
 
 						// If implementation is a file path, load it
-						if (rule.implementation.startsWith('./')) {
+						if (typeof rule.implementation === 'string' && rule.implementation.startsWith('./')) {
 							const module = await this.configLoader.loadExternalCode(rule.implementation);
 							implementation = module.default || module;
+						} else if (typeof rule.implementation === 'function') {
+							// Direct function reference
+							implementation = rule.implementation;
 						} else {
-							// Otherwise, it's an inline implementation
+							// Inline implementation
 							implementation = new Function(
 								'value',
 								'context',
@@ -264,21 +284,24 @@ export class ValidationEngine {
 	 * @param data Entity data to validate
 	 * @param entityConfig Entity configuration
 	 * @param isCreate Whether this is a create operation
+	 * @param context Optional hook context
 	 * @returns Validation errors or null if valid
 	 */
 	async validate(
 		data: Record<string, any>,
 		entityConfig: EntityConfig,
-		isCreate: boolean = true
+		isCreate: boolean = true,
+		context?: HookContext
 	): Promise<ValidationError[] | null> {
 		// Skip validation if no rules defined
 		if (!entityConfig.validation?.rules) return null;
 
 		const errors: ValidationError[] = [];
-		const context: ValidationContext = {
+		const validationContext: ValidationContext = {
 			entity: data,
 			entityConfig,
 			isCreate,
+			hookContext: context,
 			logger: this.logger
 		};
 
@@ -293,7 +316,7 @@ export class ValidationEngine {
 
 			// Process each rule for the field
 			for (const rule of rules) {
-				const isValid = await this.validateRule(field, value, rule, context);
+				const isValid = await this.validateRule(field, value, rule, validationContext);
 
 				if (!isValid) {
 					errors.push({
@@ -376,6 +399,20 @@ export class ValidationEngine {
 		}
 
 		return formatted;
+	}
+
+	/**
+	 * Create detailed error information for API responses
+	 * @param errors Validation errors
+	 * @returns Array of detailed error objects
+	 */
+	createDetailedErrors(errors: ValidationError[]): Array<Record<string, any>> {
+		return errors.map(error => ({
+			field: error.field,
+			message: error.message,
+			type: error.type,
+			constraint: error.value
+		}));
 	}
 }
 

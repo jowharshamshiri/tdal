@@ -4,11 +4,12 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { AppContext } from '../core/app-context';
-import { Logger, ControllerContext } from '../core/types';
-import { DatabaseAdapter } from '../database';
-import { EntityDao } from '../entity/entity-manager';
-import { EntityConfig } from '@/entity';
+import { AppContext } from '@/core/app-context';
+import { Logger, ControllerContext } from '@/core/types';
+import { DatabaseAdapter } from '@/database/core/types';
+import { EntityDao } from '@/entity/entity-manager';
+import { EntityConfig } from '@/entity/entity-config';
+import { HookContext } from '@/hooks/hook-context';
 
 /**
  * API context options
@@ -34,7 +35,7 @@ export interface ApiContextOptions {
  * API context
  * Stores request/response context for API operations
  */
-export class ApiContext implements ControllerContext {
+export class ApiContext implements ControllerContext, HookContext {
 	/**
 	 * Entity name
 	 */
@@ -175,12 +176,36 @@ export class ApiContext implements ControllerContext {
 	}
 
 	/**
+	 * Get entity manager for a specific entity
+	 * @param entityName Entity name
+	 * @returns Entity manager for the specified entity
+	 */
+	getEntityManagerFor<T>(entityName: string): EntityDao<T> {
+		return this.appContext.getEntityManager<T>(entityName);
+	}
+
+	/**
 	 * Send JSON response
 	 * @param data Response data
 	 * @param status HTTP status code
 	 */
 	sendJson(data: any, status: number = 200): void {
 		this.response.status(status).json(data);
+	}
+
+	/**
+	 * Send success response
+	 * @param data Response data
+	 * @param message Success message
+	 * @param status HTTP status code
+	 */
+	sendSuccess(data: any, message?: string, status: number = 200): void {
+		this.response.status(status).json({
+			success: true,
+			data,
+			message,
+			status
+		});
 	}
 
 	/**
@@ -197,10 +222,11 @@ export class ApiContext implements ControllerContext {
 		details?: Record<string, any>
 	): void {
 		const error = {
+			success: false,
 			error: errorType,
 			message,
 			status,
-			...(details && { data: details })
+			...(details && { details })
 		};
 
 		this.response.status(status).json(error);
@@ -216,7 +242,17 @@ export class ApiContext implements ControllerContext {
 			return false;
 		}
 
-		// Simple role check - in a real implementation, this would use a proper role service
+		// Try to get authentication service for role checking
+		try {
+			const authService = this.appContext.getService('auth');
+			if (authService && typeof authService.hasRole === 'function') {
+				return authService.hasRole(this.user, role);
+			}
+		} catch (error) {
+			this.logger.debug('Authentication service not available for role check');
+		}
+
+		// Simple role check fallback
 		if (this.user.role === role) {
 			return true;
 		}
@@ -247,7 +283,17 @@ export class ApiContext implements ControllerContext {
 			return false;
 		}
 
-		// Check role-based permissions
+		// Try to use permission validator service if available
+		try {
+			const permissionValidator = this.appContext.getService('permissionValidator');
+			if (permissionValidator && typeof permissionValidator.validate === 'function') {
+				return permissionValidator.validate(this.user, entityConfig, op);
+			}
+		} catch (error) {
+			this.logger.debug('Permission validator service not available');
+		}
+
+		// Fallback to basic permission check
 		const permissions = entityConfig.api.permissions?.[op];
 		if (!permissions || permissions.length === 0) {
 			// If no permissions are specified, default to requiring admin role
@@ -299,6 +345,31 @@ export class ApiContext implements ControllerContext {
 	 */
 	getData<T>(key: string, defaultValue?: T): T | undefined {
 		return (this.data[key] as T) ?? defaultValue;
+	}
+
+	/**
+	 * Create a child context for a different entity
+	 * @param entityName Entity name
+	 * @param operation Operation name
+	 * @param additionalData Additional context data
+	 * @returns Child API context
+	 */
+	createChildContext(
+		entityName: string,
+		operation: string,
+		additionalData: Record<string, any> = {}
+	): ApiContext {
+		return new ApiContext(
+			this.request,
+			this.response,
+			this.next,
+			this.appContext,
+			{
+				entityName,
+				operation,
+				data: { ...this.data, ...additionalData }
+			}
+		);
 	}
 }
 

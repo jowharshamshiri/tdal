@@ -1,14 +1,16 @@
 /**
  * Validation Middleware
- * Validates request data against schemas
+ * Validates request data against schemas and entity configurations
  */
 
 import { Request, Response, NextFunction } from 'express';
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
-import { AppContext } from '../core/app-context';
-import { Logger } from '../core/types';
-import { EntityConfig } from '../entity/entity-config';
+import { AppContext } from '@/core/app-context';
+import { Logger } from '@/core/types';
+import { EntityConfig } from '@/entity/entity-config';
+import { ValidationEngine, ValidationError } from '@/logic/validation-engine';
+import { HookContext } from '@/hooks/hook-context';
 
 /**
  * Validation options
@@ -56,32 +58,28 @@ export interface ValidationOptions {
 }
 
 /**
- * Validation error format
+ * Validation middleware response format
  */
-export interface ValidationError {
+export interface ValidationResponse {
 	/**
-	 * Error message
+	 * Whether validation succeeded
 	 */
-	message: string;
+	valid: boolean;
 
 	/**
-	 * Path to the error location
+	 * Validation errors (if any)
 	 */
-	path?: string;
+	errors?: ValidationError[];
 
 	/**
-	 * Error keyword
+	 * HTTP status code to use for response
 	 */
-	keyword?: string;
-
-	/**
-	 * Error params
-	 */
-	params?: Record<string, any>;
+	statusCode?: number;
 }
 
 /**
  * Validation service
+ * Provides middleware and utility methods for validating API requests
  */
 export class ValidationService {
 	/**
@@ -100,6 +98,11 @@ export class ValidationService {
 	private schemaCache: Map<string, ValidateFunction> = new Map();
 
 	/**
+	 * Validation engine for entity validation
+	 */
+	private validationEngine: ValidationEngine;
+
+	/**
 	 * Constructor
 	 * @param appContext Application context
 	 */
@@ -116,8 +119,12 @@ export class ValidationService {
 		// Add string formats like email, date, etc.
 		addFormats(this.ajv);
 
-		// Add custom formats if needed
+		// Add custom formats
 		this.registerCustomFormats();
+
+		// Create validation engine
+		const configLoader = appContext.getService('configLoader');
+		this.validationEngine = new ValidationEngine(this.logger, configLoader);
 	}
 
 	/**
@@ -213,7 +220,7 @@ export class ValidationService {
 		// Check entity-level field permissions
 		const fieldPermissions = entity.api.fields?.[fieldName];
 		if (fieldPermissions && fieldPermissions.write && fieldPermissions.write.length > 0) {
-			// Only allow if role is specified in write permissions
+			// Only allow if user role is specified in write permissions
 			// For complete implementation, would need to check against current user role
 			return true;
 		}
@@ -410,10 +417,10 @@ export class ValidationService {
 			}
 
 			return {
+				field: path,
 				message,
-				path,
-				keyword: error.keyword,
-				params: error.params
+				type: error.keyword,
+				value: error.params
 			};
 		});
 	}
@@ -456,38 +463,70 @@ export class ValidationService {
 	 * @param req Express request
 	 * @param entity Entity configuration
 	 * @param operation Operation type
+	 * @param context Optional hook context
 	 * @returns Validation result
 	 */
 	async validateEntity(
 		req: Request,
 		entity: EntityConfig,
-		operation: string
+		operation: string,
+		context?: HookContext
 	): Promise<{ valid: boolean; errors?: ValidationError[] }> {
-		const schema = this.getEntityOperationSchema(entity, operation);
-
 		let part: 'body' | 'query' | 'params';
+		let data: any;
+		let isCreate = false;
 
-		// Determine which part of the request to validate
+		// Determine which part of the request to validate and whether it's a create operation
 		switch (operation) {
 			case 'create':
+				part = 'body';
+				data = req.body;
+				isCreate = true;
+				break;
+
 			case 'update':
 				part = 'body';
+				data = req.body;
+				isCreate = false;
 				break;
 
 			case 'getAll':
 				part = 'query';
+				data = req.query;
+				isCreate = false;
 				break;
 
 			case 'getById':
 			case 'delete':
 				part = 'params';
+				data = req.params;
+				isCreate = false;
 				break;
 
 			default:
 				part = 'body';
+				data = req.body;
+				isCreate = false;
 		}
 
-		return this.validateRequestPart(req, schema, part);
+		// First validate using JSON schema
+		const schema = this.getEntityOperationSchema(entity, operation);
+		const schemaResult = this.validateRequestPart(req, schema, part);
+
+		if (!schemaResult.valid) {
+			return schemaResult;
+		}
+
+		// Then validate using the validation engine (entity-specific rules)
+		if (entity.validation) {
+			const errors = await this.validationEngine.validate(data, entity, isCreate, context);
+
+			if (errors) {
+				return { valid: false, errors };
+			}
+		}
+
+		return { valid: true };
 	}
 
 	/**
@@ -505,70 +544,92 @@ export class ValidationService {
 
 		return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
 			try {
-				let valid = true;
-				let errors: ValidationError[] = [];
+				// Create hook context for validation
+				const context: HookContext = {
+					request: req,
+					response: res,
+					user: (req as any).user,
+					data: {},
+					logger: this.logger
+				};
+
+				let validationResult: ValidationResponse = { valid: true };
 
 				// Option 1: Custom validation function
 				if (options.customValidation) {
 					const result = await options.customValidation(req);
-					valid = result.valid;
-					errors = result.errors || [];
+					validationResult = {
+						valid: result.valid,
+						errors: result.errors as ValidationError[],
+						statusCode: 400
+					};
 				}
 				// Option 2: Schema validation
 				else if (options.schema) {
+					const errors: ValidationError[] = [];
+
 					if (validateBody && req.body) {
 						const bodyResult = this.validateRequestPart(req, options.schema, 'body');
-						if (!bodyResult.valid) {
-							valid = false;
-							errors = [...errors, ...(bodyResult.errors || [])];
+						if (!bodyResult.valid && bodyResult.errors) {
+							errors.push(...bodyResult.errors);
 						}
 					}
 
 					if (validateQuery && req.query) {
 						const queryResult = this.validateRequestPart(req, options.schema, 'query');
-						if (!queryResult.valid) {
-							valid = false;
-							errors = [...errors, ...(queryResult.errors || [])];
+						if (!queryResult.valid && queryResult.errors) {
+							errors.push(...queryResult.errors);
 						}
 					}
 
 					if (validateParams && req.params) {
 						const paramsResult = this.validateRequestPart(req, options.schema, 'params');
-						if (!paramsResult.valid) {
-							valid = false;
-							errors = [...errors, ...(paramsResult.errors || [])];
+						if (!paramsResult.valid && paramsResult.errors) {
+							errors.push(...paramsResult.errors);
 						}
 					}
+
+					validationResult = {
+						valid: errors.length === 0,
+						errors: errors.length > 0 ? errors : undefined,
+						statusCode: 400
+					};
 				}
 				// Option 3: Entity validation
 				else if (options.entity && options.operation) {
 					try {
 						const entityConfig = this.appContext.getEntityConfig(options.entity);
-						const entityResult = await this.validateEntity(req, entityConfig, options.operation);
+						const entityResult = await this.validateEntity(req, entityConfig, options.operation, context);
 
-						if (!entityResult.valid) {
-							valid = false;
-							errors = [...errors, ...(entityResult.errors || [])];
-						}
+						validationResult = {
+							valid: entityResult.valid,
+							errors: entityResult.errors,
+							statusCode: 400
+						};
 					} catch (error) {
 						this.logger.error(`Error loading entity for validation: ${error.message}`);
-						throw new Error(`Validation error: Entity ${options.entity} not found`);
+						validationResult = {
+							valid: false,
+							errors: [{ field: 'entity', message: `Entity ${options.entity} not found`, type: 'entity' }],
+							statusCode: 500
+						};
 					}
 				}
 
 				// Handle validation result
-				if (!valid) {
+				if (!validationResult.valid) {
 					if (skipOnFail) {
 						// Attach errors to request but continue
-						(req as any).validationErrors = errors;
+						(req as any).validationErrors = validationResult.errors;
 						return next();
 					} else {
 						// Send validation error response
-						return res.status(400).json({
+						return res.status(validationResult.statusCode || 400).json({
+							success: false,
 							error: 'ValidationError',
 							message: 'Validation failed',
-							errors,
-							status: 400
+							errors: validationResult.errors,
+							status: validationResult.statusCode || 400
 						});
 					}
 				}
@@ -578,6 +639,7 @@ export class ValidationService {
 			} catch (error) {
 				this.logger.error(`Validation error: ${error.message}`);
 				res.status(500).json({
+					success: false,
 					error: 'ValidationError',
 					message: `Validation error: ${error.message}`,
 					status: 500
@@ -595,46 +657,75 @@ export class ValidationService {
 	async validate(
 		req: Request,
 		options: ValidationOptions = {}
-	): Promise<{ valid: boolean; errors?: ValidationError[] }> {
+	): Promise<ValidationResponse> {
 		try {
+			// Create hook context for validation
+			const context: HookContext = {
+				request: req,
+				user: (req as any).user,
+				data: {},
+				logger: this.logger
+			};
+
 			// Option 1: Custom validation function
 			if (options.customValidation) {
-				return await options.customValidation(req);
+				const result = await options.customValidation(req);
+				return {
+					valid: result.valid,
+					errors: result.errors as ValidationError[],
+					statusCode: 400
+				};
 			}
 
 			// Option 2: Schema validation
 			if (options.schema) {
-				const results: Array<{ valid: boolean; errors?: ValidationError[] }> = [];
+				const errors: ValidationError[] = [];
 
 				if (options.validateBody !== false && req.body) {
-					results.push(this.validateRequestPart(req, options.schema, 'body'));
+					const bodyResult = this.validateRequestPart(req, options.schema, 'body');
+					if (!bodyResult.valid && bodyResult.errors) {
+						errors.push(...bodyResult.errors);
+					}
 				}
 
 				if (options.validateQuery !== false && req.query) {
-					results.push(this.validateRequestPart(req, options.schema, 'query'));
+					const queryResult = this.validateRequestPart(req, options.schema, 'query');
+					if (!queryResult.valid && queryResult.errors) {
+						errors.push(...queryResult.errors);
+					}
 				}
 
 				if (options.validateParams !== false && req.params) {
-					results.push(this.validateRequestPart(req, options.schema, 'params'));
+					const paramsResult = this.validateRequestPart(req, options.schema, 'params');
+					if (!paramsResult.valid && paramsResult.errors) {
+						errors.push(...paramsResult.errors);
+					}
 				}
 
-				// Combine results
-				const valid = results.every(r => r.valid);
-				const errors = results.flatMap(r => r.errors || []);
-
-				return { valid, errors: errors.length > 0 ? errors : undefined };
+				return {
+					valid: errors.length === 0,
+					errors: errors.length > 0 ? errors : undefined,
+					statusCode: 400
+				};
 			}
 
 			// Option 3: Entity validation
 			if (options.entity && options.operation) {
 				try {
 					const entityConfig = this.appContext.getEntityConfig(options.entity);
-					return await this.validateEntity(req, entityConfig, options.operation);
+					const entityResult = await this.validateEntity(req, entityConfig, options.operation, context);
+
+					return {
+						valid: entityResult.valid,
+						errors: entityResult.errors,
+						statusCode: 400
+					};
 				} catch (error) {
 					this.logger.error(`Error loading entity for validation: ${error.message}`);
 					return {
 						valid: false,
-						errors: [{ message: `Entity ${options.entity} not found` }]
+						errors: [{ field: 'entity', message: `Entity ${options.entity} not found`, type: 'entity' }],
+						statusCode: 500
 					};
 				}
 			}
@@ -645,9 +736,24 @@ export class ValidationService {
 			this.logger.error(`Validation error: ${error.message}`);
 			return {
 				valid: false,
-				errors: [{ message: `Validation error: ${error.message}` }]
+				errors: [{ field: 'general', message: `Validation error: ${error.message}`, type: 'error' }],
+				statusCode: 500
 			};
 		}
+	}
+
+	/**
+	 * Register custom validation type
+	 * @param type Validation rule type
+	 * @param handler Rule implementation function
+	 * @param isAsync Whether the rule is asynchronous
+	 */
+	registerCustomType(
+		type: string,
+		handler: ValidationFunction,
+		isAsync: boolean = false
+	): void {
+		this.validationEngine.registerCustomRule(type, handler, isAsync);
 	}
 }
 
