@@ -3,7 +3,7 @@
  * Data access for product-related operations
  */
 
-import { EntityDao } from "../../src/database/orm/entity-dao";
+import { EntityDao } from "../../src/entity/entity-manager";
 import {
 	Product,
 	ProductWithMeta,

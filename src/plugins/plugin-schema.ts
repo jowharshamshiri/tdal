@@ -4,7 +4,7 @@
  */
 
 import { Express, Request, Response, NextFunction } from 'express';
-import { EntityConfig, HookContext, Logger } from '../core/types';
+import { EntityMapping, HookContext, Logger } from '../core/types';
 import { AppContext } from '../core/app-context';
 import { DatabaseAdapter } from '../database/database-adapter';
 
@@ -84,7 +84,7 @@ export interface Plugin {
 	/** Entity generators */
 	entityGenerators?: {
 		/** Generate entity from custom source */
-		fromSource?: (source: any, logger: Logger) => Promise<EntityConfig>;
+		fromSource?: (source: any, logger: Logger) => Promise<EntityMapping>;
 	};
 }
 

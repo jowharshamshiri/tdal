@@ -8,7 +8,7 @@ import * as path from 'path';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
-import { EntityConfig } from '../core/types';
+import { EntityMapping } from '../core/types';
 import { scaffoldEntity, writeEntityYaml } from '../entity/yaml-generator';
 import { DatabaseAdapter } from '../database/database-adapter';
 import { MigrationGenerator } from '../database/migration-generator';
@@ -307,7 +307,7 @@ export class ScaffoldCommand {
 		const entitiesDir = path.join(projectDir, 'src/entities');
 
 		// Scaffold a User entity
-		const userEntity: EntityConfig = {
+		const userEntity: EntityMapping = {
 			entity: 'User',
 			table: 'users',
 			idField: 'id',
@@ -513,7 +513,7 @@ export * from './user';
 		});
 
 		// Create entity config
-		const entity: EntityConfig = {
+		const entity: EntityMapping = {
 			entity: options.name,
 			table: tableName,
 			idField: 'id',

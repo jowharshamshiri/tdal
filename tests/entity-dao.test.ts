@@ -7,7 +7,7 @@ import {
 	cleanupDatabase,
 } from "./test-setup";
 import { DatabaseAdapter } from "../src/database/core/types";
-import { EntityDao } from "../src/database/orm/entity-dao";
+import { EntityDao } from "../src/entity/entity-manager";
 import { EntityMapping } from "../src/database/orm/entity-mapping";
 import { User, UserMapping } from "./models/user";
 import { Relation } from "../src/database/orm/relation-types";

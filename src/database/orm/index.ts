@@ -3,12 +3,6 @@
  * Exports all ORM interfaces, types, and classes
  */
 
-// Base DAO
-export { EntityDao } from "./entity-dao";
-
-// Entity mapping
-export * from "./entity-mapping";
-
 // Relationship types
 export * from "./relation-types";
 

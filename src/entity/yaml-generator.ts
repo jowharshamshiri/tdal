@@ -6,15 +6,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { EntityConfig, EntityColumn, EntityRelation, EntityApiConfig, ValidationRules } from '../core/types';
+import { EntityMapping, ColumnMapping, ValidationRules } from './entity-mapping';
 import { generateEntityInterface, mapTypeScriptToDbType } from './entity-schema';
+import { EntityApiConfig } from '@/core/types';
 
 /**
  * Generate YAML from an entity configuration object
  * @param entity Entity configuration
  * @returns YAML string
  */
-export function generateYaml(entity: EntityConfig): string {
+export function generateYaml(entity: EntityMapping): string {
 	return yaml.dump(entity, {
 		indent: 2,
 		lineWidth: 100,
@@ -28,7 +29,7 @@ export function generateYaml(entity: EntityConfig): string {
  * @param outputDir Output directory
  * @returns Path to the written file
  */
-export function writeEntityYaml(entity: EntityConfig, outputDir: string): string {
+export function writeEntityYaml(entity: EntityMapping, outputDir: string): string {
 	// Create output directory if it doesn't exist
 	if (!fs.existsSync(outputDir)) {
 		fs.mkdirSync(outputDir, { recursive: true });
@@ -46,7 +47,7 @@ export function writeEntityYaml(entity: EntityConfig, outputDir: string): string
  * @param entity Entity configuration
  * @returns TypeScript code string
  */
-export function generateEntityTypeScript(entity: EntityConfig): string {
+export function generateEntityTypeScript(entity: EntityMapping): string {
 	return generateEntityInterface(entity);
 }
 
@@ -56,7 +57,7 @@ export function generateEntityTypeScript(entity: EntityConfig): string {
  * @param outputDir Output directory
  * @returns Path to the written file
  */
-export function writeEntityTypeScript(entity: EntityConfig, outputDir: string): string {
+export function writeEntityTypeScript(entity: EntityMapping, outputDir: string): string {
 	// Create output directory if it doesn't exist
 	if (!fs.existsSync(outputDir)) {
 		fs.mkdirSync(outputDir, { recursive: true });
@@ -82,10 +83,10 @@ export function generateEntityFromTypeScript(
 	tsSource: string,
 	tableName: string,
 	idField: string
-): EntityConfig {
+): EntityMapping {
 	const lines = tsSource.split('\n');
 	let interfaceName = '';
-	const columns: EntityColumn[] = [];
+	const columns: ColumnMapping[] = [];
 
 	// Parse the interface
 	let i = 0;
@@ -124,7 +125,7 @@ export function generateEntityFromTypeScript(
 			}
 
 			// Create column definition
-			const column: EntityColumn = {
+			const column: ColumnMapping = {
 				logical: propName,
 				physical: propName, // Default to same name
 				type: dbType,
@@ -175,7 +176,7 @@ export function generateEntityFromTypeScript(
 export async function generateEntityFromDatabase(
 	tableName: string,
 	db: any // Database adapter with schema introspection
-): Promise<EntityConfig | null> {
+): Promise<EntityMapping | null> {
 	try {
 		// This is a placeholder - actual implementation would depend
 		// on the database adapter's schema introspection capabilities
@@ -187,7 +188,7 @@ export async function generateEntityFromDatabase(
 		}
 
 		// Convert to entity columns
-		const entityColumns: EntityColumn[] = columns.map(col => ({
+		const entityColumns: ColumnMapping[] = columns.map(col => ({
 			logical: camelCase(col.name),
 			physical: col.name,
 			type: mapDbColumnTypeToTs(col.type),
@@ -233,9 +234,9 @@ export function scaffoldEntity(
 	entityName: string,
 	tableName: string = entityName.toLowerCase(),
 	outputDir: string
-): EntityConfig {
+): EntityMapping {
 	// Create basic entity definition
-	const entity: EntityConfig = {
+	const entity: EntityMapping = {
 		entity: entityName,
 		table: tableName,
 		idField: 'id',
@@ -311,7 +312,7 @@ export function scaffoldEntity(
  * @param apiConfig API configuration
  * @returns Updated entity
  */
-export function addApiConfig(entity: EntityConfig, apiConfig: EntityApiConfig): EntityConfig {
+export function addApiConfig(entity: EntityMapping, apiConfig: EntityApiConfig): EntityMapping {
 	return {
 		...entity,
 		api: {
@@ -327,14 +328,14 @@ export function addApiConfig(entity: EntityConfig, apiConfig: EntityApiConfig): 
  * @param validationRules Validation rules
  * @returns Updated entity
  */
-export function addValidationRules(entity: EntityConfig, validationRules: ValidationRules): EntityConfig {
+export function addValidationRules(entity: EntityMapping, validationRules: ValidationRules): EntityMapping {
 	return {
 		...entity,
 		validation: {
 			...entity.validation,
 			rules: {
 				...(entity.validation?.rules || {}),
-				...validationRules.rules
+				...validationRules
 			}
 		}
 	};
@@ -346,7 +347,7 @@ export function addValidationRules(entity: EntityConfig, validationRules: Valida
  * @param relation Relation to add
  * @returns Updated entity
  */
-export function addRelation(entity: EntityConfig, relation: EntityRelation): EntityConfig {
+export function addRelation(entity: EntityMapping, relation: any): EntityMapping {
 	const relations = entity.relations ? [...entity.relations] : [];
 
 	// Check if relation already exists
@@ -404,4 +405,54 @@ function mapDbColumnTypeToTs(dbType: string): string {
 	if (type.includes('blob') || type.includes('binary')) return 'blob';
 
 	return 'string'; // Default
+}
+
+/**
+ * Parse a YAML entity file
+ * @param filePath Path to YAML file
+ * @returns Entity configuration
+ */
+export function parseEntityFile(filePath: string): EntityMapping {
+	const content = fs.readFileSync(filePath, 'utf8');
+	return yaml.load(content) as EntityMapping;
+}
+
+/**
+ * Load all entity configurations from a directory
+ * @param dirPath Path to directory containing YAML files
+ * @returns Map of entity name to entity configuration
+ */
+export function loadEntities(dirPath: string): Map<string, EntityMapping> {
+	const entities = new Map<string, EntityMapping>();
+
+	if (!fs.existsSync(dirPath)) {
+		throw new Error(`Entities directory not found: ${dirPath}`);
+	}
+
+	const files = fs.readdirSync(dirPath)
+		.filter(file => file.endsWith('.yaml') || file.endsWith('.yml'));
+
+	for (const file of files) {
+		const filePath = path.join(dirPath, file);
+		const entity = parseEntityFile(filePath);
+		entities.set(entity.entity, entity);
+	}
+
+	return entities;
+}
+
+/**
+ * Generate database schema SQL for an entity
+ * @param entity Entity configuration
+ * @param dialect SQL dialect
+ * @returns SQL statement for creating the table
+ */
+export function generateSchemaSQL(
+	entity: EntityMapping,
+	dialect: 'sqlite' | 'mysql' | 'postgres' = 'sqlite'
+): string {
+	// Import from entity-schema.ts to generate SQL
+	// This would be a delegate to the schema generator
+	// in a real implementation
+	return `-- Schema SQL for ${entity.entity} would be generated here`;
 }

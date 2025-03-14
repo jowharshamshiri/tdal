@@ -425,17 +425,17 @@ export interface HookContext {
 	/**
 	 * Request object (if hook is triggered by an API call)
 	 */
-	request?: Request | any;
+	request?: any;
 
 	/**
 	 * Response object (if hook is triggered by an API call)
 	 */
-	response?: Response | any;
+	response?: any;
 
 	/**
 	 * Express next function (if hook is triggered by an API call)
 	 */
-	next?: NextFunction;
+	next?: any;
 
 	/**
 	 * Entity name
@@ -827,6 +827,185 @@ export interface ControllerContext extends HookContext {
 	 */
 	body: any;
 }
+
+/**
+ * Workflow state definition
+ */
+export interface WorkflowState {
+	/**
+	 * State name
+	 */
+	name: string;
+
+	/**
+	 * Whether this is the initial state
+	 */
+	initial?: boolean;
+
+	/**
+	 * State description
+	 */
+	description?: string;
+
+	/**
+	 * Custom metadata for the state
+	 */
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Workflow transition definition
+ */
+export interface WorkflowTransition {
+	/**
+	 * Source state name
+	 */
+	from: string;
+
+	/**
+	 * Target state name
+	 */
+	to: string;
+
+	/**
+	 * Transition name/action
+	 */
+	action: string;
+
+	/**
+	 * Roles that can perform this transition
+	 */
+	roles?: string[];
+
+	/**
+	 * Implementation or path to external file for transition logic
+	 */
+	implementation?: string;
+
+	/**
+	 * Transition hooks
+	 */
+	hooks?: {
+		before?: string;
+		after?: string;
+	};
+}
+
+/**
+ * Check if a workflow transition is valid
+ * 
+ * @param workflow Workflow definition
+ * @param currentState Current state
+ * @param action Transition action
+ * @returns Whether the transition is valid
+ */
+export function isValidTransition(
+	workflow: Workflow,
+	currentState: string,
+	action: string
+): boolean {
+	return workflow.transitions.some(
+		t => t.from === currentState && t.action === action
+	);
+}
+
+/**
+ * Get the target state for a transition
+ * 
+ * @param workflow Workflow definition
+ * @param currentState Current state
+ * @param action Transition action
+ * @returns Target state or undefined if transition not found
+ */
+export function getTargetState(
+	workflow: Workflow,
+	currentState: string,
+	action: string
+): string | undefined {
+	const transition = workflow.transitions.find(
+		t => t.from === currentState && t.action === action
+	);
+	return transition?.to;
+}
+
+/**
+ * Workflow definition
+ */
+export interface Workflow {
+	/**
+	 * Workflow name
+	 */
+	name: string;
+
+	/**
+	 * Field that stores the current state
+	 */
+	stateField: string;
+
+	/**
+	 * States in the workflow
+	 */
+	states: WorkflowState[];
+
+	/**
+	 * Transitions between states
+	 */
+	transitions: WorkflowTransition[];
+}
+
+/**
+ * Entity API configuration
+ */
+export interface EntityApiConfig {
+	/**
+	 * Whether to expose entity via REST API
+	 */
+	exposed: boolean;
+
+	/**
+	 * Base path for the entity API
+	 */
+	basePath?: string;
+
+	/**
+	 * Operations to enable/disable
+	 */
+	operations?: {
+		getAll?: boolean;
+		getById?: boolean;
+		create?: boolean;
+		update?: boolean;
+		delete?: boolean;
+	};
+
+	/**
+	 * Role-based permissions
+	 */
+	permissions?: {
+		getAll?: string[];
+		getById?: string[];
+		create?: string[];
+		update?: string[];
+		delete?: string[];
+	};
+
+	/**
+	 * Field-level permissions
+	 */
+	fields?: Record<string, {
+		read?: string[];
+		write?: string[];
+	}>;
+
+	/**
+	 * Record-level access control
+	 */
+	recordAccess?: {
+		condition: string;
+	};
+}
+
+
 
 /**
  * API controller method

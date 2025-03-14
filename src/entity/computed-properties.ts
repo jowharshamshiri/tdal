@@ -3,7 +3,8 @@
  * Handles computed property definitions and processing
  */
 
-import { ComputedProperty, EntityConfig, Logger } from '../core/types';
+import { Logger } from '../database/core/types';
+import { ComputedProperty, EntityMapping } from './entity-mapping';
 
 /**
  * Compute property implementations
@@ -21,7 +22,7 @@ export interface ComputedPropertyImplementations {
  * @returns Map of property implementations
  */
 export async function loadComputedPropertyImplementations(
-	entity: EntityConfig,
+	entity: EntityMapping,
 	logger: Logger,
 	configLoader: any
 ): Promise<ComputedPropertyImplementations> {
@@ -86,10 +87,16 @@ export function processComputedProperties<T>(
 	// Create a new object to avoid modifying the original
 	const result = { ...entity };
 
-	// Calculate each computed property
-	for (const [propName, implementation] of Object.entries(implementations)) {
+	// Get property order to handle dependencies correctly
+	const propertyOrder = getComputedPropertyOrder(
+		Object.keys(implementations),
+		prop => implementations[prop].toString().match(/entity\.(\w+)/g)?.map(m => m.replace('entity.', '')) || []
+	);
+
+	// Calculate each computed property in the correct order
+	for (const propName of propertyOrder) {
 		try {
-			result[propName as keyof T] = implementation(entity) as T[keyof T];
+			result[propName as keyof T] = implementations[propName](entity) as T[keyof T];
 		} catch (error) {
 			console.error(`Error calculating computed property ${propName}:`, error);
 		}
@@ -144,36 +151,40 @@ export function haveDependenciesChanged(
  * Build dependency graph for computed properties
  * Used to determine the order in which properties should be calculated
  * 
- * @param entity Entity configuration
+ * @param propertyNames Names of computed properties
+ * @param getDependenciesFn Function to get dependencies for a property
  * @returns Map of properties to their dependencies
  */
-export function buildDependencyGraph(entity: EntityConfig): Map<string, string[]> {
-	if (!entity.computed || entity.computed.length === 0) {
-		return new Map();
-	}
-
+export function buildDependencyGraph(
+	propertyNames: string[],
+	getDependenciesFn: (prop: string) => string[]
+): Map<string, string[]> {
 	const graph = new Map<string, string[]>();
 
-	for (const prop of entity.computed) {
-		graph.set(prop.name, prop.dependencies || []);
+	for (const prop of propertyNames) {
+		graph.set(prop, getDependenciesFn(prop));
 	}
 
 	return graph;
 }
 
 /**
- * Sort computed properties by dependencies
+ * Sort computed properties by dependencies using topological sort
  * Ensures properties are calculated in the correct order
  * 
- * @param entity Entity configuration
+ * @param propertyNames Names of computed properties
+ * @param getDependenciesFn Function to get dependencies for a property
  * @returns Sorted property names
  */
-export function getComputedPropertyOrder(entity: EntityConfig): string[] {
-	if (!entity.computed || entity.computed.length === 0) {
+export function getComputedPropertyOrder(
+	propertyNames: string[],
+	getDependenciesFn: (prop: string) => string[]
+): string[] {
+	if (propertyNames.length === 0) {
 		return [];
 	}
 
-	const graph = buildDependencyGraph(entity);
+	const graph = buildDependencyGraph(propertyNames, getDependenciesFn);
 	const result: string[] = [];
 	const visited = new Set<string>();
 	const visiting = new Set<string>();
@@ -217,15 +228,24 @@ export function getComputedPropertyOrder(entity: EntityConfig): string[] {
  * @returns Function to process all computed properties
  */
 export function createComputedPropertiesProcessor(
-	entity: EntityConfig,
+	entity: EntityMapping,
 	implementations: ComputedPropertyImplementations
 ): (entity: any) => any {
 	if (!entity.computed || entity.computed.length === 0) {
 		return (entity) => entity;
 	}
 
+	// Get property dependencies from the entity config
+	const propToDepMap = new Map<string, string[]>();
+	for (const prop of entity.computed) {
+		propToDepMap.set(prop.name, prop.dependencies || []);
+	}
+
 	// Get the correct order to process properties
-	const propertyOrder = getComputedPropertyOrder(entity);
+	const propertyOrder = getComputedPropertyOrder(
+		Object.keys(implementations),
+		prop => propToDepMap.get(prop) || []
+	);
 
 	// Create a function that applies properties in the right order
 	return (entityObj: any) => {

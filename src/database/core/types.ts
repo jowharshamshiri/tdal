@@ -638,3 +638,4 @@ export type SerializationFunction<T> = (
 	entity: T,
 	context: SerializationContext
 ) => Record<string, any>;
+

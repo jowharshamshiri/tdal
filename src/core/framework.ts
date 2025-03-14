@@ -199,7 +199,7 @@ export class Framework {
 
 		// Generate API routes for entities
 		if (this.context) {
-			const entities = this.context.getAllEntityConfigs();
+			const entities = this.context.getAllEntityMappings();
 
 			// Create API generator dynamically
 			try {

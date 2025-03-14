@@ -3,7 +3,8 @@
  * Provides the mapping between entities and database tables/columns
  */
 
-import { Relation } from "./relation-types";
+import { EntityApiConfig, Workflow } from "@/core/types";
+import { Relation } from "../database/orm/relation-types";
 
 /**
  * Column mapping type
@@ -163,8 +164,7 @@ export interface ComputedProperty {
 }
 
 /**
- * Hook definition
- * Represents a lifecycle hook for entity operations
+ * Entity hook definition
  */
 export interface EntityHook {
 	/**
@@ -193,144 +193,15 @@ export interface EntityHook {
 	async?: boolean;
 }
 
-/**
- * Workflow state definition
- */
-export interface WorkflowState {
-	/**
-	 * State name
-	 */
-	name: string;
-
-	/**
-	 * Whether this is the initial state
-	 */
-	initial?: boolean;
-
-	/**
-	 * State description
-	 */
-	description?: string;
-
-	/**
-	 * Custom metadata for the state
-	 */
-	metadata?: Record<string, unknown>;
-}
 
 /**
- * Workflow transition definition
+ * Validation rules by field
  */
-export interface WorkflowTransition {
+export interface ValidationRules {
 	/**
-	 * Source state name
+	 * Field-specific validation rules
 	 */
-	from: string;
-
-	/**
-	 * Target state name
-	 */
-	to: string;
-
-	/**
-	 * Transition name/action
-	 */
-	action: string;
-
-	/**
-	 * Roles that can perform this transition
-	 */
-	roles?: string[];
-
-	/**
-	 * Implementation or path to external file for transition logic
-	 */
-	implementation?: string;
-
-	/**
-	 * Transition hooks
-	 */
-	hooks?: {
-		before?: string;
-		after?: string;
-	};
-}
-
-/**
- * Workflow definition
- */
-export interface Workflow {
-	/**
-	 * Workflow name
-	 */
-	name: string;
-
-	/**
-	 * Field that stores the current state
-	 */
-	stateField: string;
-
-	/**
-	 * States in the workflow
-	 */
-	states: WorkflowState[];
-
-	/**
-	 * Transitions between states
-	 */
-	transitions: WorkflowTransition[];
-}
-
-/**
- * API configuration for entity exposure
- */
-export interface ApiConfig {
-	/**
-	 * Whether to expose this entity via REST API
-	 */
-	exposed: boolean;
-
-	/**
-	 * Base path for the entity API
-	 */
-	basePath?: string;
-
-	/**
-	 * Operations to enable
-	 */
-	operations?: {
-		getAll?: boolean;
-		getById?: boolean;
-		create?: boolean;
-		update?: boolean;
-		delete?: boolean;
-	};
-
-	/**
-	 * Role-based permissions
-	 */
-	permissions?: {
-		getAll?: string[];
-		getById?: string[];
-		create?: string[];
-		update?: string[];
-		delete?: string[];
-	};
-
-	/**
-	 * Field-level permissions
-	 */
-	fields?: Record<string, {
-		read?: string[];
-		write?: string[];
-	}>;
-
-	/**
-	 * Record-level access control
-	 */
-	recordAccess?: {
-		condition: string;
-	};
+	[field: string]: ValidationRule[];
 }
 
 /**
@@ -499,14 +370,14 @@ export interface EntityMapping {
 	computed?: ComputedProperty[];
 
 	/**
+	 * API configuration
+	 */
+	api?: EntityApiConfig;
+
+	/**
 	 * Entity workflows
 	 */
 	workflows?: Workflow[];
-
-	/**
-	 * API configuration
-	 */
-	api?: ApiConfig;
 
 	/**
 	 * Validation rules
@@ -806,6 +677,7 @@ export async function processHooks(
 		try {
 			// Execute hook
 			if (hook.implementation.startsWith('./')) {
+				// TODO
 				// External implementation - would need to be loaded
 				// For now, we'll assume the implementation is already loaded
 				// In a real implementation, this would use dynamic import or require

@@ -9,7 +9,7 @@ import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import Ajv from 'ajv';
 import { Logger, AppConfig } from './core/types';
-import { EntityConfig, EntityMapping } from './entity-mapping';
+import { EntityMapping, EntityMapping } from '../database';
 
 /**
  * Configuration loader options
@@ -54,7 +54,7 @@ export class ConfigLoader {
 	/**
 	 * Entity configurations by name
 	 */
-	private entities: Map<string, EntityConfig> = new Map();
+	private entities: Map<string, EntityMapping> = new Map();
 
 	/**
 	 * Application configuration
@@ -149,7 +149,7 @@ export class ConfigLoader {
 	 * @param entitiesDir Path to entities directory
 	 * @returns Map of entity name to entity configuration
 	 */
-	async loadEntities(entitiesDir?: string): Promise<Map<string, EntityConfig>> {
+	async loadEntities(entitiesDir?: string): Promise<Map<string, EntityMapping>> {
 		const dirPath = entitiesDir || this.options.entitiesDir;
 
 		if (!dirPath) {
@@ -202,7 +202,7 @@ export class ConfigLoader {
 
 			// Read and parse YAML
 			const content = fs.readFileSync(filePath, 'utf8');
-			const config = yaml.load(content) as EntityConfig;
+			const config = yaml.load(content) as EntityMapping;
 
 			// Validate configuration against schema if enabled
 			if (this.options.validateSchemas) {
@@ -277,7 +277,7 @@ export class ConfigLoader {
 	 * Load code implementations for hooks, computed properties, etc.
 	 * @param entity Entity configuration
 	 */
-	async loadImplementations(entity: EntityConfig): Promise<void> {
+	async loadImplementations(entity: EntityMapping): Promise<void> {
 		this.logger.debug(`Loading implementations for entity ${entity.entity}`);
 
 		// Load hook implementations
@@ -479,7 +479,7 @@ export class ConfigLoader {
 	 * Get loaded entity configurations
 	 * @returns Map of entity name to entity configuration
 	 */
-	getEntities(): Map<string, EntityConfig> {
+	getEntities(): Map<string, EntityMapping> {
 		return this.entities;
 	}
 
@@ -496,7 +496,7 @@ export class ConfigLoader {
 	 * @param entity Entity configuration
 	 * @returns YAML string
 	 */
-	generateEntityYaml(entity: EntityConfig): string {
+	generateEntityYaml(entity: EntityMapping): string {
 		return yaml.dump(entity, {
 			indent: 2,
 			lineWidth: 120,
@@ -510,7 +510,7 @@ export class ConfigLoader {
 	 * @param outputDir Output directory
 	 * @returns Path to the written file
 	 */
-	writeEntityYaml(entity: EntityConfig, outputDir?: string): string {
+	writeEntityYaml(entity: EntityMapping, outputDir?: string): string {
 		const dir = outputDir || this.options.entitiesDir;
 
 		if (!dir) {

@@ -4,7 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { EntityConfig, EntityAction, HookContext, Logger } from '../core/types';
+import { EntityMapping, EntityAction, HookContext, Logger } from '../core/types';
 import { EntityDao } from '../database/entity-dao';
 import { AppContext } from '../core/app-context';
 import { createHookContext, HookError, executeHookWithTimeout } from './hook-context';
@@ -51,7 +51,7 @@ export class ActionExecutor {
 	 * Register entity actions
 	 * @param entity Entity configuration
 	 */
-	async registerActions(entity: EntityConfig): Promise<void> {
+	async registerActions(entity: EntityMapping): Promise<void> {
 		if (!entity.actions || entity.actions.length === 0) {
 			return;
 		}
@@ -201,7 +201,7 @@ export class ActionExecutor {
 	 * @param router Express router
 	 */
 	createActionRoutes(
-		entityConfig: EntityConfig,
+		entityConfig: EntityMapping,
 		appContext: AppContext,
 		router: any
 	): void {

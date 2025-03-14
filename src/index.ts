@@ -3,7 +3,7 @@ import { DatabaseContext } from './database/core/database-context';
 
 // Export database configuration functions
 export const configureDatabase = (config: any) =>
-  DatabaseContext.configure(config);
+	DatabaseContext.configure(config);
 export const getDatabase = () => DatabaseContext.getDatabase();
 export const closeDatabase = () => DatabaseContext.closeDatabase();
 
@@ -24,8 +24,7 @@ export * from './database/query/entity-query-builder';
 export * from './database/query/sqlite-query-builder';
 
 // Export ORM components
-export * from './database/orm/entity-dao';
-export * from './database/orm/entity-mapping';
+export * from './entity/entity-mapping';
 export * from './database/orm/relation-types';
 export * from './database/orm/date-functions';
 

@@ -3,7 +3,7 @@
  * Provides JSON Schema for YAML validation and TypeScript interfaces
  */
 
-import { EntityConfig, EntityColumn, EntityRelation } from '../core/types';
+import { EntityMapping } from "./entity-mapping";
 
 /**
  * JSON Schema for entity validation
@@ -239,33 +239,28 @@ export const entityJsonSchema = {
 				afterGetAll: { type: 'array', items: { $ref: '#/definitions/hook' } }
 			}
 		},
-		actions: {
+		computed: {
 			type: 'array',
 			items: {
 				type: 'object',
-				required: ['name', 'path', 'method', 'implementation'],
+				required: ['name', 'implementation'],
 				properties: {
 					name: {
 						type: 'string',
-						description: 'Action name'
+						description: 'Property name'
 					},
-					path: {
-						type: 'string',
-						description: 'HTTP path for the action'
-					},
-					method: {
-						type: 'string',
-						enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-						description: 'HTTP method'
-					},
-					auth: {
+					dependencies: {
 						type: 'array',
 						items: { type: 'string' },
-						description: 'Authorized roles'
+						description: 'Fields this property depends on'
 					},
 					implementation: {
 						type: 'string',
-						description: 'Action implementation'
+						description: 'Property implementation'
+					},
+					cache: {
+						type: 'boolean',
+						description: 'Whether to cache the computed value'
 					}
 				}
 			}
@@ -303,28 +298,6 @@ export const entityJsonSchema = {
 				}
 			}
 		},
-		computed: {
-			type: 'array',
-			items: {
-				type: 'object',
-				required: ['name', 'implementation'],
-				properties: {
-					name: {
-						type: 'string',
-						description: 'Property name'
-					},
-					dependencies: {
-						type: 'array',
-						items: { type: 'string' },
-						description: 'Fields this property depends on'
-					},
-					implementation: {
-						type: 'string',
-						description: 'Property implementation'
-					}
-				}
-			}
-		},
 		workflows: {
 			type: 'array',
 			items: {
@@ -334,6 +307,10 @@ export const entityJsonSchema = {
 					name: {
 						type: 'string',
 						description: 'Workflow name'
+					},
+					stateField: {
+						type: 'string',
+						description: 'Field that stores the state'
 					},
 					states: {
 						type: 'array',
@@ -348,6 +325,10 @@ export const entityJsonSchema = {
 								initial: {
 									type: 'boolean',
 									description: 'Whether this is the initial state'
+								},
+								description: {
+									type: 'string',
+									description: 'State description'
 								}
 							}
 						}
@@ -370,7 +351,7 @@ export const entityJsonSchema = {
 									type: 'string',
 									description: 'Transition action name'
 								},
-								permissions: {
+								roles: {
 									type: 'array',
 									items: { type: 'string' },
 									description: 'Roles that can perform this transition'
@@ -411,6 +392,14 @@ export const entityJsonSchema = {
 				condition: {
 					type: 'string',
 					description: 'Optional condition for hook execution'
+				},
+				priority: {
+					type: 'number',
+					description: 'Hook priority (lower numbers run first)'
+				},
+				async: {
+					type: 'boolean',
+					description: 'Whether the hook should be async'
 				}
 			}
 		}
@@ -422,7 +411,7 @@ export const entityJsonSchema = {
  * @param entity Entity configuration
  * @returns TypeScript interface as string
  */
-export function generateEntityInterface(entity: EntityConfig): string {
+export function generateEntityInterface(entity: EntityMapping): string {
 	let interfaceCode = `/**
  * Generated interface for ${entity.entity}
  * Automatically generated from YAML schema
@@ -463,7 +452,7 @@ export interface ${entity.entity} {
  * @param dbType Database type
  * @returns Corresponding TypeScript type
  */
-function mapTypeToTypeScript(dbType: string): string {
+export function mapTypeToTypeScript(dbType: string): string {
 	switch (dbType.toLowerCase()) {
 		case 'string':
 		case 'text':
@@ -530,7 +519,7 @@ export function mapTypeScriptToDbType(tsType: string): string {
  * @returns SQL column definition
  */
 export function getColumnDefinition(
-	column: EntityColumn,
+	column: any,
 	dialect: 'sqlite' | 'mysql' | 'postgres' = 'sqlite'
 ): string {
 	let sql = `${column.physical} `;
@@ -563,8 +552,6 @@ export function getColumnDefinition(
 				break;
 			case 'postgres':
 				if (!column.primaryKey) {
-					// In PostgreSQL, we typically use SERIAL or BIGSERIAL for this
-					// But if we already defined a type, we add GENERATED ALWAYS AS IDENTITY
 					sql += ' GENERATED ALWAYS AS IDENTITY';
 				}
 				break;
@@ -591,7 +578,7 @@ export function getColumnDefinition(
  * @param column Column definition
  * @returns SQLite column type
  */
-function getSQLiteColumnType(column: EntityColumn): string {
+function getSQLiteColumnType(column: any): string {
 	if (!column.type) return 'TEXT';
 
 	const type = column.type.toLowerCase();
@@ -634,7 +621,7 @@ function getSQLiteColumnType(column: EntityColumn): string {
  * @param column Column definition
  * @returns MySQL column type
  */
-function getMySQLColumnType(column: EntityColumn): string {
+function getMySQLColumnType(column: any): string {
 	if (!column.type) return 'VARCHAR(255)';
 
 	const type = column.type.toLowerCase();
@@ -685,7 +672,7 @@ function getMySQLColumnType(column: EntityColumn): string {
  * @param column Column definition
  * @returns PostgreSQL column type
  */
-function getPostgresColumnType(column: EntityColumn): string {
+function getPostgresColumnType(column: any): string {
 	if (!column.type) return 'VARCHAR(255)';
 
 	const type = column.type.toLowerCase();
@@ -729,4 +716,20 @@ function getPostgresColumnType(column: EntityColumn): string {
 		default:
 			return 'VARCHAR(255)';
 	}
+}
+
+/**
+ * Validate an entity configuration against JSON schema
+ * @param entity Entity configuration
+ * @param ajv Ajv instance
+ * @returns Validation result
+ */
+export function validateEntity(entity: EntityMapping, ajv: any): { valid: boolean; errors: any[] } {
+	const validate = ajv.compile(entityJsonSchema);
+	const valid = validate(entity);
+
+	return {
+		valid,
+		errors: validate.errors || []
+	};
 }
