@@ -1,11 +1,13 @@
 /**
  * Request Processor
- * Processes HTTP requests for the API
+ * Processes HTTP requests for the API with consistent validation, authentication, and authorization
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Logger, RequestProcessorOptions, ControllerContext } from '../core/types';
-import { createControllerContext } from '../entity/entity-manager';
+import { Logger, RequestProcessorOptions, ControllerContext } from '@/core/types';
+import { HookContext } from '@/hooks/hook-context';
+import { createControllerContext } from '@/entity/entity-manager';
+import { AppContext } from '@/core/app-context';
 
 /**
  * Request Processor class
@@ -17,7 +19,7 @@ export class RequestProcessor {
 	 * @param context Application context
 	 * @param logger Logger instance
 	 */
-	constructor(private context: any, private logger: Logger) { }
+	constructor(private context: AppContext, private logger: Logger) { }
 
 	/**
 	 * Process a request
@@ -146,6 +148,9 @@ export class RequestProcessor {
 
 		// For example, convert snake_case to camelCase if needed
 		// or handle file uploads, etc.
+
+		// Fire beforeParseBody hooks if present
+		await this.executeHook('beforeParseBody', req.body, context);
 	}
 
 	/**
@@ -154,127 +159,28 @@ export class RequestProcessor {
 	 * @param context Controller context
 	 */
 	private async validateRequest(req: Request, context: ControllerContext): Promise<void> {
-		// Get entity configuration
-		const entityName = context.entityName;
-		const operation = context.operation;
+		// Get validation service from context
+		const validationService = this.context.getService('validationService');
+		if (!validationService) {
+			this.logger.warn('Validation service not available');
+			return;
+		}
 
-		try {
-			// Get entity configuration
-			const entityConfig = this.context.getEntityConfig(entityName);
+		// Determine validation options based on entity and operation
+		const options = {
+			entity: context.entityName,
+			operation: context.operation
+		};
 
-			// Check if entity exists
-			if (!entityConfig) {
-				throw new Error(`Entity not found: ${entityName}`);
-			}
+		// Perform validation
+		const result = await validationService.validate(req, options);
 
-			// Check if entity has validation rules
-			if (!entityConfig.validation || !entityConfig.validation.rules) {
-				// No validation rules defined
-				return;
-			}
-
-			// Get validation rules for the request
-			let dataToValidate: Record<string, unknown> = {};
-
-			switch (operation) {
-				case 'create':
-				case 'update':
-					dataToValidate = req.body || {};
-					break;
-				case 'getById':
-				case 'delete':
-					dataToValidate = { id: req.params.id };
-					break;
-				case 'getAll':
-					dataToValidate = req.query || {};
-					break;
-				default:
-					// For custom operations, validate based on method
-					if (req.method === 'GET') {
-						dataToValidate = req.query || {};
-					} else {
-						dataToValidate = req.body || {};
-					}
-			}
-
-			// Validate data against rules
-			const validationErrors: string[] = [];
-			const rules = entityConfig.validation.rules;
-
-			// Apply validation rules
-			for (const [field, fieldRules] of Object.entries(rules)) {
-				// Skip fields not present in the data (unless required)
-				if (!(field in dataToValidate) && !fieldRules.some(rule => rule.type === 'required')) {
-					continue;
-				}
-
-				const value = dataToValidate[field];
-
-				// Apply each rule for the field
-				for (const rule of fieldRules) {
-					// Skip rules not applicable to API
-					if (rule.applyToApi === false) {
-						continue;
-					}
-
-					let isValid = true;
-
-					switch (rule.type) {
-						case 'required':
-							isValid = value !== undefined && value !== null && value !== '';
-							break;
-						case 'minLength':
-							isValid = typeof value === 'string' && value.length >= (rule.value as number);
-							break;
-						case 'maxLength':
-							isValid = typeof value === 'string' && value.length <= (rule.value as number);
-							break;
-						case 'min':
-							isValid = typeof value === 'number' && value >= (rule.value as number);
-							break;
-						case 'max':
-							isValid = typeof value === 'number' && value <= (rule.value as number);
-							break;
-						case 'pattern':
-							isValid = typeof value === 'string' && new RegExp(rule.value as string).test(value);
-							break;
-						case 'email':
-							isValid = typeof value === 'string' && /^[^@]+@[^@]+\.[^@]+$/.test(value);
-							break;
-						case 'custom':
-							// Custom rules would be implemented by the application
-							this.logger.warn(`Custom validation not implemented for ${entityName}.${field}`);
-							isValid = true;
-							break;
-					}
-
-					if (!isValid) {
-						validationErrors.push(rule.message);
-					}
-				}
-			}
-
-			// If there are validation errors, throw an error
-			if (validationErrors.length > 0) {
-				const error = new Error(validationErrors.join(', '));
-				error.name = 'ValidationError';
-				(error as any).status = 400;
-				(error as any).errors = validationErrors;
-				throw error;
-			}
-		} catch (error) {
-			// Rethrow validation errors
-			if (error.name === 'ValidationError') {
-				throw error;
-			}
-
-			// Log and wrap other errors
-			this.logger.error(`Error validating request for ${entityName}: ${error.message}`);
-
-			const validationError = new Error(`Request validation failed: ${error.message}`);
-			validationError.name = 'ValidationError';
-			(validationError as any).status = 400;
-			throw validationError;
+		if (!result.valid) {
+			const error = new Error('Validation failed');
+			error.name = 'ValidationError';
+			(error as any).status = result.statusCode || 400;
+			(error as any).errors = result.errors;
+			throw error;
 		}
 	}
 
@@ -295,32 +201,43 @@ export class RequestProcessor {
 
 		try {
 			// Try to get the auth service from the context
-			const authService = this.context.getService('authService');
+			const authService = this.context.getService('auth');
 
 			if (!authService) {
 				this.logger.warn('Authentication service not found');
 				return;
 			}
 
-			// Extract token from authorization header
-			const token = authHeader.startsWith('Bearer ') ?
-				authHeader.substring(7) : authHeader;
+			// Authentication options based on entity and operation
+			const options = {
+				entity: context.entityName,
+				operation: context.operation
+			};
 
-			// Verify token
-			const user = await authService.verifyToken(token);
+			// Authenticate the request
+			const result = await authService.authenticate(req, options);
 
-			// Set user in request
-			context.user = user;
+			if (!result.authenticated) {
+				const error = new Error(result.error || 'Authentication failed');
+				error.name = 'AuthenticationError';
+				(error as any).status = result.statusCode || 401;
+				throw error;
+			}
 
-			// Set user in request object for middleware compatibility
-			(req as any).user = user;
+			// Set user in request and context
+			context.user = result.user;
+			(req as any).user = result.user;
 		} catch (error) {
-			this.logger.error(`Authentication error: ${error.message}`);
+			if (error.name !== 'AuthenticationError') {
+				this.logger.error(`Authentication error: ${error.message}`);
 
-			const authError = new Error('Authentication failed');
-			authError.name = 'AuthenticationError';
-			(authError as any).status = 401;
-			throw authError;
+				const authError = new Error('Authentication failed');
+				authError.name = 'AuthenticationError';
+				(authError as any).status = 401;
+				throw authError;
+			}
+
+			throw error;
 		}
 	}
 
@@ -338,55 +255,50 @@ export class RequestProcessor {
 		}
 
 		try {
+			// Get permission validator from context
+			const permissionValidator = this.context.getService('permissionValidator');
+
+			if (!permissionValidator) {
+				this.logger.warn('Permission validator not found');
+				return;
+			}
+
 			// Get entity configuration
 			const entityConfig = this.context.getEntityConfig(entityName);
 
-			// Check if entity exists
-			if (!entityConfig) {
-				throw new Error(`Entity not found: ${entityName}`);
+			// Validate permission
+			const hasPermission = permissionValidator.validate(user, entityConfig, operation);
+
+			if (!hasPermission) {
+				const error = new Error(`Insufficient permissions for ${entityName}.${operation}`);
+				error.name = 'AuthorizationError';
+				(error as any).status = 403;
+				throw error;
 			}
 
-			// Check if entity has API configuration
-			if (!entityConfig.api) {
-				throw new Error(`Entity is not exposed via API: ${entityName}`);
-			}
+			// Check for record-level access control if applicable
+			if ((operation === 'getById' || operation === 'update' || operation === 'delete')
+				&& entityConfig.api?.recordAccess) {
 
-			// Check if operation is allowed
-			if (entityConfig.api.operations && entityConfig.api.operations[operation] === false) {
-				throw new Error(`Operation not allowed: ${operation}`);
-			}
-
-			// Check if user has permission for the operation
-			const permissions = entityConfig.api.permissions;
-
-			if (permissions && permissions[operation]) {
-				const requiredRoles = permissions[operation];
-
-				// Check if user has one of the required roles
-				const hasPermission = requiredRoles.includes(user.role);
-
-				if (!hasPermission) {
-					throw new Error(`Insufficient permissions for ${entityName}.${operation}`);
-				}
-			}
-
-			// Check record-level access control if applicable
-			if (operation === 'getById' || operation === 'update' || operation === 'delete') {
-				const recordAccess = entityConfig.api.recordAccess;
-
-				if (recordAccess && recordAccess.condition) {
-					// In a real implementation, you would evaluate the condition
-					// against the record being accessed
-					this.logger.warn(`Record-level access control not implemented for ${entityName}`);
-				}
+				// Execute beforeAuthorize hook to allow custom record-level checks
+				await this.executeHook('beforeAuthorize', {
+					user,
+					entityName,
+					operation,
+					recordId: req.params.id
+				}, context);
 			}
 		} catch (error) {
-			this.logger.error(`Authorization error: ${error.message}`);
+			if (error.name !== 'AuthorizationError') {
+				this.logger.error(`Authorization error: ${error.message}`);
 
-			const authError = new Error('Authorization failed');
-			authError.name = 'AuthorizationError';
-			(authError as any).status = 403;
-			throw authError;
+				const authError = new Error('Authorization failed');
+				authError.name = 'AuthorizationError';
+				(authError as any).status = 403;
+				throw authError;
+			}
+
+			throw error;
 		}
 	}
 
@@ -426,6 +338,11 @@ export class RequestProcessor {
 						}
 					}, middlewareConfig.options || {}, context);
 				});
+
+				// If response is already sent, stop middleware chain
+				if (res.headersSent) {
+					break;
+				}
 			} catch (error) {
 				this.logger.error(`Middleware error in ${middlewareName}: ${error.message}`);
 				throw error;
@@ -461,10 +378,46 @@ export class RequestProcessor {
 
 		// Send error response
 		res.status(statusCode).json({
+			success: false,
 			error: errorType,
 			message,
 			status: statusCode,
 			...(error.errors && { errors: error.errors })
 		});
 	}
+
+	/**
+	 * Execute a hook
+	 * @param hookType Hook type
+	 * @param data Hook data
+	 * @param context Hook context
+	 * @returns Hook result
+	 */
+	private async executeHook(hookType: string, data: any, context: HookContext): Promise<any> {
+		// Get hook executor service if available
+		try {
+			const hookExecutor = this.context.getService('hookExecutor');
+			if (hookExecutor) {
+				return await hookExecutor.execute(hookType, data, context);
+			}
+		} catch (error) {
+			this.logger.debug(`Hook executor not available: ${error.message}`);
+		}
+
+		// If no hook executor is available, just return the data
+		return data;
+	}
+}
+
+/**
+ * Create request processor
+ * @param context Application context
+ * @param logger Logger instance
+ * @returns Request processor instance
+ */
+export function createRequestProcessor(
+	context: AppContext,
+	logger: Logger
+): RequestProcessor {
+	return new RequestProcessor(context, logger);
 }

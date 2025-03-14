@@ -6,9 +6,9 @@
 import crypto from 'crypto';
 import axios, { AxiosRequestConfig } from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import { Logger } from '../core/types';
-import { AppContext } from '../core/app-context';
-import { EventBus } from './event-bus';
+import { Logger } from '@/core/types';
+import { AppContext } from '@/core/app-context';
+import { EventBus } from '@/core/event-bus';
 
 /**
  * Webhook configuration

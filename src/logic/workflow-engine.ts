@@ -3,9 +3,9 @@
  * State machine for entity workflows defined in YAML
  */
 
-import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
-import { EntityConfig, EntityDao } from '../entity';
-import { HookError } from '../hooks/hook-context';
+import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '@/core/types';
+import { EntityConfig, EntityDao } from '@/entity';
+import { HookError } from '@/hooks/hook-context';
 
 /**
  * Workflow transition result
@@ -290,7 +290,7 @@ export class WorkflowEngine {
 	): Promise<WorkflowTransitionResult> {
 		try {
 			// Get entity data
-			const entityDao = context.entityDao as EntityDao<any>;
+			const entityDao = context.getEntityManager(entityName);
 			const entity = await entityDao.findById(entityId);
 
 			if (!entity) {
@@ -633,7 +633,7 @@ export function createWorkflowTransitionAction(
 		}
 
 		// Get workflow engine from context
-		const workflowEngine = context.services.workflowEngine as WorkflowEngine;
+		const workflowEngine = context.getService('workflowEngine');
 
 		if (!workflowEngine) {
 			throw new HookError('Workflow engine not available', 500);
