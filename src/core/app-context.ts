@@ -5,19 +5,14 @@
 
 import * as path from 'path';
 import express, { Express, Router } from 'express';
-import { AppConfig, Logger, ServiceDefinition, EntityApiConfig, MiddlewareConfig } from './types';
-import { EntityConfig } from '@/entity/entity-config';
-import { EntityDao } from '@/entity/entity-manager';
-import { ActionRegistry } from '@/actions/action-registry';
-import { RouteRegistry } from '@/api/route-registry';
-import { ApiGenerator } from '@/api/api-generator';
-import { DatabaseContext, DatabaseAdapter } from '../database';
-import {
-	HookImplementation,
-	StandardHookType,
-	createHookExecutor,
-	HookExecutor
-} from '../hooks/hooks-executor';
+import { AppConfig, Logger, ServiceDefinition, MiddlewareConfig } from './types';
+import { EntityConfig } from '../entity/entity-config';
+import { EntityDao } from '../entity/entity-manager';
+import { ActionRegistry } from '../actions/action-registry';
+import { RouteRegistry } from '../api/route-registry';
+import { ApiGenerator } from '../api/api-generator';
+import { DatabaseAdapter, DatabaseContext } from '../database';
+import { HookExecutor, HookImplementation } from '../hooks/hooks-executor';
 
 /**
  * Application Context class
@@ -115,7 +110,7 @@ export class AppContext {
 		DatabaseContext.setAppContext(this);
 
 		// Initialize registries
-		this.routeRegistry = new RouteRegistry(logger);
+		this.routeRegistry = new RouteRegistry(logger, this);
 		this.actionRegistry = new ActionRegistry(logger);
 
 		// Initialize API generator
@@ -529,7 +524,7 @@ export class AppContext {
 		// Get or create hook executor for this hook type
 		let executor = this.globalHooks.get(hookType);
 		if (!executor) {
-			executor = createHookExecutor<T>(this.logger);
+			executor = new HookExecutor<T>(this.logger);
 			this.globalHooks.set(hookType, executor);
 		}
 
@@ -568,7 +563,7 @@ export class AppContext {
 	 * Get the Express application
 	 * @returns Express application instance
 	 */
-	getExpressApp(): Express | undefined {
+	getApp(): Express | undefined {
 		return this.app;
 	}
 

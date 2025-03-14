@@ -12,11 +12,9 @@ import helmet from 'helmet';
 import { AppContext } from './app-context';
 import { ConfigLoader } from './config-loader';
 import { Logger, AppConfig } from './types';
-import { DatabaseContext } from '../database';
 import { RequestProcessor } from '../middleware/request-processor';
-import { ApiGenerator } from '../api/api-generator';
-import { RouteRegistry } from '../api/route-registry';
 import { ActionRegistry } from '../actions/action-registry';
+import { AuthenticationService } from '../middleware/authentication';
 
 /**
  * Framework options
@@ -105,11 +103,6 @@ export class Framework {
 	private requestProcessor: RequestProcessor | null = null;
 
 	/**
-	 * API generator for creating API routes
-	 */
-	private apiGenerator: ApiGenerator | null = null;
-
-	/**
 	 * API base path
 	 */
 	private apiBasePath: string;
@@ -147,8 +140,9 @@ export class Framework {
 
 		// Create configuration loader
 		this.configLoader = new ConfigLoader({
-			schemaDir: options.schemaDir,
+			configDir: path.dirname(options.configPath || ''),
 			entitiesDir: options.entitiesDir,
+			schemaDir: options.schemaDir,
 			logger: this.logger
 		});
 
@@ -186,6 +180,14 @@ export class Framework {
 			this.context.registerService({
 				name: 'requestProcessor',
 				implementation: this.requestProcessor,
+				singleton: true
+			});
+
+			// Register authentication service
+			const authService = new AuthenticationService(this.context);
+			this.context.registerService({
+				name: 'auth',
+				implementation: authService,
 				singleton: true
 			});
 
@@ -431,10 +433,10 @@ export class Framework {
 	}
 
 	/**
-	 * Get the API route registry
+	 * Get the route registry
 	 * @returns Route registry
 	 */
-	getRouteRegistry(): RouteRegistry {
+	getRouteRegistry(): any {
 		if (!this.context) {
 			throw new Error('Application context not initialized');
 		}

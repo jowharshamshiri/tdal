@@ -3,11 +3,10 @@
  * Defines the fundamental types used throughout the framework
  */
 
-import { Express, Request, Response, NextFunction } from 'express';
-
+import { Request, Response, NextFunction } from 'express';
 import { DatabaseAdapter } from '../database/core/types';
-import { DbConfig } from '../database/core/connection-types';
-import { EntityDao } from '@/entity/entity-manager';
+import { EntityConfig } from '../entity/entity-config';
+import { EntityDao } from '../entity/entity-manager';
 
 /**
  * Application configuration
@@ -99,9 +98,83 @@ export interface AppConfig {
 	middleware?: MiddlewareConfig;
 
 	/**
+	 * Plugin configuration
+	 */
+	plugins?: PluginConfig[];
+
+	/**
 	 * Custom application options
 	 */
 	[key: string]: any;
+}
+
+/**
+ * Database configuration
+ */
+export interface DbConfig {
+	/**
+	 * Database type
+	 */
+	type: 'sqlite' | 'mysql' | 'postgres' | 'custom';
+
+	/**
+	 * Database connection string
+	 */
+	connectionString?: string;
+
+	/**
+	 * Database host
+	 */
+	host?: string;
+
+	/**
+	 * Database port
+	 */
+	port?: number;
+
+	/**
+	 * Database name
+	 */
+	database?: string;
+
+	/**
+	 * Database username
+	 */
+	username?: string;
+
+	/**
+	 * Database password
+	 */
+	password?: string;
+
+	/**
+	 * Path to SQLite database file
+	 */
+	filename?: string;
+
+	/**
+	 * Connection pool options
+	 */
+	pool?: {
+		min?: number;
+		max?: number;
+		idleTimeoutMillis?: number;
+	};
+
+	/**
+	 * SSL configuration
+	 */
+	ssl?: boolean | {
+		rejectUnauthorized?: boolean;
+		ca?: string;
+		cert?: string;
+		key?: string;
+	};
+
+	/**
+	 * Custom database options
+	 */
+	options?: Record<string, any>;
 }
 
 /**
@@ -211,7 +284,7 @@ export interface Role {
 	/**
 	 * Parent role (for inheritance)
 	 */
-	inherits?: string;
+	inherits?: string | string[];
 
 	/**
 	 * Role permissions
@@ -272,6 +345,16 @@ export interface LoggingConfig {
 	 * Log file path
 	 */
 	file?: string;
+
+	/**
+	 * Whether to log to console
+	 */
+	console?: boolean;
+
+	/**
+	 * Custom log formatters
+	 */
+	formatters?: Record<string, (data: any) => string>;
 }
 
 /**
@@ -300,13 +383,13 @@ export interface Logger {
 }
 
 /**
- * Base application context interface
+ * Application context interface
  */
 export interface AppContext {
 	/**
 	 * Get the Express application
 	 */
-	getApp(): Express;
+	getApp(): any;
 
 	/**
 	 * Get the application configuration
@@ -324,14 +407,44 @@ export interface AppContext {
 	getEntityManager<T>(entityName: string): EntityDao<T>;
 
 	/**
+	 * Get entity configuration by name
+	 */
+	getEntityConfig(entityName: string): EntityConfig;
+
+	/**
+	 * Get all entity configurations
+	 */
+	getAllEntityConfigs(): Map<string, EntityConfig>;
+
+	/**
 	 * Get a service by name
 	 */
 	getService<T>(name: string): T;
 
 	/**
+	 * Check if a service exists
+	 */
+	hasService(name: string): boolean;
+
+	/**
 	 * Get the logger
 	 */
 	getLogger(): Logger;
+
+	/**
+	 * Get middleware configuration by name
+	 */
+	getMiddlewareConfig(name: string): MiddlewareConfig | undefined;
+
+	/**
+	 * Register a service
+	 */
+	registerService(definition: ServiceDefinition): void;
+
+	/**
+	 * Register middleware
+	 */
+	registerMiddleware(name: string, config: MiddlewareConfig): void;
 
 	/**
 	 * Shutdown the application
@@ -365,41 +478,6 @@ export interface ServiceDefinition {
 }
 
 /**
- * API Controller interface
- */
-export interface ApiController {
-	/**
-	 * Get all entities
-	 */
-	getAll(req: Request, res: Response, next: NextFunction): Promise<void>;
-
-	/**
-	 * Get entity by ID
-	 */
-	getById(req: Request, res: Response, next: NextFunction): Promise<void>;
-
-	/**
-	 * Create entity
-	 */
-	create(req: Request, res: Response, next: NextFunction): Promise<void>;
-
-	/**
-	 * Update entity
-	 */
-	update(req: Request, res: Response, next: NextFunction): Promise<void>;
-
-	/**
-	 * Delete entity
-	 */
-	delete(req: Request, res: Response, next: NextFunction): Promise<void>;
-
-	/**
-	 * Custom action
-	 */
-	[key: string]: (req: Request, res: Response, next: NextFunction) => Promise<void>;
-}
-
-/**
  * Hook context for entity lifecycle hooks
  */
 export interface HookContext {
@@ -417,9 +495,12 @@ export interface HookContext {
 	 * Current user (if authenticated)
 	 */
 	user?: {
-		id: number | string;
-		username: string;
-		role: string;
+		id?: number | string;
+		user_id?: number | string;
+		username?: string;
+		email?: string;
+		role?: string;
+		[key: string]: any;
 	};
 
 	/**
@@ -430,17 +511,17 @@ export interface HookContext {
 	/**
 	 * Request object (if hook is triggered by an API call)
 	 */
-	request?: any;
+	request?: Request;
 
 	/**
 	 * Response object (if hook is triggered by an API call)
 	 */
-	response?: any;
+	response?: Response;
 
 	/**
 	 * Express next function (if hook is triggered by an API call)
 	 */
-	next?: any;
+	next?: NextFunction;
 
 	/**
 	 * Entity name
@@ -450,7 +531,12 @@ export interface HookContext {
 	/**
 	 * Operation name
 	 */
-	operation?: 'create' | 'update' | 'delete' | 'find' | 'findById' | 'custom' | 'getAll' | 'getById';
+	operation?: string;
+
+	/**
+	 * Action name
+	 */
+	action?: string;
 
 	/**
 	 * Logger instance
@@ -463,35 +549,59 @@ export interface HookContext {
 	data?: Record<string, unknown>;
 
 	/**
-	 * Service container
+	 * Get a service by name
 	 */
-	services?: Record<string, any>;
+	getService?: <T>(name: string) => T;
+
+	/**
+	 * Get an entity manager
+	 */
+	getEntityManager?: <T>(name?: string) => EntityDao<T>;
+
+	/**
+	 * Path parameters
+	 */
+	params?: Record<string, string>;
+
+	/**
+	 * Query parameters
+	 */
+	query?: Record<string, any>;
+
+	/**
+	 * Request body
+	 */
+	body?: any;
+
+	/**
+	 * Send JSON response
+	 */
+	sendJson?: (data: any, status?: number) => void;
+
+	/**
+	 * Send error response
+	 */
+	sendError?: (message: string, status?: number, errorType?: string, details?: Record<string, any>) => void;
 }
 
 /**
- * Hook function
- * Generic function that takes data and context and returns a result
+ * Hook function type
  */
 export type HookFunction<T = any> = (data: T, context: HookContext) => Promise<any> | any;
 
 /**
- * Validation function
+ * Action function type
+ */
+export type ActionFunction = (params: any, context: HookContext) => Promise<any> | any;
+
+/**
+ * Validation function type
  */
 export type ValidationFunction<T = any> = (
 	value: any,
 	entity: T,
 	context: HookContext
 ) => boolean | string | { valid: boolean; message?: string };
-
-/**
- * Validator function for entity validation
- */
-export type ValidatorFunction<T> = (entity: T) => boolean | string | { valid: boolean; message?: string };
-
-/**
- * Action implementation function
- */
-export type ActionFunction = (params: any, context: HookContext) => Promise<any> | any;
 
 /**
  * Pagination options
@@ -564,199 +674,109 @@ export interface PaginationResult<T> {
 }
 
 /**
- * Search options
+ * API error
  */
-export interface SearchOptions {
+export interface ApiError extends Error {
 	/**
-	 * Search query
+	 * HTTP status code
 	 */
-	query: string;
+	status: number;
 
 	/**
-	 * Fields to search in
+	 * Error type
 	 */
-	fields: string[];
+	code?: string;
 
 	/**
-	 * Whether to use fuzzy search
+	 * Additional error data
 	 */
-	fuzzy?: boolean;
-
-	/**
-	 * Pagination options
-	 */
-	pagination?: PaginationOptions;
+	data?: Record<string, any>;
 }
 
 /**
- * File upload options
+ * Action result
  */
-export interface FileUploadOptions {
+export interface ActionResult<T = any> {
 	/**
-	 * Field name
+	 * Whether the action was successful
 	 */
-	field: string;
+	success: boolean;
 
 	/**
-	 * Allowed file types
+	 * Action result data
 	 */
-	allowedTypes?: string[];
+	data?: T;
 
 	/**
-	 * Maximum file size in bytes
+	 * Error message if unsuccessful
 	 */
-	maxSize?: number;
+	error?: string;
 
 	/**
-	 * Upload directory
+	 * HTTP status code
 	 */
-	destination?: string;
+	statusCode?: number;
 
 	/**
-	 * Storage adapter
+	 * Additional metadata
 	 */
-	storage?: 'local' | 's3' | 'azure' | 'gcs' | 'custom';
-
-	/**
-	 * Storage options
-	 */
-	storageOptions?: Record<string, any>;
+	metadata?: Record<string, any>;
 }
 
 /**
- * Entity change event
+ * Controller context
  */
-export interface EntityChangeEvent<T = any> {
-	/**
-	 * Event type
-	 */
-	type: 'create' | 'update' | 'delete';
-
+export interface ControllerContext extends HookContext {
 	/**
 	 * Entity name
 	 */
 	entityName: string;
 
 	/**
-	 * Entity ID
+	 * Operation name
 	 */
-	entityId: number | string;
+	operation: string;
 
 	/**
-	 * Entity data
+	 * Route parameters
 	 */
-	data: T;
+	params: Record<string, string>;
 
 	/**
-	 * Previous entity data (for update and delete)
+	 * Query parameters
 	 */
-	previousData?: T;
+	query: Record<string, any>;
 
 	/**
-	 * User who made the change
+	 * Request body
 	 */
-	user?: {
-		id: number | string;
-		username: string;
-	};
-
-	/**
-	 * Timestamp
-	 */
-	timestamp: Date;
-}
-
-/**
- * Event subscriber interface
- */
-export interface EventSubscriber {
-	/**
-	 * Event types to subscribe to
-	 */
-	events: string[];
-
-	/**
-	 * Handle event
-	 */
-	handleEvent(event: string, data: any): Promise<void> | void;
-}
-
-/**
- * Transaction options
- */
-export interface TransactionOptions {
-	/**
-	 * Transaction isolation level
-	 */
-	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
-
-	/**
-	 * Transaction timeout in milliseconds
-	 */
-	timeout?: number;
-}
-
-/**
- * Action definition
- */
-export interface ActionDefinition {
-	/**
-	 * Action name
-	 */
-	name: string;
-
-	/**
-	 * Description of what the action does
-	 */
-	description?: string;
-
-	/**
-	 * Action implementation
-	 */
-	implementation: string | Function;
-
-	/**
-	 * HTTP method for the action endpoint
-	 */
-	httpMethod?: string;
-
-	/**
-	 * Route path for the action endpoint
-	 */
-	route?: string;
-
-	/**
-	 * Required roles to execute this action
-	 */
-	roles?: string[];
-
-	/**
-	 * Whether the action requires a transaction
-	 */
-	transactional?: boolean;
-
-	/**
-	 * Parameter schema for input validation
-	 */
-	params?: {
-		[key: string]: {
-			type: string;
-			required?: boolean;
-			description?: string;
-			default?: any;
-		};
-	};
-
-	/**
-	 * Additional action metadata
-	 */
-	metadata?: Record<string, any>;
+	body: any;
 }
 
 /**
  * Middleware configuration
  */
 export interface MiddlewareConfig {
+	/**
+	 * Middleware name
+	 */
+	name?: string;
+
+	/**
+	 * Middleware handler
+	 */
+	handler: Function | string;
+
+	/**
+	 * Middleware options
+	 */
+	options?: Record<string, any>;
+
+	/**
+	 * Middleware priority
+	 */
+	priority?: number;
+
 	/**
 	 * Global middleware (applied to all routes)
 	 */
@@ -765,26 +785,20 @@ export interface MiddlewareConfig {
 	/**
 	 * Entity-specific middleware
 	 */
-	entity?: {
-		[entityName: string]: string[];
-	};
+	entity?: Record<string, string[]>;
 
 	/**
 	 * Action-specific middleware
 	 */
-	action?: {
-		[actionName: string]: string[];
-	};
+	action?: Record<string, string[]>;
 
 	/**
 	 * Route-specific middleware
 	 */
-	route?: {
-		[routePath: string]: string[];
-	};
+	route?: Record<string, string[]>;
 
 	/**
-	 * Method-specific middleware
+	 * HTTP method-specific middleware
 	 */
 	method?: {
 		get?: string[];
@@ -796,103 +810,33 @@ export interface MiddlewareConfig {
 }
 
 /**
- * Middleware definition
+ * Request processor options
  */
-export interface MiddlewareDefinition {
+export interface RequestProcessorOptions {
 	/**
-	 * Middleware name
+	 * Whether to parse body
 	 */
-	name: string;
+	parseBody?: boolean;
 
 	/**
-	 * Middleware implementation function or import path
+	 * Whether to validate request
 	 */
-	handler: Function | string;
+	validate?: boolean;
 
 	/**
-	 * Middleware options
+	 * Whether to authenticate request
 	 */
-	options?: Record<string, any>;
+	authenticate?: boolean;
 
 	/**
-	 * Middleware priority (lower numbers run first)
+	 * Whether to authorize request
 	 */
-	priority?: number;
-}
-
-/**
- * API route configuration
- */
-export interface RouteConfig {
-	/**
-	 * HTTP method
-	 */
-	method: string;
+	authorize?: boolean;
 
 	/**
-	 * Route path
-	 */
-	path: string;
-
-	/**
-	 * Handler function
-	 */
-	handler: Function;
-
-	/**
-	 * Middleware to apply
+	 * Custom middleware to apply
 	 */
 	middleware?: string[];
-
-	/**
-	 * Associated entity name
-	 */
-	entity?: string;
-
-	/**
-	 * Operation name
-	 */
-	operation?: string;
-
-	/**
-	 * Required roles
-	 */
-	roles?: string[];
-
-	/**
-	 * Request schema for validation
-	 */
-	requestSchema?: Record<string, any>;
-
-	/**
-	 * Response schema
-	 */
-	responseSchema?: Record<string, any>;
-}
-
-/**
- * API error response
- */
-export interface ApiError {
-	/**
-	 * Error message
-	 */
-	message: string;
-
-	/**
-	 * Error code
-	 */
-	code: string;
-
-	/**
-	 * HTTP status code
-	 */
-	status: number;
-
-	/**
-	 * Additional error data
-	 */
-	data?: Record<string, any>;
 }
 
 /**
@@ -948,346 +892,199 @@ export interface EntityApiConfig {
 }
 
 /**
- * Workflow context
+ * Plugin configuration
  */
-export interface WorkflowContext extends HookContext {
-	/**
-	 * Workflow name
-	 */
-	workflowName: string;
-
-	/**
-	 * Current state
-	 */
-	currentState: string;
-
-	/**
-	 * Target state
-	 */
-	targetState: string;
-
-	/**
-	 * Transition action
-	 */
-	action: string;
-}
-
-/**
- * Workflow transition implementation function
- */
-export type TransitionFunction<T = any> = (
-	entity: T,
-	fromState?: string,
-	toState?: string,
-	context?: HookContext | WorkflowContext
-) => Promise<T | boolean> | T | boolean;
-
-/**
- * Application plugin
- */
-export interface Plugin {
+export interface PluginConfig {
 	/**
 	 * Plugin name
 	 */
 	name: string;
 
 	/**
-	 * Plugin version
+	 * Whether the plugin is enabled
 	 */
-	version: string;
+	enabled: boolean;
 
 	/**
-	 * Initialize plugin
+	 * Plugin configuration
 	 */
-	initialize(context: AppContext): Promise<void> | void;
+	config?: Record<string, any>;
 
 	/**
-	 * Shutdown plugin
+	 * Plugin source
 	 */
-	shutdown?(): Promise<void> | void;
+	source: string;
 
 	/**
-	 * Plugin dependencies
+	 * Plugin type
 	 */
-	dependencies?: string[];
+	type?: 'npm' | 'directory' | 'custom';
 }
 
 /**
- * Migration interface
+ * Action implementation type
  */
-export interface Migration {
+export interface ActionImplementation {
 	/**
-	 * Migration ID
+	 * Action function
 	 */
-	id: string;
+	fn: ActionFunction;
 
 	/**
-	 * Migration name
+	 * Action metadata
 	 */
-	name: string;
+	metadata: any;
 
-	/**
-	 * Migration timestamp
-	 */
-	timestamp: number;
-
-	/**
-	 * Execute migration
-	 */
-	up(db: DatabaseAdapter): Promise<void>;
-
-	/**
-	 * Rollback migration
-	 */
-	down(db: DatabaseAdapter): Promise<void>;
-}
-
-/**
- * API controller method context
- */
-export interface ControllerContext extends HookContext {
 	/**
 	 * Entity name
 	 */
 	entityName: string;
-
-	/**
-	 * Requested operation
-	 */
-	operation: 'getAll' | 'getById' | 'create' | 'update' | 'delete' | 'custom';
-
-	/**
-	 * Route parameters
-	 */
-	params: Record<string, string>;
-
-	/**
-	 * Query parameters
-	 */
-	query: Record<string, string>;
-
-	/**
-	 * Request body
-	 */
-	body: any;
 }
 
 /**
- * Workflow state definition
+ * Action execution options
  */
-export interface WorkflowState {
+export interface ActionExecutionOptions {
 	/**
-	 * State name
+	 * Whether to execute in a transaction
 	 */
-	name: string;
+	transactional?: boolean;
 
 	/**
-	 * Whether this is the initial state
+	 * Transaction isolation level
 	 */
-	initial?: boolean;
+	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
 
 	/**
-	 * State description
+	 * Whether to throw errors (true) or return error results (false)
 	 */
-	description?: string;
+	throwErrors?: boolean;
 
 	/**
-	 * Custom metadata for the state
+	 * Timeout in milliseconds
 	 */
-	metadata?: Record<string, unknown>;
+	timeout?: number;
 }
 
 /**
- * Workflow transition definition
+ * Authentication options
  */
-export interface WorkflowTransition {
+export interface AuthenticationOptions {
 	/**
-	 * Source state name
+	 * Whether authentication is required
 	 */
-	from: string;
-
-	/**
-	 * Target state name
-	 */
-	to: string;
+	required?: boolean;
 
 	/**
-	 * Transition name/action
+	 * JWT secret
 	 */
-	action: string;
-
-	/**
-	 * Roles that can perform this transition
-	 */
-	roles?: string[];
-
-	/**
-	 * Implementation or path to external file for transition logic
-	 */
-	implementation?: string;
-
-	/**
-	 * Transition hooks
-	 */
-	hooks?: {
-		before?: string;
-		after?: string;
-	};
-}
-
-/**
- * Check if a workflow transition is valid
- * 
- * @param workflow Workflow definition
- * @param currentState Current state
- * @param action Transition action
- * @returns Whether the transition is valid
- */
-export function isValidTransition(
-	workflow: Workflow,
-	currentState: string,
-	action: string
-): boolean {
-	return workflow.transitions.some(
-		t => t.from === currentState && t.action === action
-	);
-}
-
-/**
- * Get the target state for a transition
- * 
- * @param workflow Workflow definition
- * @param currentState Current state
- * @param action Transition action
- * @returns Target state or undefined if transition not found
- */
-export function getTargetState(
-	workflow: Workflow,
-	currentState: string,
-	action: string
-): string | undefined {
-	const transition = workflow.transitions.find(
-		t => t.from === currentState && t.action === action
-	);
-	return transition?.to;
-}
-
-/**
- * Workflow definition
- */
-export interface Workflow {
-	/**
-	 * Workflow name
-	 */
-	name: string;
-
-	/**
-	 * Field that stores the current state
-	 */
-	stateField: string;
-
-	/**
-	 * States in the workflow
-	 */
-	states: WorkflowState[];
-
-	/**
-	 * Transitions between states
-	 */
-	transitions: WorkflowTransition[];
-}
-
-/**
- * API controller method
- */
-export type ControllerMethod = (context: ControllerContext) => Promise<any> | any;
-
-/**
- * Entity API route definition
- */
-export interface EntityApiRoute {
-	/**
-	 * HTTP method
-	 */
-	method: string;
-
-	/**
-	 * Route path
-	 */
-	path: string;
-
-	/**
-	 * Operation name
-	 */
-	operation: string;
-
-	/**
-	 * Handler function
-	 */
-	handler: ControllerMethod;
-
-	/**
-	 * Middleware to apply
-	 */
-	middleware?: string[];
+	secret?: string;
 
 	/**
 	 * Required roles
 	 */
 	roles?: string[];
+
+	/**
+	 * Entity name for role-based access control
+	 */
+	entity?: string;
+
+	/**
+	 * Operation for role-based access control
+	 */
+	operation?: string;
+
+	/**
+	 * Custom authentication function
+	 */
+	customAuth?: (req: Request, res: Response, token: string) => Promise<boolean>;
 }
 
 /**
- * Request processor options
+ * Authentication result
  */
-export interface RequestProcessorOptions {
+export interface AuthenticationResult {
 	/**
-	 * Whether to parse body
+	 * Whether authentication was successful
 	 */
-	parseBody?: boolean;
+	authenticated: boolean;
 
 	/**
-	 * Whether to validate request
+	 * User object if authenticated
 	 */
-	validate?: boolean;
+	user?: any;
 
 	/**
-	 * Whether to authenticate request
+	 * Error message if authentication failed
 	 */
-	authenticate?: boolean;
+	error?: string;
 
 	/**
-	 * Whether to authorize request
+	 * HTTP status code for error response
 	 */
-	authorize?: boolean;
-
-	/**
-	 * Custom middleware to apply
-	 */
-	middleware?: string[];
+	statusCode?: number;
 }
 
 /**
- * Authentication provider interface
+ * Creates a generic API error
+ * @param message Error message
+ * @param status HTTP status code
+ * @param code Error code
+ * @param data Additional error data
+ * @returns API error object
  */
-export interface AuthProvider {
-	/**
-	 * Authenticate a user
-	 */
-	authenticate(credentials: any): Promise<any>;
+export function createApiError(
+	message: string,
+	status: number = 400,
+	code?: string,
+	data?: Record<string, any>
+): ApiError {
+	const error = new Error(message) as ApiError;
+	error.name = code || 'ApiError';
+	error.status = status;
+	error.code = code;
+	error.data = data;
+	return error;
+}
 
-	/**
-	 * Verify a token
-	 */
-	verifyToken(token: string): Promise<any>;
+/**
+ * Create a success action result
+ * @param data Result data
+ * @param statusCode HTTP status code
+ * @param metadata Additional metadata
+ * @returns Action result
+ */
+export function createSuccessResult<T>(
+	data: T,
+	statusCode: number = 200,
+	metadata?: Record<string, any>
+): ActionResult<T> {
+	return {
+		success: true,
+		data,
+		statusCode,
+		metadata
+	};
+}
 
-	/**
-	 * Generate a token
-	 */
-	generateToken(payload: any): Promise<string>;
-
-	/**
-	 * Check if a user has a role
-	 */
-	hasRole(user: any, role: string): boolean;
+/**
+ * Create an error action result
+ * @param error Error message or object
+ * @param statusCode HTTP status code
+ * @param metadata Additional metadata
+ * @returns Action result
+ */
+export function createErrorResult(
+	error: string | Error,
+	statusCode: number = 400,
+	metadata?: Record<string, any>
+): ActionResult<void> {
+	const errorMessage = typeof error === 'string' ? error : error.message;
+	return {
+		success: false,
+		error: errorMessage,
+		statusCode,
+		metadata
+	};
 }

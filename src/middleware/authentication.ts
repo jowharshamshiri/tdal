@@ -1,73 +1,14 @@
 /**
- * Authentication Middleware
+ * Authentication Service
  * Handles JWT validation and user authentication
  */
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppContext } from '../core/app-context';
-import { Logger } from '../core/types';
+import { Logger, AuthenticationOptions, AuthenticationResult } from '../core/types';
 import { EntityConfig } from '../entity/entity-config';
-
-/**
- * Authentication options
- */
-export interface AuthenticationOptions {
-	/**
-	 * Whether authentication is required (true) or optional (false)
-	 */
-	required?: boolean;
-
-	/**
-	 * Secret key for JWT verification
-	 */
-	secret?: string;
-
-	/**
-	 * Roles allowed to access the resource
-	 */
-	roles?: string[];
-
-	/**
-	 * Entity for role-based access control
-	 */
-	entity?: string;
-
-	/**
-	 * Operation for role-based access control (getAll, getById, create, update, delete)
-	 */
-	operation?: string;
-
-	/**
-	 * Custom authentication function
-	 */
-	customAuth?: (req: Request, res: Response, token: string) => Promise<boolean>;
-}
-
-/**
- * Authentication result
- */
-export interface AuthenticationResult {
-	/**
-	 * Whether authentication was successful
-	 */
-	authenticated: boolean;
-
-	/**
-	 * User object if authenticated
-	 */
-	user?: any;
-
-	/**
-	 * Error message if authentication failed
-	 */
-	error?: string;
-
-	/**
-	 * HTTP status code for error response
-	 */
-	statusCode?: number;
-}
+import { createApiError } from '../core/types';
 
 /**
  * Authentication service
@@ -84,14 +25,23 @@ export class AuthenticationService {
 	private logger: Logger;
 
 	/**
+	 * Application context
+	 */
+	private appContext: AppContext;
+
+	/**
 	 * Constructor
 	 * @param appContext Application context
 	 */
-	constructor(private appContext: AppContext) {
+	constructor(appContext: AppContext) {
+		this.appContext = appContext;
+
 		// Get authentication configuration from app context
 		const config = appContext.getConfig();
 		this.secret = config.auth?.secret || process.env.JWT_SECRET || 'default-secret-change-this';
 		this.logger = appContext.getLogger();
+
+		this.logger.info('Authentication service initialized');
 	}
 
 	/**
@@ -104,7 +54,7 @@ export class AuthenticationService {
 			return jwt.verify(token, this.secret);
 		} catch (error) {
 			this.logger.error(`Token verification failed: ${error.message}`);
-			throw new Error(`Invalid token: ${error.message}`);
+			throw createApiError(`Invalid token: ${error.message}`, 401, 'AuthenticationError');
 		}
 	}
 
@@ -129,6 +79,11 @@ export class AuthenticationService {
 			return false;
 		}
 
+		// Direct role match
+		if (user.role === role) {
+			return true;
+		}
+
 		// Handle role hierarchy
 		const config = this.appContext.getConfig();
 		const roles = config.auth?.roles || [];
@@ -136,21 +91,21 @@ export class AuthenticationService {
 		// Find user's role in the hierarchy
 		const userRole = roles.find(r => r.name === user.role);
 		if (!userRole) {
-			return user.role === role;
+			return false;
 		}
 
-		// Check if the user's role matches or inherits the required role
-		if (userRole.name === role) {
+		// Admin role has access to everything
+		if (user.role === 'admin') {
 			return true;
 		}
 
 		// Check role inheritance
 		if (userRole.inherits) {
-			const inherits = Array.isArray(userRole.inherits)
+			const inheritedRoles = Array.isArray(userRole.inherits)
 				? userRole.inherits
 				: [userRole.inherits];
 
-			for (const inheritedRole of inherits) {
+			for (const inheritedRole of inheritedRoles) {
 				if (inheritedRole === role) {
 					return true;
 				}
@@ -184,20 +139,23 @@ export class AuthenticationService {
 		}
 
 		// Check role-based permissions
-		const permissions = entity.api.permissions?.[operation];
-		if (!permissions || permissions.length === 0) {
-			// If no permissions are specified, default to requiring admin role
-			return this.hasRole(user, 'admin');
-		}
+		const permissions = entity.api.permissions;
 
-		// Check if user has any of the required roles
-		for (const role of permissions) {
-			if (this.hasRole(user, role)) {
-				return true;
+		if (permissions && permissions[operation]) {
+			const requiredRoles = permissions[operation];
+
+			// Check if user has one of the required roles
+			for (const role of requiredRoles) {
+				if (this.hasRole(user, role)) {
+					return true;
+				}
 			}
+
+			return false;
 		}
 
-		return false;
+		// If no permissions are specified, default to requiring admin role
+		return this.hasRole(user, 'admin');
 	}
 
 	/**
@@ -409,6 +367,25 @@ export class AuthenticationService {
 				statusCode: 500
 			};
 		}
+	}
+
+	/**
+	 * Create role middleware
+	 * @param roles Roles to check
+	 * @returns Express middleware
+	 */
+	createRoleMiddleware(roles: string[]): (req: Request, res: Response, next: NextFunction) => Promise<void> {
+		return this.middleware({ required: true, roles });
+	}
+
+	/**
+	 * Create entity permission middleware
+	 * @param entity Entity name
+	 * @param operation Operation name
+	 * @returns Express middleware
+	 */
+	createPermissionMiddleware(entity: string, operation: string): (req: Request, res: Response, next: NextFunction) => Promise<void> {
+		return this.middleware({ required: true, entity, operation });
 	}
 }
 
