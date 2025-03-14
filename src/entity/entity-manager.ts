@@ -1,12 +1,12 @@
 /**
  * Entity Manager
- * Provides entity lifecycle management and DAO factory
+ * Provides entity lifecycle management, DAO factory, and API operations
  */
 
-import { EntityHook, EntityConfig, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical } from './entity-config';
+import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
 import { processComputedProperties, loadComputedPropertyImplementations } from './computed-properties';
-import { HookContext, Logger } from '@/core/types';
+import { HookContext, Logger, ControllerContext, ActionFunction } from '@/core/types';
 import { AggregateOptions, DatabaseContext, DeleteOptions, FindOptions, findRelation, isRelationType, JoinOptions, ManyToManyRelation, ManyToOneRelation, OneToManyRelation, OneToOneRelation, QueryOptions, Relation, RelationOptions, TransactionIsolationLevel, UpdateOptions } from '@/database';
 
 /**
@@ -24,25 +24,17 @@ export interface EntityHookImplementations {
 	afterGetById?: Array<(entity: any, context: HookContext) => Promise<any>>;
 	beforeGetAll?: Array<(params: any, context: HookContext) => Promise<any>>;
 	afterGetAll?: Array<(entities: any[], context: HookContext) => Promise<any[]>>;
+	// API-specific hooks
+	beforeApi?: Array<(request: any, context: ControllerContext) => Promise<any>>;
+	afterApi?: Array<(response: any, context: ControllerContext) => Promise<any>>;
 }
 
-
-
 /**
- * Entity hook implementations
- * Contains the actual implementation of hooks defined in YAML
+ * Action implementation registry
+ * Maps action names to their implementations
  */
-export interface EntityHookImplementations {
-	beforeCreate?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	afterCreate?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	beforeUpdate?: Array<(id: any, entity: any, context: HookContext) => Promise<any>>;
-	afterUpdate?: Array<(id: any, entity: any, context: HookContext) => Promise<any>>;
-	beforeDelete?: Array<(id: any, context: HookContext) => Promise<boolean>>;
-	afterDelete?: Array<(id: any, context: HookContext) => Promise<void>>;
-	beforeGetById?: Array<(id: any, context: HookContext) => Promise<any>>;
-	afterGetById?: Array<(entity: any, context: HookContext) => Promise<any>>;
-	beforeGetAll?: Array<(params: any, context: HookContext) => Promise<any>>;
-	afterGetAll?: Array<(entities: any[], context: HookContext) => Promise<any[]>>;
+export interface ActionImplementations {
+	[actionName: string]: ActionFunction;
 }
 
 /**
@@ -188,6 +180,148 @@ export class EntityHookHandler {
 }
 
 /**
+ * Action handler for entity actions
+ * Used to execute actions defined in entity configuration
+ */
+export class EntityActionHandler {
+	private implementations: ActionImplementations = {};
+	private loadedActions: Set<string> = new Set();
+	private logger: Logger;
+	private config: EntityConfig;
+	private configLoader: any;
+
+	/**
+	 * Constructor
+	 * @param config Entity configuration
+	 * @param logger Logger instance
+	 * @param configLoader Configuration loader for loading external code
+	 */
+	constructor(config: EntityConfig, logger: Logger, configLoader: any) {
+		this.config = config;
+		this.logger = logger;
+		this.configLoader = configLoader;
+	}
+
+	/**
+	 * Initialize all actions
+	 */
+	async initialize(): Promise<void> {
+		if (!this.config.actions || this.config.actions.length === 0) {
+			return;
+		}
+
+		// Load all actions
+		for (const action of this.config.actions) {
+			try {
+				await this.loadAction(action);
+			} catch (error) {
+				this.logger.error(`Failed to load action ${action.name} for ${this.config.entity}: ${error}`);
+			}
+		}
+	}
+
+	/**
+	 * Load a specific action
+	 * @param action Action definition
+	 */
+	private async loadAction(action: EntityAction): Promise<void> {
+		// Skip if already loaded
+		if (this.loadedActions.has(action.name)) {
+			return;
+		}
+
+		try {
+			let implementation: ActionFunction;
+
+			// If implementation is a file path, load it
+			if (action.implementation && action.implementation.startsWith('./')) {
+				const actionModule = await this.configLoader.loadExternalCode(action.implementation);
+				implementation = actionModule.default || actionModule;
+			} else {
+				// Otherwise, it's an inline implementation
+				// Convert the string to a function
+				implementation = new Function('params', 'context', `
+					return (async (params, context) => {
+						${action.implementation}
+					})(params, context);
+				`) as ActionFunction;
+			}
+
+			// Store the implementation
+			this.implementations[action.name] = implementation;
+			this.loadedActions.add(action.name);
+			this.logger.debug(`Loaded action ${action.name} for ${this.config.entity}`);
+		} catch (error) {
+			this.logger.error(`Failed to load action ${action.name} for ${this.config.entity}: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Execute an action
+	 * @param actionName Action name
+	 * @param params Action parameters
+	 * @param context Action context
+	 * @returns Action result
+	 */
+	async executeAction(
+		actionName: string,
+		params: any,
+		context: HookContext
+	): Promise<any> {
+		// Find the action configuration
+		const actionConfig = this.config.actions?.find(a => a.name === actionName);
+		if (!actionConfig) {
+			throw new Error(`Action ${actionName} not found for entity ${this.config.entity}`);
+		}
+
+		// Get the implementation
+		const implementation = this.implementations[actionName];
+		if (!implementation) {
+			throw new Error(`Implementation for action ${actionName} not found`);
+		}
+
+		try {
+			// Check if the action is transactional
+			if (actionConfig.transactional) {
+				// Execute in a transaction
+				const db = context.db || DatabaseContext.getDatabase();
+				return await db.transaction(async () => {
+					return await implementation(params, context);
+				});
+			} else {
+				// Execute without a transaction
+				return await implementation(params, context);
+			}
+		} catch (error) {
+			this.logger.error(`Error executing action ${actionName} for ${this.config.entity}: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get all API-exposed actions
+	 * @param role Optional role for filtering actions by access control
+	 * @returns List of API-exposed actions
+	 */
+	getApiActions(role?: string): EntityAction[] {
+		if (!this.config.actions) return [];
+
+		return this.config.actions.filter(action => {
+			// Must have route and httpMethod to be API-exposed
+			if (!action.route || !action.httpMethod) return false;
+
+			// Check role-based access if role is provided
+			if (role && action.roles && action.roles.length > 0) {
+				return action.roles.includes(role);
+			}
+
+			return true;
+		});
+	}
+}
+
+/**
  * Computed property implementations
  * Maps property names to their implementation functions
  */
@@ -197,7 +331,7 @@ export interface ComputedPropertyImplementations {
 
 /**
  * Enhanced Data Access Object class with common CRUD operations,
- * hooks, and computed property support
+ * hooks, computed property support, and API operations
  * @template T The model type
  * @template IdType The type of the ID field (usually number)
  */
@@ -216,6 +350,11 @@ export class EntityDao<T, IdType = number> {
 	 * Hook handler for entity lifecycle events
 	 */
 	private hookHandler?: EntityHookHandler;
+
+	/**
+	 * Action handler for entity actions
+	 */
+	private actionHandler?: EntityActionHandler;
 
 	/**
 	 * Computed properties processor function
@@ -247,21 +386,27 @@ export class EntityDao<T, IdType = number> {
 		// Default no-op computed properties processor
 		this.computedPropertiesProcessor = (entity) => entity;
 
-		// Initialize hooks and computed properties if logger and configLoader are provided
+		// Initialize hooks, actions, and computed properties if logger and configLoader are provided
 		if (logger && configLoader) {
 			this.hookHandler = new EntityHookHandler(entityMapping, logger, configLoader);
+			this.actionHandler = new EntityActionHandler(entityMapping, logger, configLoader);
 			this.initialize(configLoader);
 		}
 	}
 
 	/**
-	 * Initialize hooks and computed properties
+	 * Initialize hooks, actions, and computed properties
 	 * @param configLoader Configuration loader
 	 */
 	private async initialize(configLoader: any): Promise<void> {
 		// Initialize hook handler
 		if (this.hookHandler) {
 			await this.hookHandler.initialize();
+		}
+
+		// Initialize action handler
+		if (this.actionHandler) {
+			await this.actionHandler.initialize();
 		}
 
 		// Initialize computed properties
@@ -1193,6 +1338,117 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
+	 * Execute a custom entity action
+	 * @param actionName Name of the action to execute
+	 * @param params Parameters for the action
+	 * @param context Optional hook context
+	 * @returns Result of the action
+	 */
+	async executeAction(
+		actionName: string,
+		params: any,
+		context?: HookContext
+	): Promise<any> {
+		const ctx = context || this.createDefaultContext();
+
+		if (!this.actionHandler) {
+			throw new Error(`Action handler not initialized for entity ${this.entityMapping.entity}`);
+		}
+
+		// Find the action definition
+		const actionConfig = findAction(this.entityMapping, actionName);
+		if (!actionConfig) {
+			throw new Error(`Action ${actionName} not found for entity ${this.entityMapping.entity}`);
+		}
+
+		// Execute the action
+		return this.actionHandler.executeAction(actionName, params, ctx);
+	}
+
+	/**
+	 * Get API configuration for this entity
+	 * @returns API configuration or undefined if not exposed
+	 */
+	getApiConfig() {
+		return this.entityMapping.api;
+	}
+
+	/**
+	 * Process an API request through the entity's API hooks
+	 * @param request The API request
+	 * @param operation The API operation (getAll, getById, create, update, delete, action)
+	 * @param context Controller context
+	 * @returns Processed request
+	 */
+	async processApiRequest(request: any, operation: string, context: ControllerContext): Promise<any> {
+		if (!this.hookHandler) {
+			return request;
+		}
+
+		// Enhanced context with operation info
+		const enhancedContext = {
+			...context,
+			operation
+		};
+
+		// Execute beforeApi hooks
+		return await this.hookHandler.executeHook('beforeApi', request, enhancedContext);
+	}
+
+	/**
+	 * Process an API response through the entity's API hooks
+	 * @param response The API response
+	 * @param operation The API operation (getAll, getById, create, update, delete, action)
+	 * @param context Controller context
+	 * @returns Processed response
+	 */
+	async processApiResponse(response: any, operation: string, context: ControllerContext): Promise<any> {
+		if (!this.hookHandler) {
+			return response;
+		}
+
+		// Enhanced context with operation info
+		const enhancedContext = {
+			...context,
+			operation
+		};
+
+		// Execute afterApi hooks
+		return await this.hookHandler.executeHook('afterApi', response, enhancedContext);
+	}
+
+	/**
+	 * Get API-exposed actions for this entity
+	 * @param role Optional role for filtering actions by access control
+	 * @returns List of API-exposed actions
+	 */
+	getApiActions(role?: string): EntityAction[] {
+		if (!this.actionHandler) {
+			return [];
+		}
+
+		return this.actionHandler.getApiActions(role);
+	}
+
+	/**
+	 * Get API-readable fields for this entity
+	 * @param role Optional role for filtering fields by access control
+	 * @returns List of API-readable fields
+	 */
+	getApiReadableFields(role?: string): string[] {
+		return getApiReadableColumns(this.entityMapping, role);
+	}
+
+	/**
+	 * Get API-writable fields for this entity
+	 * @param role Optional role for filtering fields by access control
+	 * @returns List of API-writable fields
+	 */
+	getApiWritableFields(role?: string): string[] {
+		return getApiWritableColumns(this.entityMapping, role);
+	}
+
+	/**
 	 * Create SQL expressions for complex conditions
 	 * @returns SQL expression factory
 	 */
@@ -1733,6 +1989,42 @@ export function createHookContext(
 		request: req,
 		response: res,
 		next,
+		data: {}
+	};
+}
+
+/**
+ * Create a controller context
+ * @param db Database adapter
+ * @param logger Logger instance
+ * @param entityName Entity name
+ * @param operation Operation name
+ * @param req HTTP request
+ * @param res HTTP response
+ * @param next Express next function
+ * @returns Controller context
+ */
+export function createControllerContext(
+	db: DatabaseAdapter,
+	logger: Logger,
+	entityName: string,
+	operation: string,
+	req: any,
+	res: any,
+	next: any
+): ControllerContext {
+	return {
+		db,
+		logger,
+		entityName,
+		operation,
+		user: req.user,
+		request: req,
+		response: res,
+		next,
+		params: req.params || {},
+		query: req.query || {},
+		body: req.body || {},
 		data: {}
 	};
 }

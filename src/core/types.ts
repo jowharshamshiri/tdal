@@ -94,6 +94,11 @@ export interface AppConfig {
 	};
 
 	/**
+	 * Global middleware configuration
+	 */
+	middleware?: MiddlewareConfig;
+
+	/**
 	 * Custom application options
 	 */
 	[key: string]: any;
@@ -704,6 +709,257 @@ export interface TransactionOptions {
 }
 
 /**
+ * Action definition
+ */
+export interface ActionDefinition {
+	/**
+	 * Action name
+	 */
+	name: string;
+
+	/**
+	 * Description of what the action does
+	 */
+	description?: string;
+
+	/**
+	 * Action implementation
+	 */
+	implementation: string | Function;
+
+	/**
+	 * HTTP method for the action endpoint
+	 */
+	httpMethod?: string;
+
+	/**
+	 * Route path for the action endpoint
+	 */
+	route?: string;
+
+	/**
+	 * Required roles to execute this action
+	 */
+	roles?: string[];
+
+	/**
+	 * Whether the action requires a transaction
+	 */
+	transactional?: boolean;
+
+	/**
+	 * Parameter schema for input validation
+	 */
+	params?: {
+		[key: string]: {
+			type: string;
+			required?: boolean;
+			description?: string;
+			default?: any;
+		};
+	};
+
+	/**
+	 * Additional action metadata
+	 */
+	metadata?: Record<string, any>;
+}
+
+/**
+ * Middleware configuration
+ */
+export interface MiddlewareConfig {
+	/**
+	 * Global middleware (applied to all routes)
+	 */
+	global?: string[];
+
+	/**
+	 * Entity-specific middleware
+	 */
+	entity?: {
+		[entityName: string]: string[];
+	};
+
+	/**
+	 * Action-specific middleware
+	 */
+	action?: {
+		[actionName: string]: string[];
+	};
+
+	/**
+	 * Route-specific middleware
+	 */
+	route?: {
+		[routePath: string]: string[];
+	};
+
+	/**
+	 * Method-specific middleware
+	 */
+	method?: {
+		get?: string[];
+		post?: string[];
+		put?: string[];
+		delete?: string[];
+		patch?: string[];
+	};
+}
+
+/**
+ * Middleware definition
+ */
+export interface MiddlewareDefinition {
+	/**
+	 * Middleware name
+	 */
+	name: string;
+
+	/**
+	 * Middleware implementation function or import path
+	 */
+	handler: Function | string;
+
+	/**
+	 * Middleware options
+	 */
+	options?: Record<string, any>;
+
+	/**
+	 * Middleware priority (lower numbers run first)
+	 */
+	priority?: number;
+}
+
+/**
+ * API route configuration
+ */
+export interface RouteConfig {
+	/**
+	 * HTTP method
+	 */
+	method: string;
+
+	/**
+	 * Route path
+	 */
+	path: string;
+
+	/**
+	 * Handler function
+	 */
+	handler: Function;
+
+	/**
+	 * Middleware to apply
+	 */
+	middleware?: string[];
+
+	/**
+	 * Associated entity name
+	 */
+	entity?: string;
+
+	/**
+	 * Operation name
+	 */
+	operation?: string;
+
+	/**
+	 * Required roles
+	 */
+	roles?: string[];
+
+	/**
+	 * Request schema for validation
+	 */
+	requestSchema?: Record<string, any>;
+
+	/**
+	 * Response schema
+	 */
+	responseSchema?: Record<string, any>;
+}
+
+/**
+ * API error response
+ */
+export interface ApiError {
+	/**
+	 * Error message
+	 */
+	message: string;
+
+	/**
+	 * Error code
+	 */
+	code: string;
+
+	/**
+	 * HTTP status code
+	 */
+	status: number;
+
+	/**
+	 * Additional error data
+	 */
+	data?: Record<string, any>;
+}
+
+/**
+ * Entity API configuration
+ */
+export interface EntityApiConfig {
+	/**
+	 * Whether to expose entity via REST API
+	 */
+	exposed: boolean;
+
+	/**
+	 * Base path for the entity API
+	 */
+	basePath?: string;
+
+	/**
+	 * Operations to enable/disable
+	 */
+	operations?: {
+		getAll?: boolean;
+		getById?: boolean;
+		create?: boolean;
+		update?: boolean;
+		delete?: boolean;
+	};
+
+	/**
+	 * Role-based permissions
+	 */
+	permissions?: {
+		getAll?: string[];
+		getById?: string[];
+		create?: string[];
+		update?: string[];
+		delete?: string[];
+	};
+
+	/**
+	 * Field-level permissions
+	 */
+	fields?: Record<string, {
+		read?: string[];
+		write?: string[];
+	}>;
+
+	/**
+	 * Record-level access control
+	 */
+	recordAccess?: {
+		condition: string;
+	};
+}
+
+/**
  * Workflow context
  */
 export interface WorkflowContext extends HookContext {
@@ -954,60 +1210,96 @@ export interface Workflow {
 }
 
 /**
- * Entity API configuration
- */
-export interface EntityApiConfig {
-	/**
-	 * Whether to expose entity via REST API
-	 */
-	exposed: boolean;
-
-	/**
-	 * Base path for the entity API
-	 */
-	basePath?: string;
-
-	/**
-	 * Operations to enable/disable
-	 */
-	operations?: {
-		getAll?: boolean;
-		getById?: boolean;
-		create?: boolean;
-		update?: boolean;
-		delete?: boolean;
-	};
-
-	/**
-	 * Role-based permissions
-	 */
-	permissions?: {
-		getAll?: string[];
-		getById?: string[];
-		create?: string[];
-		update?: string[];
-		delete?: string[];
-	};
-
-	/**
-	 * Field-level permissions
-	 */
-	fields?: Record<string, {
-		read?: string[];
-		write?: string[];
-	}>;
-
-	/**
-	 * Record-level access control
-	 */
-	recordAccess?: {
-		condition: string;
-	};
-}
-
-
-
-/**
  * API controller method
  */
 export type ControllerMethod = (context: ControllerContext) => Promise<any> | any;
+
+/**
+ * Entity API route definition
+ */
+export interface EntityApiRoute {
+	/**
+	 * HTTP method
+	 */
+	method: string;
+
+	/**
+	 * Route path
+	 */
+	path: string;
+
+	/**
+	 * Operation name
+	 */
+	operation: string;
+
+	/**
+	 * Handler function
+	 */
+	handler: ControllerMethod;
+
+	/**
+	 * Middleware to apply
+	 */
+	middleware?: string[];
+
+	/**
+	 * Required roles
+	 */
+	roles?: string[];
+}
+
+/**
+ * Request processor options
+ */
+export interface RequestProcessorOptions {
+	/**
+	 * Whether to parse body
+	 */
+	parseBody?: boolean;
+
+	/**
+	 * Whether to validate request
+	 */
+	validate?: boolean;
+
+	/**
+	 * Whether to authenticate request
+	 */
+	authenticate?: boolean;
+
+	/**
+	 * Whether to authorize request
+	 */
+	authorize?: boolean;
+
+	/**
+	 * Custom middleware to apply
+	 */
+	middleware?: string[];
+}
+
+/**
+ * Authentication provider interface
+ */
+export interface AuthProvider {
+	/**
+	 * Authenticate a user
+	 */
+	authenticate(credentials: any): Promise<any>;
+
+	/**
+	 * Verify a token
+	 */
+	verifyToken(token: string): Promise<any>;
+
+	/**
+	 * Generate a token
+	 */
+	generateToken(payload: any): Promise<string>;
+
+	/**
+	 * Check if a user has a role
+	 */
+	hasRole(user: any, role: string): boolean;
+}

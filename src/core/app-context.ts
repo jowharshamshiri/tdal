@@ -5,9 +5,13 @@
 
 import { DatabaseContext, DatabaseAdapter } from '../database';
 import * as path from 'path';
-import { AppConfig, Logger, ServiceDefinition } from './types';
+import { AppConfig, Logger, ServiceDefinition, EntityApiConfig, MiddlewareConfig } from './types';
 import { EntityConfig } from '@/entity/entity-config';
 import { EntityDao } from '@/entity/entity-manager';
+import { ActionRegistry } from '@/actions/action-registry';
+import { RouteRegistry } from '@/api/route-registry';
+import { ApiGenerator } from '@/api/api-generator';
+import { Express, Router } from 'express';
 
 /**
  * Application Context class
@@ -35,6 +39,26 @@ export class AppContext {
 	private serviceDefinitions: Map<string, ServiceDefinition> = new Map();
 
 	/**
+	 * Route registry for API endpoints
+	 */
+	private routeRegistry: RouteRegistry;
+
+	/**
+	 * Action registry for business logic actions
+	 */
+	private actionRegistry: ActionRegistry;
+
+	/**
+	 * Middleware configurations
+	 */
+	private middlewareConfigs: Map<string, MiddlewareConfig> = new Map();
+
+	/**
+	 * API generator
+	 */
+	private apiGenerator: ApiGenerator;
+
+	/**
 	 * Application configuration
 	 */
 	private config: AppConfig;
@@ -50,13 +74,20 @@ export class AppContext {
 	private logger: Logger;
 
 	/**
+	 * Express application instance
+	 */
+	private app?: Express;
+
+	/**
 	 * Constructor
 	 * @param config Application configuration
 	 * @param logger Logger instance
+	 * @param app Optional Express application instance
 	 */
-	constructor(config: AppConfig, logger: Logger) {
+	constructor(config: AppConfig, logger: Logger, app?: Express) {
 		this.config = config;
 		this.logger = logger;
+		this.app = app;
 
 		// Initialize database context with our logger
 		DatabaseContext.setLogger(logger);
@@ -71,6 +102,13 @@ export class AppContext {
 
 		// Set app context in database context for cross-referencing
 		DatabaseContext.setAppContext(this);
+
+		// Initialize registries
+		this.routeRegistry = new RouteRegistry(logger);
+		this.actionRegistry = new ActionRegistry(logger);
+
+		// Initialize API generator
+		this.apiGenerator = new ApiGenerator(this, logger);
 
 		this.logger.info('Application context created');
 	}
@@ -93,6 +131,9 @@ export class AppContext {
 			// Initialize core services
 			this.initializeCoreServices();
 
+			// Initialize actions from entity configurations
+			this.initializeActions();
+
 			this.logger.info('Application context initialized successfully');
 			return this;
 		} catch (error) {
@@ -110,7 +151,7 @@ export class AppContext {
 		for (const [entityName, config] of this.entityConfigs.entries()) {
 			try {
 				// Create entity manager/DAO
-				const entityManager = new EntityDao(config, this.db);
+				const entityManager = new EntityDao(config, this.db, this.logger);
 
 				// Store entity manager
 				this.entityManagers.set(entityName, entityManager);
@@ -156,6 +197,116 @@ export class AppContext {
 			},
 			singleton: true
 		});
+
+		// Register action registry service
+		this.registerService({
+			name: 'actionRegistry',
+			implementation: this.actionRegistry,
+			singleton: true
+		});
+
+		// Register route registry service
+		this.registerService({
+			name: 'routeRegistry',
+			implementation: this.routeRegistry,
+			singleton: true
+		});
+	}
+
+	/**
+	 * Initialize actions from entity configurations
+	 */
+	private initializeActions(): void {
+		this.logger.info('Initializing entity actions');
+
+		for (const [entityName, config] of this.entityConfigs.entries()) {
+			if (config.actions && config.actions.length > 0) {
+				for (const action of config.actions) {
+					try {
+						this.actionRegistry.registerAction(entityName, action);
+						this.logger.debug(`Registered action ${action.name} for entity ${entityName}`);
+					} catch (error) {
+						this.logger.error(`Failed to register action ${action.name} for entity ${entityName}: ${error}`);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Initialize API routes for entities
+	 * @param apiBasePath Base path for API routes
+	 * @returns Array of registered route paths
+	 */
+	async initializeApiRoutes(apiBasePath: string = '/api'): Promise<string[]> {
+		if (!this.app) {
+			throw new Error('Express app is required to initialize API routes');
+		}
+
+		this.logger.info(`Initializing API routes with base path: ${apiBasePath}`);
+
+		const registeredRoutes: string[] = [];
+
+		// Create a main router for all API routes
+		const apiRouter = Router();
+
+		// Generate and register routes for each entity
+		for (const [entityName, config] of this.entityConfigs.entries()) {
+			if (config.api && config.api.exposed) {
+				try {
+					const entityManager = this.getEntityManager(entityName);
+					const entityRouter = await this.apiGenerator.generateEntityApi(
+						config,
+						entityManager,
+						this.actionRegistry
+					);
+
+					// Get the entity-specific base path (default to /entity-name)
+					const entityBasePath = config.api.basePath || `/${entityName.toLowerCase()}`;
+
+					// Register the entity router
+					apiRouter.use(entityBasePath, entityRouter);
+
+					// Register core routes
+					if (config.api.operations?.getAll !== false) {
+						registeredRoutes.push(`GET ${apiBasePath}${entityBasePath}`);
+					}
+					if (config.api.operations?.getById !== false) {
+						registeredRoutes.push(`GET ${apiBasePath}${entityBasePath}/:id`);
+					}
+					if (config.api.operations?.create !== false) {
+						registeredRoutes.push(`POST ${apiBasePath}${entityBasePath}`);
+					}
+					if (config.api.operations?.update !== false) {
+						registeredRoutes.push(`PUT ${apiBasePath}${entityBasePath}/:id`);
+					}
+					if (config.api.operations?.delete !== false) {
+						registeredRoutes.push(`DELETE ${apiBasePath}${entityBasePath}/:id`);
+					}
+
+					// Register action routes
+					if (config.actions) {
+						for (const action of config.actions) {
+							if (action.route && action.httpMethod) {
+								registeredRoutes.push(
+									`${action.httpMethod} ${apiBasePath}${entityBasePath}${action.route}`
+								);
+							}
+						}
+					}
+
+					this.logger.debug(`Registered API routes for entity ${entityName}`);
+				} catch (error) {
+					this.logger.error(`Failed to register API routes for entity ${entityName}: ${error}`);
+				}
+			}
+		}
+
+		// Mount the API router on the main app
+		this.app.use(apiBasePath, apiRouter);
+
+		this.logger.info(`Registered ${registeredRoutes.length} API routes`);
+		return registeredRoutes;
 	}
 
 	/**
@@ -178,6 +329,37 @@ export class AppContext {
 		} else {
 			this.logger.debug(`Registered service definition: ${name}`);
 		}
+	}
+
+	/**
+	 * Register middleware configuration
+	 * @param name Middleware name
+	 * @param config Middleware configuration
+	 */
+	registerMiddleware(name: string, config: MiddlewareConfig): void {
+		if (this.middlewareConfigs.has(name)) {
+			this.logger.warn(`Middleware ${name} already registered, overwriting`);
+		}
+
+		this.middlewareConfigs.set(name, config);
+		this.logger.debug(`Registered middleware configuration: ${name}`);
+	}
+
+	/**
+	 * Get middleware configuration
+	 * @param name Middleware name
+	 * @returns Middleware configuration or undefined if not found
+	 */
+	getMiddlewareConfig(name: string): MiddlewareConfig | undefined {
+		return this.middlewareConfigs.get(name);
+	}
+
+	/**
+	 * Get all middleware configurations
+	 * @returns Map of middleware configurations
+	 */
+	getAllMiddlewareConfigs(): Map<string, MiddlewareConfig> {
+		return new Map(this.middlewareConfigs);
 	}
 
 	/**
@@ -301,6 +483,46 @@ export class AppContext {
 	 */
 	getLogger(): Logger {
 		return this.logger;
+	}
+
+	/**
+	 * Get the API generator
+	 * @returns API generator instance
+	 */
+	getApiGenerator(): ApiGenerator {
+		return this.apiGenerator;
+	}
+
+	/**
+	 * Get the action registry
+	 * @returns Action registry instance
+	 */
+	getActionRegistry(): ActionRegistry {
+		return this.actionRegistry;
+	}
+
+	/**
+	 * Get the route registry
+	 * @returns Route registry instance
+	 */
+	getRouteRegistry(): RouteRegistry {
+		return this.routeRegistry;
+	}
+
+	/**
+	 * Get the Express application
+	 * @returns Express application instance
+	 */
+	getExpressApp(): Express | undefined {
+		return this.app;
+	}
+
+	/**
+	 * Set the Express application
+	 * @param app Express application instance
+	 */
+	setExpressApp(app: Express): void {
+		this.app = app;
 	}
 
 	/**

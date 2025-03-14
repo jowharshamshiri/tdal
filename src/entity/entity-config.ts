@@ -3,7 +3,7 @@
  * Provides the mapping between entities and database tables/columns
  */
 
-import { EntityApiConfig, Workflow } from "@/core/types";
+import { EntityApiConfig, Workflow, ActionDefinition, MiddlewareConfig } from "@/core/types";
 import { Relation } from "../database/orm/relation-types";
 
 /**
@@ -90,6 +90,36 @@ export interface ColumnMapping {
 	 * Custom database-specific options
 	 */
 	options?: Record<string, unknown>;
+
+	/**
+	 * API exposure configuration for this field
+	 */
+	api?: {
+		/**
+		 * Whether this field is readable through the API
+		 */
+		readable?: boolean;
+
+		/**
+		 * Whether this field is writable through the API (for creates/updates)
+		 */
+		writable?: boolean;
+
+		/**
+		 * Role-based field access control
+		 */
+		roles?: {
+			/**
+			 * Roles that can read this field
+			 */
+			read?: string[];
+
+			/**
+			 * Roles that can write this field
+			 */
+			write?: string[];
+		};
+	};
 }
 
 /**
@@ -161,6 +191,11 @@ export interface ComputedProperty {
 	 * Description of the computed property
 	 */
 	description?: string;
+
+	/**
+	 * Whether this computed property is exposed in the API
+	 */
+	exposeInApi?: boolean;
 }
 
 /**
@@ -192,7 +227,6 @@ export interface EntityHook {
 	 */
 	async?: boolean;
 }
-
 
 /**
  * Validation rules by field
@@ -227,6 +261,11 @@ export interface ValidationRule {
 	 * Custom implementation for custom rules
 	 */
 	implementation?: string;
+
+	/**
+	 * Whether this validation applies to API requests
+	 */
+	applyToApi?: boolean;
 }
 
 /**
@@ -237,6 +276,259 @@ export interface EntityValidation {
 	 * Field-specific validation rules
 	 */
 	rules: Record<string, ValidationRule[]>;
+}
+
+/**
+ * Entity action definition
+ * Defines a custom business logic action for an entity
+ */
+export interface EntityAction {
+	/**
+	 * Action name (e.g., "approve", "publish", "calculateTotal")
+	 */
+	name: string;
+
+	/**
+	 * Description of what the action does
+	 */
+	description?: string;
+
+	/**
+	 * Implementation function or path to external file
+	 */
+	implementation: string;
+
+	/**
+	 * HTTP method if this action is exposed via API
+	 */
+	httpMethod?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+	/**
+	 * API route path (relative to entity base path)
+	 * Can include parameters like ':id'
+	 */
+	route?: string;
+
+	/**
+	 * Roles allowed to execute this action
+	 */
+	roles?: string[];
+
+	/**
+	 * Parameter schema for the action
+	 */
+	parameters?: {
+		/**
+		 * Parameter name
+		 */
+		name: string;
+
+		/**
+		 * Parameter type
+		 */
+		type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+
+		/**
+		 * Whether the parameter is required
+		 */
+		required?: boolean;
+
+		/**
+		 * Parameter description
+		 */
+		description?: string;
+
+		/**
+		 * Validation rules for this parameter
+		 */
+		validation?: ValidationRule[];
+	}[];
+
+	/**
+	 * Return type schema for the action
+	 */
+	returns?: {
+		/**
+		 * Return type
+		 */
+		type: 'object' | 'array' | 'string' | 'number' | 'boolean' | 'void';
+
+		/**
+		 * Description of the return value
+		 */
+		description?: string;
+	};
+
+	/**
+	 * Whether this action requires a transaction
+	 */
+	transactional?: boolean;
+
+	/**
+	 * Middleware to apply to this action when exposed via API
+	 */
+	middleware?: string[];
+}
+
+/**
+ * API route configuration for an entity
+ */
+export interface EntityRouteConfig {
+	/**
+	 * Custom base path for this entity's API
+	 * Defaults to /api/{entity-name}
+	 */
+	basePath?: string;
+
+	/**
+	 * Enable/disable specific CRUD operations
+	 */
+	operations?: {
+		/**
+		 * Whether to enable GET all endpoint
+		 */
+		getAll?: boolean;
+
+		/**
+		 * Whether to enable GET by ID endpoint
+		 */
+		getById?: boolean;
+
+		/**
+		 * Whether to enable POST (create) endpoint
+		 */
+		create?: boolean;
+
+		/**
+		 * Whether to enable PUT/PATCH (update) endpoint
+		 */
+		update?: boolean;
+
+		/**
+		 * Whether to enable DELETE endpoint
+		 */
+		delete?: boolean;
+	};
+
+	/**
+	 * Role-based permissions for operations
+	 */
+	permissions?: {
+		/**
+		 * Roles that can access getAll
+		 */
+		getAll?: string[];
+
+		/**
+		 * Roles that can access getById
+		 */
+		getById?: string[];
+
+		/**
+		 * Roles that can access create
+		 */
+		create?: string[];
+
+		/**
+		 * Roles that can access update
+		 */
+		update?: string[];
+
+		/**
+		 * Roles that can access delete
+		 */
+		delete?: string[];
+	};
+
+	/**
+	 * Custom middleware to apply to this entity's routes
+	 */
+	middleware?: {
+		/**
+		 * Middleware for all routes
+		 */
+		all?: string[];
+
+		/**
+		 * Middleware for getAll
+		 */
+		getAll?: string[];
+
+		/**
+		 * Middleware for getById
+		 */
+		getById?: string[];
+
+		/**
+		 * Middleware for create
+		 */
+		create?: string[];
+
+		/**
+		 * Middleware for update
+		 */
+		update?: string[];
+
+		/**
+		 * Middleware for delete
+		 */
+		delete?: string[];
+	};
+
+	/**
+	 * Custom response transformers
+	 */
+	transformers?: {
+		/**
+		 * Transform the response after getAll
+		 */
+		getAll?: string;
+
+		/**
+		 * Transform the response after getById
+		 */
+		getById?: string;
+
+		/**
+		 * Transform the response after create
+		 */
+		create?: string;
+
+		/**
+		 * Transform the response after update
+		 */
+		update?: string;
+
+		/**
+		 * Transform the response after delete
+		 */
+		delete?: string;
+	};
+
+	/**
+	 * Query parameter handling
+	 */
+	queryParams?: {
+		/**
+		 * Parameters for filtering
+		 */
+		filters?: string[];
+
+		/**
+		 * Parameters for sorting
+		 */
+		sort?: string[];
+
+		/**
+		 * Whether to enable pagination
+		 */
+		pagination?: boolean;
+
+		/**
+		 * Custom parameters and their handlers
+		 */
+		custom?: Record<string, string>;
+	};
 }
 
 /**
@@ -362,6 +654,16 @@ export interface EntityConfig {
 		 * After find hooks
 		 */
 		afterFind?: EntityHook[];
+
+		/**
+		 * Before API hooks (run before processing an API request)
+		 */
+		beforeApi?: EntityHook[];
+
+		/**
+		 * After API hooks (run after processing an API request)
+		 */
+		afterApi?: EntityHook[];
 	};
 
 	/**
@@ -372,7 +674,7 @@ export interface EntityConfig {
 	/**
 	 * API configuration
 	 */
-	api?: EntityApiConfig;
+	api?: EntityApiConfig & EntityRouteConfig;
 
 	/**
 	 * Entity workflows
@@ -387,37 +689,17 @@ export interface EntityConfig {
 	/**
 	 * Custom actions
 	 */
-	actions?: {
-		/**
-		 * Action name
-		 */
-		name: string;
-
-		/**
-		 * HTTP method
-		 */
-		method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-
-		/**
-		 * Route path
-		 */
-		path: string;
-
-		/**
-		 * Implementation or path to external file
-		 */
-		implementation: string;
-
-		/**
-		 * Required roles
-		 */
-		roles?: string[];
-	}[];
+	actions?: EntityAction[];
 
 	/**
 	 * Custom database-specific options
 	 */
 	options?: Record<string, unknown>;
+
+	/**
+	 * API-specific middleware configuration
+	 */
+	middleware?: MiddlewareConfig;
 }
 
 /**
@@ -603,6 +885,70 @@ export function getAllLogicalColumns(
 }
 
 /**
+ * Get all API-readable columns
+ * 
+ * @param mapping Entity mapping
+ * @param role Optional role for role-based filtering
+ * @returns Array of logical column names that are readable via API
+ */
+export function getApiReadableColumns(
+	mapping: EntityConfig,
+	role?: string
+): string[] {
+	return mapping.columns
+		.filter(col => {
+			// If api property is undefined, default to true
+			if (col.api === undefined) return true;
+
+			// If readable is explicitly set, use that value
+			if (col.api.readable !== undefined) {
+				if (!col.api.readable) return false;
+			}
+
+			// Check role-based access if role is provided
+			if (role && col.api.roles?.read) {
+				return col.api.roles.read.includes(role);
+			}
+
+			// Default to readable if not specified
+			return true;
+		})
+		.map(col => col.logical);
+}
+
+/**
+ * Get all API-writable columns
+ * 
+ * @param mapping Entity mapping
+ * @param role Optional role for role-based filtering
+ * @returns Array of logical column names that are writable via API
+ */
+export function getApiWritableColumns(
+	mapping: EntityConfig,
+	role?: string
+): string[] {
+	return mapping.columns
+		.filter(col => {
+			// If api property is undefined, default to true
+			if (col.api === undefined) return true;
+
+			// If writable is explicitly set, use that value
+			if (col.api.writable !== undefined) {
+				if (!col.api.writable) return false;
+			}
+
+			// Check role-based access if role is provided
+			if (role && col.api.roles?.write) {
+				return col.api.roles.write.includes(role);
+			}
+
+			// Default to writable if not specified
+			return true;
+		})
+		.map(col => col.logical);
+}
+
+/**
  * Get auto-generated columns
  * 
  * @param mapping Entity mapping
@@ -636,6 +982,46 @@ export function getAutoGeneratedColumns(
 	autoColumns.push(...mapping.columns.filter(col => col.managedTimestamp !== undefined));
 
 	return autoColumns;
+}
+
+/**
+ * Find an action by name
+ * 
+ * @param mapping Entity mapping
+ * @param actionName Action name
+ * @returns Action or undefined if not found
+ */
+export function findAction(
+	mapping: EntityConfig,
+	actionName: string
+): EntityAction | undefined {
+	return mapping.actions?.find(action => action.name === actionName);
+}
+
+/**
+ * Get all API-exposed actions
+ * 
+ * @param mapping Entity mapping
+ * @param role Optional role for role-based filtering
+ * @returns Array of actions that are exposed via API
+ */
+export function getApiActions(
+	mapping: EntityConfig,
+	role?: string
+): EntityAction[] {
+	if (!mapping.actions) return [];
+
+	return mapping.actions.filter(action => {
+		// Must have route and httpMethod to be API-exposed
+		if (!action.route || !action.httpMethod) return false;
+
+		// Check role-based access if role is provided
+		if (role && action.roles) {
+			return action.roles.includes(role);
+		}
+
+		return true;
+	});
 }
 
 /**
@@ -1254,4 +1640,42 @@ export function createTimestampColumns(
 	}
 
 	return columns;
+}
+
+/**
+ * Create an API configuration for an entity
+ * @param exposed Whether the entity should be exposed via API
+ * @param basePath Base path for the API endpoints
+ * @param options Additional API configuration options
+ * @returns API configuration
+ */
+export function createApiConfig(
+	exposed: boolean,
+	basePath?: string,
+	options?: Partial<Omit<EntityApiConfig & EntityRouteConfig, 'exposed'>>
+): EntityApiConfig & EntityRouteConfig {
+	return {
+		exposed,
+		basePath,
+		...options
+	};
+}
+
+/**
+ * Create an action for an entity
+ * @param name Action name
+ * @param implementation Action implementation
+ * @param options Additional action options
+ * @returns Entity action
+ */
+export function createEntityAction(
+	name: string,
+	implementation: string,
+	options?: Partial<Omit<EntityAction, 'name' | 'implementation'>>
+): EntityAction {
+	return {
+		name,
+		implementation,
+		...options
+	};
 }

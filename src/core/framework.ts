@@ -4,15 +4,19 @@
  */
 
 import * as path from 'path';
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express, { Express, Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import compression from 'compression';
 import helmet from 'helmet';
 import { AppContext } from './app-context';
 import { ConfigLoader } from './config-loader';
-import { Logger, AppConfig } from './core/types';
-import { DatabaseContext } from './database-context';
+import { Logger, AppConfig } from './types';
+import { DatabaseContext } from '../database';
+import { RequestProcessor } from '../middleware/request-processor';
+import { ApiGenerator } from '../api/api-generator';
+import { RouteRegistry } from '../api/route-registry';
+import { ActionRegistry } from '../actions/action-registry';
 
 /**
  * Framework options
@@ -43,6 +47,21 @@ export interface FrameworkOptions {
 	 * If not provided, a new instance will be created
 	 */
 	app?: Express;
+
+	/**
+	 * API base path
+	 */
+	apiBasePath?: string;
+
+	/**
+	 * Whether to automatically generate API routes from entity configurations
+	 */
+	autoGenerateApi?: boolean;
+
+	/**
+	 * Custom middleware to apply before route handlers
+	 */
+	middleware?: Array<(req: Request, res: Response, next: NextFunction) => void>;
 }
 
 /**
@@ -81,6 +100,31 @@ export class Framework {
 	private logger: Logger;
 
 	/**
+	 * Request processor for handling API requests
+	 */
+	private requestProcessor: RequestProcessor | null = null;
+
+	/**
+	 * API generator for creating API routes
+	 */
+	private apiGenerator: ApiGenerator | null = null;
+
+	/**
+	 * API base path
+	 */
+	private apiBasePath: string;
+
+	/**
+	 * Whether to automatically generate API routes
+	 */
+	private autoGenerateApi: boolean;
+
+	/**
+	 * Custom middleware
+	 */
+	private customMiddleware: Array<(req: Request, res: Response, next: NextFunction) => void>;
+
+	/**
 	 * Constructor
 	 * @param options Framework options
 	 */
@@ -95,6 +139,11 @@ export class Framework {
 
 		// Create Express app if not provided
 		this.app = options.app || express();
+
+		// Set API options
+		this.apiBasePath = options.apiBasePath || '/api';
+		this.autoGenerateApi = options.autoGenerateApi !== false; // Default to true
+		this.customMiddleware = options.middleware || [];
 
 		// Create configuration loader
 		this.configLoader = new ConfigLoader({
@@ -127,8 +176,18 @@ export class Framework {
 			this.logger.info(`Loaded ${entities.size} entities`);
 
 			// Create and initialize application context
-			this.context = new AppContext(this.config, this.logger);
+			this.context = new AppContext(this.config, this.logger, this.app);
 			await this.context.initialize(entities);
+
+			// Create request processor
+			this.requestProcessor = new RequestProcessor(this.context, this.logger);
+
+			// Register RequestProcessor as a service
+			this.context.registerService({
+				name: 'requestProcessor',
+				implementation: this.requestProcessor,
+				singleton: true
+			});
 
 			// Set up Express middleware
 			this.setupMiddleware();
@@ -172,6 +231,43 @@ export class Framework {
 			this.logger.debug(`${req.method} ${req.path}`);
 			next();
 		});
+
+		// Apply custom middleware
+		for (const middleware of this.customMiddleware) {
+			this.app.use(middleware);
+		}
+
+		// Apply global middleware from configuration if available
+		if (this.config && this.config.middleware && this.config.middleware.global) {
+			for (const middlewareName of this.config.middleware.global) {
+				const middlewareConfig = this.context?.getMiddlewareConfig(middlewareName);
+				if (middlewareConfig && middlewareConfig.handler) {
+					try {
+						// Load middleware handler
+						let handler: any;
+
+						if (typeof middlewareConfig.handler === 'string') {
+							// Load from file path
+							const handlerModule = require(path.resolve(process.cwd(), middlewareConfig.handler));
+							handler = handlerModule.default || handlerModule;
+						} else {
+							// Use provided handler function
+							handler = middlewareConfig.handler;
+						}
+
+						// Apply middleware
+						if (typeof handler === 'function') {
+							this.app.use(handler(middlewareConfig.options || {}, this.context!));
+							this.logger.debug(`Applied global middleware: ${middlewareName}`);
+						} else {
+							this.logger.warn(`Invalid middleware handler for ${middlewareName}`);
+						}
+					} catch (error) {
+						this.logger.error(`Error applying middleware ${middlewareName}: ${error}`);
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -186,7 +282,7 @@ export class Framework {
 		this.logger.debug('Setting up routes');
 
 		// Add API base path
-		const apiBasePath = this.config?.apiBasePath || '/api';
+		const apiBasePath = this.config?.apiBasePath || this.apiBasePath;
 
 		// Add health check endpoint
 		this.app.get('/health', (req: Request, res: Response) => {
@@ -198,148 +294,34 @@ export class Framework {
 		});
 
 		// Generate API routes for entities
-		if (this.context) {
-			const entities = this.context.getAllEntityConfigs();
-
-			// Create API generator dynamically
+		if (this.context && this.autoGenerateApi) {
 			try {
-				// Import API generator - could be moved to a separate module in a real implementation
-				const ApiGenerator = await this.loadApiGenerator();
+				// Initialize API routes
+				const registeredRoutes = await this.context.initializeApiRoutes(apiBasePath);
 
-				if (ApiGenerator) {
-					const generator = new ApiGenerator(this.context, this.app, apiBasePath, this.logger);
+				this.logger.info(`Generated ${registeredRoutes.length} API routes`);
 
-					// Generate API routes for each entity with exposed API
-					for (const [entityName, entityConfig] of entities.entries()) {
-						if (entityConfig.api && entityConfig.api.exposed) {
-							await generator.generateEntityApi(entityConfig);
-							this.logger.info(`Generated API for entity: ${entityName}`);
-						}
+				// Log all registered routes in debug mode
+				if (this.logger.debug && registeredRoutes.length > 0) {
+					this.logger.debug('Registered API routes:');
+					for (const route of registeredRoutes) {
+						this.logger.debug(`  ${route}`);
 					}
 				}
 			} catch (error) {
 				this.logger.error(`Failed to generate API routes: ${error}`);
 			}
 		}
-	}
 
-	/**
-	 * Load API generator dynamically
-	 * This is a placeholder for a real implementation that would load the ApiGenerator class
-	 */
-	private async loadApiGenerator(): Promise<any> {
-		// In a real implementation, this would dynamically import the ApiGenerator class
-		// For now, we'll return a simple placeholder
-		return class ApiGenerator {
-			constructor(
-				private context: AppContext,
-				private app: Express,
-				private basePath: string,
-				private logger: Logger
-			) { }
-
-			async generateEntityApi(entityConfig: any): Promise<void> {
-				const entityName = entityConfig.entity;
-				const entityBasePath = entityConfig.api?.basePath || this.basePath + '/' + entityName.toLowerCase();
-
-				// Get entity manager
-				const entityManager = this.context.getEntityManager(entityName);
-
-				// Add basic CRUD routes
-				const router = express.Router();
-
-				// GET /api/entity - Get all
-				if (entityConfig.api?.operations?.getAll !== false) {
-					router.get('/', async (req, res) => {
-						try {
-							const entities = await entityManager.findAll();
-							res.json(entities);
-						} catch (error) {
-							this.logger.error(`Error in GET ${entityBasePath}: ${error}`);
-							res.status(500).json({ error: 'Internal server error' });
-						}
-					});
-				}
-
-				// GET /api/entity/:id - Get by ID
-				if (entityConfig.api?.operations?.getById !== false) {
-					router.get('/:id', async (req, res) => {
-						try {
-							const entity = await entityManager.findById(req.params.id);
-
-							if (!entity) {
-								return res.status(404).json({ error: 'Not found' });
-							}
-
-							res.json(entity);
-						} catch (error) {
-							this.logger.error(`Error in GET ${entityBasePath}/${req.params.id}: ${error}`);
-							res.status(500).json({ error: 'Internal server error' });
-						}
-					});
-				}
-
-				// POST /api/entity - Create
-				if (entityConfig.api?.operations?.create !== false) {
-					router.post('/', async (req, res) => {
-						try {
-							const id = await entityManager.create(req.body);
-							const entity = await entityManager.findById(id);
-
-							res.status(201).json(entity);
-						} catch (error) {
-							this.logger.error(`Error in POST ${entityBasePath}: ${error}`);
-							res.status(500).json({ error: 'Internal server error' });
-						}
-					});
-				}
-
-				// PUT /api/entity/:id - Update
-				if (entityConfig.api?.operations?.update !== false) {
-					router.put('/:id', async (req, res) => {
-						try {
-							const id = req.params.id;
-							await entityManager.update(id, req.body);
-
-							const entity = await entityManager.findById(id);
-
-							if (!entity) {
-								return res.status(404).json({ error: 'Not found' });
-							}
-
-							res.json(entity);
-						} catch (error) {
-							this.logger.error(`Error in PUT ${entityBasePath}/${req.params.id}: ${error}`);
-							res.status(500).json({ error: 'Internal server error' });
-						}
-					});
-				}
-
-				// DELETE /api/entity/:id - Delete
-				if (entityConfig.api?.operations?.delete !== false) {
-					router.delete('/:id', async (req, res) => {
-						try {
-							const id = req.params.id;
-							const result = await entityManager.delete(id);
-
-							if (result === 0) {
-								return res.status(404).json({ error: 'Not found' });
-							}
-
-							res.status(204).end();
-						} catch (error) {
-							this.logger.error(`Error in DELETE ${entityBasePath}/${req.params.id}: ${error}`);
-							res.status(500).json({ error: 'Internal server error' });
-						}
-					});
-				}
-
-				// Register routes
-				this.app.use(entityBasePath, router);
-
-				this.logger.debug(`Registered API routes for ${entityName} at ${entityBasePath}`);
-			}
-		};
+		// Add generic error handler
+		this.app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+			this.logger.error(`API Error: ${err.message || err}`);
+			res.status(err.status || 500).json({
+				error: err.name || 'InternalServerError',
+				message: err.message || 'An unexpected error occurred',
+				status: err.status || 500
+			});
+		});
 	}
 
 	/**
@@ -364,6 +346,13 @@ export class Framework {
 			try {
 				this.server = this.app.listen(serverPort, serverHost, () => {
 					this.logger.info(`Server started at http://${serverHost}:${serverPort}`);
+
+					// If API routes were generated, log the API base URL
+					if (this.autoGenerateApi) {
+						const apiBasePath = this.config?.apiBasePath || this.apiBasePath;
+						this.logger.info(`API available at http://${serverHost}:${serverPort}${apiBasePath}`);
+					}
+
 					resolve(this.server);
 				});
 			} catch (error) {
@@ -439,6 +428,65 @@ export class Framework {
 		}
 
 		return this.config;
+	}
+
+	/**
+	 * Get the API route registry
+	 * @returns Route registry
+	 */
+	getRouteRegistry(): RouteRegistry {
+		if (!this.context) {
+			throw new Error('Application context not initialized');
+		}
+
+		return this.context.getRouteRegistry();
+	}
+
+	/**
+	 * Get the action registry
+	 * @returns Action registry
+	 */
+	getActionRegistry(): ActionRegistry {
+		if (!this.context) {
+			throw new Error('Application context not initialized');
+		}
+
+		return this.context.getActionRegistry();
+	}
+
+	/**
+	 * Get the request processor
+	 * @returns Request processor
+	 */
+	getRequestProcessor(): RequestProcessor {
+		if (!this.requestProcessor) {
+			throw new Error('Request processor not initialized');
+		}
+
+		return this.requestProcessor;
+	}
+
+	/**
+	 * Create API routes for an entity
+	 * @param entityName Entity name
+	 * @param router Express router to attach routes to
+	 * @returns Router with attached routes
+	 */
+	async createEntityApiRoutes(entityName: string, router: Router = Router()): Promise<Router> {
+		if (!this.context) {
+			throw new Error('Application context not initialized');
+		}
+
+		const entityConfig = this.context.getEntityConfig(entityName);
+		const entityManager = this.context.getEntityManager(entityName);
+		const actionRegistry = this.context.getActionRegistry();
+		const apiGenerator = this.context.getApiGenerator();
+
+		if (!entityConfig.api || !entityConfig.api.exposed) {
+			throw new Error(`Entity ${entityName} is not exposed via API`);
+		}
+
+		return await apiGenerator.generateEntityApi(entityConfig, entityManager, actionRegistry, router);
 	}
 }
 
