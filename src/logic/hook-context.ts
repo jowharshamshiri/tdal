@@ -4,8 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { EntityDao } from '../database/entity-dao';
-import { DatabaseAdapter } from '../database/database-adapter';
+import { EntityDao } from '../entity';
 import { AppContext } from '../core/app-context';
 import { HookContext, Logger } from '../core/types';
 

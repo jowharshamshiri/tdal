@@ -5,7 +5,7 @@
  * schema. It includes types for pages, layouts, components, and their properties.
  */
 
-import { EntityConfig } from "../entity/entity-schema";
+import { EntityConfig } from "../entity";
 
 /**
  * Available UI component types

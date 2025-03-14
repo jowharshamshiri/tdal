@@ -4,9 +4,10 @@
  */
 
 import { Express, Request, Response, NextFunction } from 'express';
-import { EntityConfig, HookContext, Logger } from '../core/types';
+import { HookContext, Logger } from '../core/types';
 import { AppContext } from '../core/app-context';
-import { DatabaseAdapter } from '../database/database-adapter';
+import { DatabaseAdapter } from '../database';
+import { EntityConfig } from '@/entity';
 
 /**
  * Plugin definition

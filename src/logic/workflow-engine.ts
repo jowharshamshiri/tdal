@@ -3,8 +3,8 @@
  * State machine for entity workflows defined in YAML
  */
 
-import { EntityConfig, Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
-import { EntityDao } from '../database/entity-dao';
+import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
+import { EntityConfig, EntityDao } from '../entity';
 import { HookError } from './hook-context';
 
 /**

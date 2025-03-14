@@ -3,7 +3,8 @@
  * Processes validation rules defined in YAML
  */
 
-import { ValidationRule, EntityConfig, Logger } from '../core/types';
+import { EntityConfig, ValidationRule } from '@/entity';
+import { Logger } from '../core/types';
 
 /**
  * Validation error

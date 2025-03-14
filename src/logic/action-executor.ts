@@ -4,11 +4,11 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { EntityConfig, EntityAction, HookContext, Logger } from '../core/types';
-import { EntityDao } from '../database/entity-dao';
+import { HookContext, Logger } from '../core/types';
 import { AppContext } from '../core/app-context';
 import { createHookContext, HookError, executeHookWithTimeout } from './hook-context';
 import { validateEntity } from './validation-engine';
+import { EntityAction, EntityConfig } from '@/entity';
 
 /**
  * Action implementation function type

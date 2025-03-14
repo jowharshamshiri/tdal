@@ -8,8 +8,8 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import Ajv from 'ajv';
-import { Logger, AppConfig } from './core/types';
-import { EntityConfig, EntityConfig } from '../database';
+import { Logger, AppConfig } from './types';
+import { EntityConfig } from '../entity';
 
 /**
  * Configuration loader options

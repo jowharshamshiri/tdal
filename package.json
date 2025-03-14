@@ -44,14 +44,32 @@
 		"generate": "tsx src/database/generator/entity-generator.ts generate"
 	},
 	"dependencies": {
+		"ajv-formats": "^3.0.1",
+		"axios": "^1.8.3",
 		"better-sqlite3": "^8.7.0",
-		"js-yaml": "^4.1.0"
+		"chai": "^5.2.0",
+		"compression": "^1.8.0",
+		"cors": "^2.8.5",
+		"dotenv": "^16.4.7",
+		"express": "^4.21.2",
+		"glob": "^11.0.1",
+		"helmet": "^8.0.0",
+		"js-yaml": "^4.1.0",
+		"jsonpath": "^1.1.1",
+		"jsonwebtoken": "^9.0.2",
+		"uuid": "^11.1.0"
 	},
 	"devDependencies": {
 		"@babel/plugin-transform-optional-chaining": "^7.25.9",
 		"@types/better-sqlite3": "^7.6.4",
+		"@types/chai": "^5.2.0",
+		"@types/compression": "^1.7.5",
+		"@types/cors": "^2.8.17",
+		"@types/express": "^5.0.0",
 		"@types/jest": "^29.5.14",
 		"@types/js-yaml": "^4.0.9",
+		"@types/jsonpath": "^0.2.4",
+		"@types/jsonwebtoken": "^9.0.9",
 		"@types/node": "^18.16.18",
 		"@typescript-eslint/eslint-plugin": "^5.59.11",
 		"@typescript-eslint/parser": "^5.59.11",

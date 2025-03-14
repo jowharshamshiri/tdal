@@ -5,7 +5,7 @@
  * from entity definitions, with support for columns, filters, sorting, and actions.
  */
 
-import { EntityConfig } from '../entity/entity-schema';
+import { EntityConfig } from '../entity';
 import {
 	ComponentType,
 	DataTableConfig,

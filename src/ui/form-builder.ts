@@ -6,7 +6,7 @@
  * and customization options.
  */
 
-import { EntityConfig } from '../entity/entity-schema';
+import { EntityConfig } from '../entity';
 import { FormConfig, FormFieldConfig, FormMode, ComponentType, FormSectionConfig } from './ui-schema';
 
 /**
