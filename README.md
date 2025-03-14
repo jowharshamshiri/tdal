@@ -4,7 +4,7 @@
 
 ## Project Vision
 
-TDAL is a framework that allows developers to build full-stack web applications using primarily YAML configuration files. The core principle is **"configuration over code"** while still maintaining the flexibility to implement complex business logic when needed.
+TDAL framework allows developers to build full-stack web applications using primarily YAML configuration files. The core principle is **"configuration over code"** while still maintaining the flexibility to implement complex business logic when needed.
 
 Our vision is to drastically reduce the amount of boilerplate code needed to build modern web applications by providing a declarative approach to defining:
 
