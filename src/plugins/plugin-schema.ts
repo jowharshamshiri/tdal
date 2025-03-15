@@ -9,6 +9,13 @@ import { AppContext } from '../core/app-context';
 import { DatabaseAdapter } from '../database';
 import { EntityConfig } from 'src/entity';
 
+export interface PluginManifest {
+	name: string;
+	version: string;
+	description: string;
+	dependencies: Array<{ name: string; version?: string }>;
+}
+
 /**
  * Plugin definition
  */

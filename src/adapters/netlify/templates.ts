@@ -494,7 +494,7 @@ function generateCustomActionHandlers(entity: EntityConfig, actions: EntityActio
 	let code = '// Custom action handlers\n';
 
 	for (const action of customActions) {
-		const method = action.httpMethod.toUpperCase();
+		const method = action.httpMethod ? action.httpMethod.toLowerCase() : 'get';
 		const route = action.route;
 		const actionName = action.name;
 

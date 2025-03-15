@@ -89,6 +89,9 @@ export class RestClient {
 				// Apply authentication
 				config = await this.applyAuthentication(config);
 
+				// Ensure headers is never undefined
+				config.headers = config.headers || {};
+
 				// Log request
 				this.logger.debug(`REST Client Request: ${config.method?.toUpperCase()} ${config.url}`, {
 					headers: config.headers,

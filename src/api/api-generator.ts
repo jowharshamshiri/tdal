@@ -140,13 +140,14 @@ export class ApiGenerator {
 
 		try {
 			// Get adapter registry
-			const adapterRegistry = this.context.getService('adapterRegistry');
-			if (!adapterRegistry) {
-				throw new Error('Adapter registry not found');
+			const adapterRegistry = this.context.getService<{ getAdapter: (name: string, options?: any) => any }>('adapterRegistry');
+			if (!adapterRegistry || typeof adapterRegistry.getAdapter !== 'function') {
+				throw new Error('Adapter registry not found or invalid');
 			}
 
 			// Get adapter
 			const adapter = adapterRegistry.getAdapter(adapterName, adapterOptions);
+
 			if (!adapter) {
 				throw new Error(`Adapter ${adapterName} not found`);
 			}
@@ -186,16 +187,13 @@ export class ApiGenerator {
 
 		try {
 			// Get adapter registry
-			const adapterRegistry = this.context.getService('adapterRegistry');
-			if (!adapterRegistry) {
-				throw new Error('Adapter registry not found');
+			const adapterRegistry = this.context.getService<{ getAdapter: (name: string, options?: any) => any }>('adapterRegistry');
+			if (!adapterRegistry || typeof adapterRegistry.getAdapter !== 'function') {
+				throw new Error('Adapter registry not found or invalid');
 			}
 
 			// Get adapter
 			const adapter = adapterRegistry.getAdapter(adapterName, adapterOptions);
-			if (!adapter) {
-				throw new Error(`Adapter ${adapterName} not found`);
-			}
 
 			// Initialize adapter
 			await adapter.initialize(adapterOptions);
@@ -453,12 +451,14 @@ export class ApiGenerator {
 
 					if (!middlewareConfig || !middlewareConfig.handler) {
 						this.logger.warn(`Middleware ${handler} not found`);
+						middlewareHandler = (req: any, res: any, next: any) => next();
 						return;
 					}
 
-					middlewareHandler = middlewareConfig.handler;
+					middlewareHandler = middlewareConfig.handler as Function;
 				} catch (error: any) {
 					this.logger.error(`Error loading middleware ${handler}: ${error}`);
+					middlewareHandler = (req: any, res: any, next: any) => next();
 					return;
 				}
 			} else {
@@ -469,15 +469,16 @@ export class ApiGenerator {
 			router.use('/', middlewareHandler);
 		};
 
-		// Apply all middleware
-		if (middleware.all) {
+		// Apply middleware for all routes if available
+		if ('all' in middleware && Array.isArray(middleware.all)) {
 			middleware.all.forEach(handler => applyMiddleware('all', handler));
 		}
 
 		// Apply operation-specific middleware if defined
 		['getAll', 'getById', 'create', 'update', 'delete'].forEach(operation => {
-			if (middleware[operation]) {
-				middleware[operation].forEach(handler => applyMiddleware(operation, handler));
+			if (operation in middleware && Array.isArray(middleware[operation as keyof typeof middleware])) {
+				const handlers = middleware[operation as keyof typeof middleware] as string[];
+				handlers.forEach(handler => applyMiddleware(operation, handler));
 			}
 		});
 	}
@@ -1010,6 +1011,16 @@ export class ApiGenerator {
 			}
 		}
 
+		const properties = action.parameters?.reduce((acc: Record<string, any>, param: any) => {
+			if (!pathParams.includes(param.name)) {
+				acc[param.name] = {
+					type: param.type.toLowerCase(),
+					description: param.description
+				};
+			}
+			return acc;
+		}, {});
+
 		// Create operation object
 		return {
 			summary: action.description || `${action.name} action`,
@@ -1021,15 +1032,7 @@ export class ApiGenerator {
 						'application/json': {
 							schema: {
 								type: 'object',
-								properties: action.parameters?.reduce((acc, param) => {
-									if (!pathParams.includes(param.name)) {
-										acc[param.name] = {
-											type: param.type.toLowerCase(),
-											description: param.description
-										};
-									}
-									return acc;
-								}, {})
+								properties: properties
 							}
 						}
 					}

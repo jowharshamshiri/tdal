@@ -186,7 +186,9 @@ export class PluginManager {
 	 */
 	async loadPlugin(config: PluginConfig): Promise<void> {
 		try {
-			const { name, source, type = 'npm', config: pluginConfig } = config;
+			const { name, enabled, config: pluginConfig, options } = config;
+			const source = options?.path || name; // Use path from options or fallback to name
+			const type = options?.npm ? 'npm' : 'directory'; // Determine type from options
 
 			// Skip if already loaded
 			if (this.plugins.has(name)) {

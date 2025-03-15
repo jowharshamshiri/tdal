@@ -61,6 +61,12 @@ export function createEntityController(
 		try {
 			const { request, response } = context;
 
+			// Get request body
+			if (!request) {
+				throw new Error('Request object is required');
+			}
+			const data = request.body;
+
 			// Process query parameters
 			const queryParams = {
 				...request.query
@@ -121,6 +127,12 @@ export function createEntityController(
 				throw createApiError('ID is required', 400);
 			}
 
+			// Get request body
+			if (!request) {
+				throw new Error('Request object is required');
+			}
+			const data = request.body;
+
 			// Process request parameters
 			const queryParams = {
 				...request.query
@@ -154,6 +166,10 @@ export function createEntityController(
 				'getById',
 				context
 			);
+
+			if (!response) {
+				throw new Error('Response object is required');
+			}
 
 			// Send response
 			response.json(processedResponse);
@@ -198,6 +214,10 @@ export function createEntityController(
 				'create',
 				context
 			);
+
+			if (!response) {
+				throw new Error('Response object is required');
+			}
 
 			// Send created response
 			response.status(201).json(processedResponse);
@@ -255,6 +275,10 @@ export function createEntityController(
 				context
 			);
 
+			if (!response) {
+				throw new Error('Response object is required');
+			}
+
 			// Send response
 			response.json(processedResponse);
 		} catch (error: any) {
@@ -298,6 +322,10 @@ export function createEntityController(
 				'delete',
 				context
 			);
+
+			if (!response) {
+				throw new Error('Response object is required');
+			}
 
 			// Send response
 			response.json(processedResponse);
@@ -376,6 +404,10 @@ export function createEntityController(
 		const errorType = error.name || error.error || 'InternalServerError';
 		const message = error.message || 'An unexpected error occurred';
 
+		if (!response) {
+			throw new Error('Response object is required');
+		}
+
 		// Send error response
 		response.status(statusCode).json({
 			error: errorType,
@@ -396,14 +428,12 @@ export function createEntityController(
 		status = 400,
 		errorType = 'BadRequest'
 	): ApiError {
-		return {
+		const error: ApiError = {
 			name: errorType,
 			message,
-			status,
-			toString() {
-				return this.message;
-			}
+			status
 		};
+		return error;
 	}
 
 	return {
