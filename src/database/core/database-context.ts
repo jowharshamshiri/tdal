@@ -105,7 +105,7 @@ export class DatabaseContext {
 			this.instance = DatabaseFactory.createAdapter(this.config);
 
 			// Initialize connection
-			this.instance.connect().catch((err) => {
+			this.instance.connect().catch((err: Error) => {
 				if (this.logger) {
 					this.logger.error(`Failed to connect to database: ${err}`);
 				} else if (process.env.NODE_ENV === "development") {

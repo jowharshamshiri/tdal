@@ -15,7 +15,7 @@ import { Logger, AppConfig } from './types';
 import { RequestProcessor } from '../middleware/request-processor';
 import { ActionRegistry } from '../actions/action-registry';
 import { AuthenticationService } from '../middleware/authentication';
-import { createAdapterRegistry } from './adapters';
+import { createAdapterRegistry } from '../adapters';
 
 /**
  * Framework options
@@ -219,7 +219,7 @@ export class Framework {
 							const adapter = this.adapterRegistry.getAdapter(name, adapterConfig.options);
 							await adapter.initialize(adapterConfig.options);
 							this.logger.info(`Initialized adapter: ${name}`);
-						} catch (error) {
+						} catch (error: any) {
 							this.logger.error(`Failed to initialize adapter ${name}: ${error.message}`);
 						}
 					}

@@ -100,7 +100,8 @@ export class AppContext {
 
 		// Configure database from app config
 		if (config.database) {
-			DatabaseContext.configure(config.database);
+			// Type assertion to resolve incompatible database configuration types
+			DatabaseContext.configure(config.database as any);
 		}
 
 		// Get database adapter

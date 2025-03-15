@@ -7,7 +7,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { glob } from 'glob';
-import Ajv from 'ajv';
+import Ajv, { Ajv as AjvType } from 'ajv';
+import { Options } from 'ajv';
 import { Logger, AppConfig } from './types';
 import { EntityConfig } from '../entity/entity-config';
 import { entityJsonSchema } from '../entity/entity-schema';
@@ -25,6 +26,11 @@ export interface ConfigLoaderOptions {
 	 * Path to entities directory
 	 */
 	entitiesDir?: string;
+
+	/**
+	 * Path to schema directory
+	 */
+	schemaDir?: string;
 
 	/**
 	 * Whether to validate configurations against schemas
@@ -60,7 +66,7 @@ export class ConfigLoader {
 	/**
 	 * Schema validator
 	 */
-	private validator: Ajv;
+	private validator: AjvType;
 
 	/**
 	 * Logger instance
@@ -87,8 +93,8 @@ export class ConfigLoader {
 		};
 
 		this.validator = new Ajv({
-			allErrors: true,
-			strict: false
+			allErrors: true
+			// Remove the 'strict' property that doesn't exist in newer Ajv versions
 		});
 
 		// Register entity schema
@@ -283,7 +289,7 @@ export class ConfigLoader {
 
 		if (!valid && validate.errors) {
 			const errors = validate.errors.map(err =>
-				`${err.instancePath} ${err.message}`
+				`${err.dataPath} ${err.message}`
 			).join(', ');
 
 			throw new Error(`Invalid ${type} configuration: ${errors}`);
