@@ -466,7 +466,7 @@ export class ApiGenerator {
 			}
 
 			// Apply middleware to router
-			router.use(middlewareHandler);
+			router.use('/', middlewareHandler);
 		};
 
 		// Apply all middleware

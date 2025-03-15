@@ -496,6 +496,14 @@ export type DynamicObject<T = any> = {
 	[key: string]: T;
 };
 
+export interface ActionImplementations {
+	[actionName: string]: (params: any, context: HookContext) => Promise<any>;
+}
+
+export interface EntityHookHandler {
+	executeHook: (hookType: string, data: any, context: HookContext) => Promise<any>;
+}
+
 /**
  * Hook context for entity lifecycle hooks
  */
@@ -1121,11 +1129,6 @@ export interface WorkflowTransition {
 	};
 	description?: string;
 	metadata?: Record<string, any>;
-}
-
-// Missing interface from entity-manager.ts
-export interface ActionImplementations {
-	[actionName: string]: (params: any, context: HookContext) => Promise<any>;
 }
 
 // Missing interface from hook-context.ts

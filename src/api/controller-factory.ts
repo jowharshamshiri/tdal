@@ -171,6 +171,9 @@ export function createEntityController(
 			const { request, response } = context;
 
 			// Get request body
+			if (!request) {
+				throw new Error('Request object is required');
+			}
 			const data = request.body;
 
 			// Validate API writeable fields
@@ -218,6 +221,9 @@ export function createEntityController(
 			}
 
 			// Get request body
+			if (!request) {
+				throw new Error('Request object is required');
+			}
 			const data = request.body;
 
 			// Validate API writeable fields

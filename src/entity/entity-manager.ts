@@ -6,7 +6,7 @@
 import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction, mapToEntity } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
 import { processComputedProperties, loadComputedPropertyImplementations, ComputedPropertyImplementations, createComputedPropertyFunction } from './computed-properties';
-import { HookContext, Logger, ControllerContext, ActionFunction, HookFunction } from '@/core/types';
+import { HookContext, Logger, ControllerContext, ActionFunction, HookFunction, EntityHookHandler, ActionImplementations } from '@/core/types';
 import { AggregateOptions, DatabaseContext, DeleteOptions, FindOptions, findRelation, isRelationType, JoinOptions, ManyToManyRelation, ManyToOneRelation, OneToManyRelation, OneToOneRelation, QueryOptions, Relation, RelationOptions, TransactionIsolationLevel, UpdateOptions } from '@/database';
 import { executeHookWithTimeout, HookExecutor, HookImplementation } from '@/hooks/hooks-executor';
 import { HookError } from '@/hooks/hook-context';

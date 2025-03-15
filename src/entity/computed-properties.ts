@@ -5,7 +5,7 @@
 
 import { Logger } from "@/core/types";
 import { ComputedProperty, EntityConfig } from "@/entity/entity-config";
-import { HookContext } from "@/hooks/hook-context";
+import { HookContext } from "@/core/types";
 
 /**
  * Compute property implementations

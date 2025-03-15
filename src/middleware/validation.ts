@@ -84,7 +84,7 @@ export class ValidationService {
 	/**
 	 * JSON schema validator
 	 */
-	private ajv: Ajv;
+	private ajv: ReturnType<typeof Ajv>;
 
 	/**
 	 * Logger instance
@@ -371,7 +371,9 @@ export class ValidationService {
 	 */
 	private formatErrors(ajvErrors: ErrorObject[] = []): ValidationError[] {
 		return ajvErrors.map(error => {
-			const path = error.instancePath.replace(/^\//, '') || error.params.missingProperty;
+			const path = error.instancePath?.replace(/^\//, '') ||
+				(error.params as any).missingProperty ||
+				'unknown';
 
 			let message = error.message || 'Validation error';
 
