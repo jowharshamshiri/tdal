@@ -8,7 +8,7 @@ import {
 	RestIntegrationConfig,
 	RestEndpoint,
 	IntegrationAuthConfig
-} from '@/core/integration-schema';
+} from './integration-schema';
 import { Logger } from '@/core/types';
 
 /**
