@@ -2,7 +2,7 @@
  * API Request and Response interfaces for all endpoints
  */
 
-import { PaginationParams } from "../../tests/models";
+import { PaginationParams } from "../../tests/database/models";
 import {
 	User,
 	ProductCategoryWithMeta,
@@ -13,7 +13,7 @@ import {
 	CreditBalance,
 	PaymentTransaction,
 	UserResourceAccess,
-} from "../../tests/models";
+} from "../../tests/database/models";
 
 // ==================
 // Categories API

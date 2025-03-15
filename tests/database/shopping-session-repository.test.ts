@@ -6,7 +6,7 @@ import {
 	insertTestData,
 	cleanupDatabase,
 } from "./test-setup";
-import { DatabaseAdapter } from "../src/database/core/types";
+import { DatabaseAdapter } from "../../src/database/core/types";
 import { ShoppingSessionRepository } from "./repositories/shopping-session-repository";
 import { ShoppingSessionStatus } from "./models/shopping-session";
 

@@ -3,7 +3,7 @@
  * Data access for product-related operations
  */
 
-import { EntityDao } from "../../src/entity/entity-manager";
+import { EntityDao } from "../../../src/entity/entity-manager";
 import {
 	Product,
 	ProductWithMeta,
@@ -13,14 +13,14 @@ import {
 	UserProductData,
 	UserProductBookmark,
 } from "../../tests/models";
-import { DateExpressions } from "../../src/database/orm/date-functions";
-import { EntityQueryBuilder } from "../../src/database/query/entity-query-builder";
+import { DateExpressions } from "../../../src/database/orm/date-functions";
+import { EntityQueryBuilder } from "../../../src/database/query/entity-query-builder";
 import {
 	Relation,
 	ManyToManyRelation,
 	OneToManyRelation,
 	ManyToOneRelation,
-} from "../../src/database/orm/relation-types";
+} from "../../../src/database/orm/relation-types";
 
 /**
  * Convert string type relations to proper Relation objects

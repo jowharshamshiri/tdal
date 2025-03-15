@@ -6,8 +6,8 @@ import {
 	insertTestData,
 	cleanupDatabase,
 } from "./test-setup";
-import { DatabaseAdapter } from "../src/database/core/types";
-import { SQLiteAdapter } from "../src/database/adapters/sqlite-adapter";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { SQLiteAdapter } from "../../src/database/adapters/sqlite-adapter";
 
 interface User {
 	user_id: number;

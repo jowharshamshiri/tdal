@@ -6,11 +6,11 @@ import {
 	insertTestData,
 	cleanupDatabase,
 } from "./test-setup";
-import { DatabaseAdapter } from "../src/database/core/types";
-import { EntityDao } from "../src/entity/entity-manager";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { EntityDao } from "../../src/entity/entity-manager";
 import { EntityConfig } from "../src/database/orm/entity-mapping";
 import { User, UserMapping } from "./models/user";
-import { Relation } from "../src/database/orm/relation-types";
+import { Relation } from "../../src/database/orm/relation-types";
 
 // Create a concrete implementation of EntityDao for testing
 class TestUserDao extends EntityDao<User> {

@@ -6,7 +6,7 @@ import {
 	insertTestData,
 	cleanupDatabase,
 } from "./test-setup";
-import { DatabaseAdapter } from "../src/database/core/types";
+import { DatabaseAdapter } from "../../src/database/core/types";
 import { UserRepository } from "./repositories/user-repository";
 import { UserResourceAccess } from "./models";
 
