@@ -1,5 +1,6 @@
 {
   "peacock.remoteColor": "#38ade9",
   "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": ["source.fixAll.format", "source.fixAll.eslint"]
+  "editor.codeActionsOnSave": ["source.fixAll.format", "source.fixAll.eslint"],
+  "typescript.tsserver.experimental.enableProjectDiagnostics": true
 }

@@ -126,6 +126,104 @@ export class ApiGenerator {
 	}
 
 	/**
+ * Generate API using a platform adapter
+ * @param adapterName Adapter name
+ * @param entities Entity configurations to generate APIs for
+ * @param adapterOptions Adapter-specific options
+ * @returns Generation results
+ */
+	async generateApiWithAdapter(
+		adapterName: string,
+		entities: Map<string, EntityConfig>,
+		adapterOptions?: Record<string, any>
+	): Promise<any> {
+		this.logger.info(`Generating API using ${adapterName} adapter`);
+
+		try {
+			// Get adapter registry
+			const adapterRegistry = this.context.getService('adapterRegistry');
+			if (!adapterRegistry) {
+				throw new Error('Adapter registry not found');
+			}
+
+			// Get adapter
+			const adapter = adapterRegistry.getAdapter(adapterName, adapterOptions);
+			if (!adapter) {
+				throw new Error(`Adapter ${adapterName} not found`);
+			}
+
+			// Initialize adapter
+			await adapter.initialize(adapterOptions);
+
+			// Generate handlers
+			const result = await adapter.generateHandlers(
+				entities,
+				this.context.getActionRegistry(),
+				this.context
+			);
+
+			this.logger.info(`Generated ${result.files?.length || 0} files using ${adapterName} adapter`);
+
+			return result;
+		} catch (error) {
+			this.logger.error(`Error generating API with adapter ${adapterName}: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
+ * Generate API for a specific entity using a platform adapter
+ * @param adapterName Adapter name
+ * @param entityName Entity name
+ * @param adapterOptions Adapter-specific options
+ * @returns Generation results
+ */
+	async generateEntityApiWithAdapter(
+		adapterName: string,
+		entityName: string,
+		adapterOptions?: Record<string, any>
+	): Promise<any> {
+		this.logger.info(`Generating API for ${entityName} using ${adapterName} adapter`);
+
+		try {
+			// Get adapter registry
+			const adapterRegistry = this.context.getService('adapterRegistry');
+			if (!adapterRegistry) {
+				throw new Error('Adapter registry not found');
+			}
+
+			// Get adapter
+			const adapter = adapterRegistry.getAdapter(adapterName, adapterOptions);
+			if (!adapter) {
+				throw new Error(`Adapter ${adapterName} not found`);
+			}
+
+			// Initialize adapter
+			await adapter.initialize(adapterOptions);
+
+			// Get entity configuration
+			const entityConfig = this.context.getEntityConfig(entityName);
+			if (!entityConfig) {
+				throw new Error(`Entity ${entityName} not found`);
+			}
+
+			// Generate handler
+			const result = await adapter.generateEntityHandler(
+				entityConfig,
+				this.context.getActionRegistry(),
+				this.context
+			);
+
+			this.logger.info(`Generated ${result.files?.length || 0} files for ${entityName} using ${adapterName} adapter`);
+
+			return result;
+		} catch (error) {
+			this.logger.error(`Error generating API for ${entityName} with adapter ${adapterName}: ${error}`);
+			throw error;
+		}
+	}
+
+	/**
 	 * Get all generated routes
 	 * @returns Array of route configurations
 	 */

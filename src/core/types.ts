@@ -93,6 +93,21 @@ export interface AppConfig {
 	};
 
 	/**
+	 * API adapters configuration
+	 */
+	adapters?: {
+		/**
+		 * Default adapter to use
+		 */
+		default?: string;
+
+		/**
+		 * Adapters configuration
+		 */
+		config?: Record<string, AdapterConfig>;
+	};
+
+	/**
 	 * Global middleware configuration
 	 */
 	middleware?: MiddlewareConfig;
@@ -919,6 +934,56 @@ export interface PluginConfig {
 	 * Plugin type
 	 */
 	type?: 'npm' | 'directory' | 'custom';
+}
+
+/**
+ * API adapter configuration
+ */
+export interface AdapterConfig {
+	/**
+	 * Adapter type/name
+	 */
+	type: string;
+
+	/**
+	 * Whether the adapter is enabled
+	 */
+	enabled: boolean;
+
+	/**
+	 * Adapter-specific options
+	 */
+	options?: Record<string, any>;
+
+	/**
+	 * Output directory for generated files
+	 */
+	outputDir?: string;
+
+	/**
+	 * Authentication configuration for the adapter
+	 */
+	auth?: {
+		/**
+		 * Whether to include authentication in generated API
+		 */
+		enabled: boolean;
+
+		/**
+		 * Authentication provider (jwt, oauth, etc.)
+		 */
+		provider?: string;
+
+		/**
+		 * Authentication options
+		 */
+		options?: Record<string, any>;
+	};
+
+	/**
+	 * Custom templates location
+	 */
+	templateDir?: string;
 }
 
 /**

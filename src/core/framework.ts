@@ -15,6 +15,7 @@ import { Logger, AppConfig } from './types';
 import { RequestProcessor } from '../middleware/request-processor';
 import { ActionRegistry } from '../actions/action-registry';
 import { AuthenticationService } from '../middleware/authentication';
+import { createAdapterRegistry } from './adapters';
 
 /**
  * Framework options
@@ -76,6 +77,11 @@ export class Framework {
 	 * Configuration loader
 	 */
 	private configLoader: ConfigLoader;
+
+	/**
+	 * Adapter registry
+	 */
+	private adapterRegistry: any;
 
 	/**
 	 * Express application
@@ -197,6 +203,29 @@ export class Framework {
 			// Set up routes
 			await this.setupRoutes();
 
+			// Initialize adapter registry
+			this.adapterRegistry = createAdapterRegistry(this.logger);
+			this.context.registerService({
+				name: 'adapterRegistry',
+				implementation: this.adapterRegistry,
+				singleton: true
+			});
+
+			// Initialize configured adapters
+			if (this.config?.adapters?.config) {
+				for (const [name, adapterConfig] of Object.entries(this.config.adapters.config)) {
+					if (adapterConfig.enabled) {
+						try {
+							const adapter = this.adapterRegistry.getAdapter(name, adapterConfig.options);
+							await adapter.initialize(adapterConfig.options);
+							this.logger.info(`Initialized adapter: ${name}`);
+						} catch (error) {
+							this.logger.error(`Failed to initialize adapter ${name}: ${error.message}`);
+						}
+					}
+				}
+			}
+
 			this.logger.info('Framework initialized successfully');
 
 			return this;
@@ -204,6 +233,83 @@ export class Framework {
 			this.logger.error(`Framework initialization failed: ${error}`);
 			throw new Error(`Framework initialization failed: ${error}`);
 		}
+	}
+
+	/**
+	 * Generate API for a specific entity using an adapter
+	 * @param entityName Entity name
+	 * @param adapterName Adapter name or default adapter if not specified
+	 * @param options Adapter options
+	 * @returns Generation result
+	 */
+	async generateEntityApiWithAdapter(
+		entityName: string,
+		adapterName?: string,
+		options?: Record<string, any>
+	): Promise<any> {
+		if (!this.context) {
+			throw new Error('Application context not initialized');
+		}
+
+		// Get adapter name from config if not specified
+		const adapter = adapterName || this.config?.adapters?.default;
+		if (!adapter) {
+			throw new Error('No adapter specified and no default adapter configured');
+		}
+
+		// Get adapter options from config if not specified
+		const adapterConfig = this.config?.adapters?.config?.[adapter];
+		const adapterOptions = options || adapterConfig?.options || {};
+
+		// Get API generator
+		const apiGenerator = this.context.getApiGenerator();
+
+		// Generate API
+		return await apiGenerator.generateEntityApiWithAdapter(
+			adapter,
+			entityName,
+			adapterOptions
+		);
+	}
+
+	/**
+	 * Get the adapter registry
+	 * @returns Adapter registry
+	 */
+	getAdapterRegistry(): any {
+		return this.adapterRegistry;
+	}
+
+	/**
+	 * Generate API using an adapter
+	 * @param adapterName Adapter name or default adapter if not specified
+	 * @param options Adapter options
+	 * @returns Generation result
+	 */
+	async generateApiWithAdapter(adapterName?: string, options?: Record<string, any>): Promise<any> {
+		if (!this.context) {
+			throw new Error('Application context not initialized');
+		}
+
+		// Get adapter name from config if not specified
+		const adapter = adapterName || this.config?.adapters?.default;
+		if (!adapter) {
+			throw new Error('No adapter specified and no default adapter configured');
+		}
+
+		// Get adapter options from config if not specified
+		const adapterConfig = this.config?.adapters?.config?.[adapter];
+		const adapterOptions = options || adapterConfig?.options || {};
+
+		// Get API generator
+		const apiGenerator = this.context.getApiGenerator();
+
+		// Generate API
+		return await apiGenerator.generateApiWithAdapter(
+			adapter,
+			this.context.getAllEntityConfigs(),
+			adapterOptions
+		);
 	}
 
 	/**
