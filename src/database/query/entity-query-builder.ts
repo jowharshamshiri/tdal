@@ -381,6 +381,8 @@ export abstract class EntityQueryBuilderBase implements EntityQueryBuilder {
 	abstract whereNotInSubquery(logicalColumnName: string, callback: (subQuery: EntityQueryBuilder) => EntityQueryBuilder): EntityQueryBuilder;
 	abstract executeAndMap<T>(): Promise<T[]>;
 	abstract getOneAndMap<T>(): Promise<T | undefined>;
+	abstract orWhereDateExpression(expression: string, ...params: unknown[]): EntityQueryBuilder;
+	abstract andWhereDateExpression(expression: string, ...params: unknown[]): EntityQueryBuilder;
 }
 /**
  * Entity-aware query builder factory
@@ -431,6 +433,7 @@ export class GenericEntityQueryBuilder implements EntityQueryBuilder {
 		protected mapping: EntityConfig,
 		protected adapter: DatabaseAdapter
 	) { }
+
 
 	/**
 	 * Get the entity mapping
@@ -494,6 +497,16 @@ export class GenericEntityQueryBuilder implements EntityQueryBuilder {
 
 	orWhere(condition: WhereCondition | string, ...params: unknown[]): EntityQueryBuilder {
 		this.queryBuilder.orWhere(condition, ...params);
+		return this;
+	}
+
+	orWhereDateExpression(expression: string, ...params: unknown[]): EntityQueryBuilder {
+		this.queryBuilder.orWhere(expression, ...params);
+		return this;
+	}
+
+	andWhereDateExpression(expression: string, ...params: unknown[]): EntityQueryBuilder {
+		this.queryBuilder.andWhere(expression, ...params);
 		return this;
 	}
 
