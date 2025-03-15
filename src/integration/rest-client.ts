@@ -1,5 +1,3 @@
-
-
 /**
  * REST Client
  * Generic REST API client for integration with external services
@@ -10,8 +8,8 @@ import {
 	RestIntegrationConfig,
 	RestEndpoint,
 	IntegrationAuthConfig
-} from './integration-schema';
-import { Logger } from '../core/types';
+} from '@/core/integration-schema';
+import { Logger } from '@/core/types';
 
 /**
  * Request options
@@ -67,7 +65,7 @@ export class RestClient {
 		this.authConfig = authConfig;
 		this.logger = logger;
 
-		// Create axios instance
+		// Create axios instance with default config
 		this.client = axios.create({
 			baseURL: config.baseUrl,
 			timeout: config.timeout || 30000,
@@ -207,7 +205,6 @@ export class RestClient {
 		// For external file mappings, load the file
 		if (mapping.startsWith('./') || mapping.startsWith('/')) {
 			// In a real implementation, this would dynamically load the file
-			// For now, just throw an error
 			throw new Error(`External mapping files not supported yet: ${mapping}`);
 		}
 
@@ -288,7 +285,6 @@ export class RestClient {
 			case 'custom':
 				if (this.authConfig.custom && this.authConfig.custom.implementation) {
 					// In a real implementation, this would dynamically load and execute the custom auth handler
-					// For now, just log a warning
 					this.logger.warn('Custom authentication not implemented');
 				}
 				break;
@@ -702,3 +698,17 @@ export class RestClient {
 	}
 }
 
+/**
+ * Create a REST client
+ * @param config Integration configuration
+ * @param authConfig Authentication configuration
+ * @param logger Logger instance
+ * @returns REST client instance
+ */
+export function createRestClient(
+	config: RestIntegrationConfig,
+	authConfig: IntegrationAuthConfig | undefined,
+	logger: Logger
+): RestClient {
+	return new RestClient(config, authConfig, logger);
+}
