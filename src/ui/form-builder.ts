@@ -112,7 +112,7 @@ export interface FormBuilderOptions {
 	/**
 	 * Available entity mappings (for relation fields)
 	 */
-	entityMappings?: Record<string, EntityConfig>;
+	entityConfigs?: Record<string, EntityConfig>;
 }
 
 /**
@@ -138,16 +138,16 @@ export class FormBuilder {
 	/**
 	 * Available entity mappings
 	 */
-	private entityMappings: Record<string, EntityConfig>;
+	private entityConfigs: Record<string, EntityConfig>;
 
 	/**
 	 * Constructor
 	 * @param entity Entity mapping
-	 * @param entityMappings Available entity mappings
+	 * @param entityConfigs Available entity mappings
 	 */
-	constructor(entity: EntityConfig, entityMappings: Record<string, EntityConfig> = {}) {
+	constructor(entity: EntityConfig, entityConfigs: Record<string, EntityConfig> = {}) {
 		this.entity = entity;
-		this.entityMappings = { ...entityMappings, [entity.entity]: entity };
+		this.entityConfigs = { ...entityConfigs, [entity.entity]: entity };
 	}
 
 	/**
@@ -351,7 +351,7 @@ export class FormBuilder {
 				fieldConfig.optionsEntity = relation.targetEntity;
 
 				// Find the target entity mapping
-				const targetMapping = this.entityMappings[relation.targetEntity];
+				const targetMapping = this.entityConfigs[relation.targetEntity];
 				if (targetMapping) {
 					// Use the primary display field if available, otherwise use the ID field
 					const displayField = this.getDisplayField(targetMapping);
@@ -365,7 +365,7 @@ export class FormBuilder {
 				fieldConfig.optionsEntity = relation.targetEntity;
 
 				// Find the target entity mapping
-				const targetMapping = this.entityMappings[relation.targetEntity];
+				const targetMapping = this.entityConfigs[relation.targetEntity];
 				if (targetMapping) {
 					const displayField = this.getDisplayField(targetMapping);
 					fieldConfig.optionsLabelField = displayField;
@@ -402,15 +402,15 @@ export class FormBuilder {
  * Generate a form configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Form builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Form configuration
  */
 export function generateForm(
 	entity: EntityConfig,
 	options: FormBuilderOptions,
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): FormConfig {
-	const builder = new FormBuilder(entity, entityMappings);
+	const builder = new FormBuilder(entity, entityConfigs);
 	return builder.buildForm(options);
 }
 
@@ -418,33 +418,33 @@ export function generateForm(
  * Generate a create form configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Form builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Create form configuration
  */
 export function generateCreateForm(
 	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.Create,
 		title: `Create ${entity.entity}`,
 		submitLabel: 'Create',
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }
 
 /**
  * Generate an edit form configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Form builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Edit form configuration
  */
 export function generateEditForm(
 	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.Edit,
@@ -452,20 +452,20 @@ export function generateEditForm(
 		submitLabel: 'Save',
 		includeIdField: true,
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }
 
 /**
  * Generate a view form configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Form builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns View form configuration
  */
 export function generateViewForm(
 	entity: EntityConfig,
 	options: Partial<FormBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): FormConfig {
 	return generateForm(entity, {
 		mode: FormMode.View,
@@ -473,5 +473,5 @@ export function generateViewForm(
 		includeIdField: true,
 		includeTimestampFields: true,
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }

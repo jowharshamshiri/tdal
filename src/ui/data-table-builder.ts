@@ -105,7 +105,7 @@ export interface DataTableBuilderOptions {
 	/**
 	 * Available entity mappings (for relation columns)
 	 */
-	entityMappings?: Record<string, EntityConfig>;
+	entityConfigs?: Record<string, EntityConfig>;
 }
 
 /**
@@ -152,16 +152,16 @@ export class DataTableBuilder {
 	/**
 	 * Available entity mappings
 	 */
-	private entityMappings: Record<string, EntityConfig>;
+	private entityConfigs: Record<string, EntityConfig>;
 
 	/**
 	 * Constructor
 	 * @param entity Entity mapping
-	 * @param entityMappings Available entity mappings
+	 * @param entityConfigs Available entity mappings
 	 */
-	constructor(entity: EntityConfig, entityMappings: Record<string, EntityConfig> = {}) {
+	constructor(entity: EntityConfig, entityConfigs: Record<string, EntityConfig> = {}) {
 		this.entity = entity;
-		this.entityMappings = { ...entityMappings, [entity.entity]: entity };
+		this.entityConfigs = { ...entityConfigs, [entity.entity]: entity };
 	}
 
 	/**
@@ -530,7 +530,7 @@ export class DataTableBuilder {
 		switch (relation.type) {
 			case 'manyToOne': {
 				// Find the target entity mapping
-				const targetMapping = this.entityMappings[relation.targetEntity];
+				const targetMapping = this.entityConfigs[relation.targetEntity];
 				if (targetMapping) {
 					// Use a template to display the related entity's display field
 					const displayField = this.getDisplayField(targetMapping);
@@ -570,7 +570,7 @@ export class DataTableBuilder {
 				filterConfig.optionsEntity = relation.targetEntity;
 
 				// Find the target entity mapping
-				const targetMapping = this.entityMappings[relation.targetEntity];
+				const targetMapping = this.entityConfigs[relation.targetEntity];
 				if (targetMapping) {
 					const displayField = this.getDisplayField(targetMapping);
 					filterConfig.optionsLabelField = displayField;
@@ -607,15 +607,15 @@ export class DataTableBuilder {
  * Generate a data table configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Data table builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Data table configuration
  */
 export function generateDataTable(
 	entity: EntityConfig,
 	options: DataTableBuilderOptions = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): DataTableConfig {
-	const builder = new DataTableBuilder(entity, entityMappings);
+	const builder = new DataTableBuilder(entity, entityConfigs);
 	return builder.buildDataTable(options);
 }
 
@@ -623,13 +623,13 @@ export function generateDataTable(
  * Generate a list data table configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Data table builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns List table configuration
  */
 export function generateListTable(
 	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	return generateDataTable(entity, {
 		title: `${entity.entity} List`,
@@ -644,20 +644,20 @@ export function generateListTable(
 			},
 		],
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }
 
 /**
  * Generate a compact table configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Data table builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Compact table configuration
  */
 export function generateCompactTable(
 	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	// Identify the most important columns (typically the first 3-4 non-ID columns)
 	const importantColumns = entity.columns
@@ -676,20 +676,20 @@ export function generateCompactTable(
 		selectable: false,
 		exportable: false,
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }
 
 /**
  * Generate a read-only table configuration from an entity mapping
  * @param entity Entity mapping
  * @param options Data table builder options
- * @param entityMappings Available entity mappings
+ * @param entityConfigs Available entity mappings
  * @returns Read-only table configuration
  */
 export function generateReadOnlyTable(
 	entity: EntityConfig,
 	options: Partial<DataTableBuilderOptions> = {},
-	entityMappings: Record<string, EntityConfig> = {}
+	entityConfigs: Record<string, EntityConfig> = {}
 ): DataTableConfig {
 	return generateDataTable(entity, {
 		title: `${entity.entity} Data`,
@@ -702,5 +702,5 @@ export function generateReadOnlyTable(
 			},
 		],
 		...options,
-	}, entityMappings);
+	}, entityConfigs);
 }
