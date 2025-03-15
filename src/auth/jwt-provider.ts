@@ -238,7 +238,15 @@ export class JwtProvider {
 			};
 
 			// Generate token
-			return this.generateToken(payload as TokenPayload, refreshOptions);
+			const tokenPayload: TokenPayload = {
+				user_id: userId,
+				email: 'refresh-token', // Placeholder, not used for validation
+				role: 'user',           // Placeholder, not used for validation
+				type: 'refresh',
+				jti: this.generateTokenId()
+			};
+
+			return this.generateToken(tokenPayload, refreshOptions);
 		} catch (error: any) {
 			this.logger.error(`Error generating refresh token: ${error.message}`);
 			throw error;

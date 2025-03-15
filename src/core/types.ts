@@ -492,6 +492,10 @@ export interface ServiceDefinition {
 	singleton?: boolean;
 }
 
+export type DynamicObject<T = any> = {
+	[key: string]: T;
+};
+
 /**
  * Hook context for entity lifecycle hooks
  */

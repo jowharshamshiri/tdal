@@ -622,13 +622,14 @@ export class ValidationService {
 						return next();
 					} else {
 						// Send validation error response
-						return res.status(validationResult.statusCode || 400).json({
+						res.status(validationResult.statusCode || 400).json({
 							success: false,
 							error: 'ValidationError',
 							message: 'Validation failed',
 							errors: validationResult.errors,
 							status: validationResult.statusCode || 400
 						});
+						return;
 					}
 				}
 

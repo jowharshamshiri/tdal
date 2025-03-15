@@ -145,12 +145,13 @@ export class ActionMiddleware {
 				if (options.validateParams) {
 					const validation = await options.validateParams(params);
 					if (!validation.valid) {
-						return res.status(400).json({
+						res.status(400).json({
 							success: false,
 							error: 'Validation failed',
 							details: validation.errors,
 							status: 400
 						});
+						return;
 					}
 				}
 
@@ -181,12 +182,14 @@ export class ActionMiddleware {
 					// Handle error
 					const status = result.statusCode || 500;
 
-					return res.status(status).json({
+					res.status(status).json({
 						success: false,
 						error: 'ActionError',
 						message: result.error || 'Action execution failed',
 						status
 					});
+
+					return;
 				}
 
 				// Process API response
@@ -245,7 +248,19 @@ export class ActionMiddleware {
 			if (action.roles && action.roles.length > 0) {
 				const authService = this.appContext.getService('auth');
 				if (authService) {
-					middlewares.push(authService.createRoleMiddleware(action.roles));
+					if (typeof authService === 'object' && authService && 'createRoleMiddleware' in authService) {
+						middlewares.push(authService.createRoleMiddleware(action.roles));
+					} else {
+						this.logger.warn(`Auth service doesn't have createRoleMiddleware method`);
+						// Add a fallback middleware that handles role checking
+						middlewares.push((req, res, next) => {
+							// Simple role check 
+							if (action.roles && action.roles.length > 0 && req.user && !action.roles.includes(req.user.role)) {
+								return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
+							}
+							next();
+						});
+					}
 				}
 			}
 

@@ -5,9 +5,8 @@
 
 import { AppContext } from '../core/app-context';
 import { EntityConfig } from '../entity/entity-config';
-import { Logger } from '../core/types';
+import { HookContext, Logger } from '../core/types';
 import { resolveRoleInheritance } from './auth-config';
-import { HookContext } from '../hooks/hook-context';
 
 /**
  * Custom permission condition

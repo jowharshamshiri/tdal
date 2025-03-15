@@ -160,7 +160,7 @@ export class ActionRegistry {
 
 			if (typeof action.implementation === 'function') {
 				// Direct function reference
-				implementationFn = action.implementation;
+				implementationFn = action.implementation as (params: any, context: HookContext) => Promise<any>;
 			} else if (typeof action.implementation === 'string') {
 				if (action.implementation.startsWith('./') || action.implementation.startsWith('../') || path.isAbsolute(action.implementation)) {
 					// External file path - load it now
