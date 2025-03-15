@@ -3,7 +3,7 @@
  * Generates REST API endpoints from entity definitions
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import { EntityConfig } from '../entity/entity-config';
 import { EntityDao } from '../entity/entity-manager';
 import { ActionRegistry } from '../actions/action-registry';
@@ -466,7 +466,11 @@ export class ApiGenerator {
 			}
 
 			// Apply middleware to router
-			router.use('/', middlewareHandler);
+			if (typeof middlewareHandler === 'function') {
+				router.use('*', middlewareHandler as RequestHandler);
+			} else {
+				this.logger.warn(`Invalid middleware handler for ${middlewareName}`);
+			}
 		};
 
 		// Apply middleware for all routes if available

@@ -3,7 +3,7 @@
  * Generic REST API client for integration with external services
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError, AxiosRequestHeaders, InternalAxiosRequestConfig } from 'axios';
 import {
 	RestIntegrationConfig,
 	RestEndpoint,
@@ -84,16 +84,19 @@ export class RestClient {
 	 */
 	private setupInterceptors(): void {
 		// Request interceptor
+		// Request interceptor
 		this.client.interceptors.request.use(
 			async (config) => {
 				// Apply authentication
-				config = await this.applyAuthentication(config);
+				config = await this.applyAuthentication(config) as InternalAxiosRequestConfig;
 
 				// Ensure headers is never undefined
-				config.headers = config.headers || {};
+				if (!config.headers) {
+					config.headers = {} as AxiosRequestHeaders;
+				}
 
 				// Log request
-				this.logger.debug(`REST Client Request: ${config.method?.toUpperCase()} ${config.url}`, {
+				this.logger.debug(`REST Client Request: ${config.method?.toUpperCase()} ${config.url || ''}`, {
 					headers: config.headers,
 					data: config.data
 				});

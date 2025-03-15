@@ -245,23 +245,24 @@ export class ActionMiddleware {
 			const middlewares = [];
 
 			// Add authentication middleware if roles are specified
-			// Add authentication middleware if roles are specified
 			if (action.roles && action.roles.length > 0) {
-				const authService = this.appContext.getService('auth');
-				if (authService) {
-					if (typeof authService === 'object' && authService && 'createRoleMiddleware' in authService) {
-						middlewares.push(authService.createRoleMiddleware(action.roles));
-					} else {
-						this.logger.warn(`Auth service doesn't have createRoleMiddleware method`);
-						// Add a fallback middleware that handles role checking
-						middlewares.push((req: Request, res: Response, next: NextFunction) => {
-							// Simple role check 
-							if (action.roles && action.roles.length > 0 && req.user && !action.roles.includes(req.user.role)) {
-								return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
-							}
-							next();
-						});
-					}
+				const authService = this.appContext.getService<{
+					createRoleMiddleware?: (roles: string[]) => (req: Request, res: Response, next: NextFunction) => void
+				}>('auth');
+
+				if (authService && typeof authService.createRoleMiddleware === 'function') {
+					middlewares.push(authService.createRoleMiddleware(action.roles));
+				} else {
+					this.logger.warn(`Auth service doesn't have createRoleMiddleware method`);
+					// Add a fallback middleware that handles role checking
+					middlewares.push((req: Request, res: Response, next: NextFunction) => {
+						// Simple role check 
+						if (action.roles && action.roles.length > 0 &&
+							(!req.user || !req.user.role || !action.roles.includes(req.user.role))) {
+							return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
+						}
+						next();
+					});
 				}
 			}
 
