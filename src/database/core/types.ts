@@ -181,6 +181,8 @@ export interface QueryOptions {
  * Options for relational queries
  */
 export interface RelationOptions {
+	[key: string]: any;
+
 	/**
 	 * Name of the relation
 	 */

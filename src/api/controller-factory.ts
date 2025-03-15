@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { EntityConfig } from '../entity/entity-config';
 import { EntityDao } from '../entity/entity-manager';
 import { Logger, ControllerContext, ApiError } from '../core/types';
+import { RelationOptions } from '@/database';
 
 /**
  * Entity controller interface
@@ -149,11 +150,13 @@ export function createEntityController(
 				context
 			);
 
+			const relations: RelationOptions[] = Array.isArray(processedParams.relations) ? processedParams.relations : [processedParams.relations];
+
+
 			// Prepare find options
 			const options = {
 				fields: getRequestedFields(entityConfig, processedParams.fields, context.user?.role),
-				relations: processedParams.relations ?
-					String(processedParams.relations).split(',') : undefined
+				relations: relations
 			};
 
 			// Find entity by ID
