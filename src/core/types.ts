@@ -915,6 +915,7 @@ export interface EntityApiConfig {
 	 * Record-level access control
 	 */
 	recordAccess?: {
+		ownerField: any;
 		condition: string;
 	};
 }
