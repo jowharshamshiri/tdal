@@ -7,7 +7,7 @@ import { Express, Request, Response, NextFunction } from 'express';
 import { HookContext, Logger } from '../core/types';
 import { AppContext } from '../core/app-context';
 import { DatabaseAdapter } from '../database';
-import { EntityConfig } from '@/entity';
+import { EntityConfig } from 'src/entity';
 
 /**
  * Plugin definition
