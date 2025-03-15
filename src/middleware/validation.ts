@@ -115,7 +115,14 @@ export class ValidationService {
 		});
 
 		// Add string formats like email, date, etc.
-		addFormats(this.ajv);
+		this.ajv = new Ajv({
+			allErrors: true,
+			coerceTypes: true,
+			removeAdditional: 'all',
+			useDefaults: true,
+		});
+		// Cast to any to fix type compatibility with ajv-formats
+		addFormats(this.ajv as any);
 
 		// Add custom formats
 		this.registerCustomFormats();
@@ -451,7 +458,7 @@ export class ValidationService {
 		const valid = validator(data);
 
 		if (!valid) {
-			const errors = this.formatErrors(validator.errors);
+			const errors = this.formatErrors(validator.errors || []);
 			return { valid: false, errors };
 		}
 
@@ -545,7 +552,7 @@ export class ValidationService {
 		return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
 			try {
 				// Create hook context for validation
-				const context: HookContext = {
+				const context: Partial<HookContext> = {
 					request: req,
 					response: res,
 					user: (req as any).user,

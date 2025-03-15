@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import { AppContext } from '../core/app-context';
 import { Logger } from '../core/types';
+import { StringValue } from 'ms';
 
 /**
  * JWT token options
@@ -20,7 +21,7 @@ export interface JwtOptions {
 	/**
 	 * Token expiration time
 	 */
-	expiresIn?: string | number;
+	expiresIn?: StringValue | number;
 
 	/**
 	 * Token issuer
@@ -137,11 +138,6 @@ export class JwtProvider {
 	 */
 	generateToken(payload: TokenPayload, options: JwtOptions = {}): string {
 		try {
-			const tokenOptions = {
-				...this.defaultOptions,
-				...options,
-			};
-
 			// Use provided secret or default
 			const secretKey = options.secret || this.secret;
 
@@ -151,9 +147,14 @@ export class JwtProvider {
 				iat: Math.floor(Date.now() / 1000),
 			};
 
-			// Generate token
-			const token = jwt.sign(enhancedPayload, secretKey, tokenOptions);
-			return token;
+			const tokenOptions: jwt.SignOptions = {
+				expiresIn: options.expiresIn || this.defaultOptions.expiresIn,
+				...(options.issuer && { issuer: options.issuer }),
+				...(options.audience && { audience: options.audience }),
+				...(options.algorithm && { algorithm: options.algorithm })
+			};
+
+			return jwt.sign(enhancedPayload, secretKey, tokenOptions);
 		} catch (error: any) {
 			this.logger.error(`Error generating JWT token: ${error.message}`);
 			throw error;

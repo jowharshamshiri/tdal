@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { DatabaseAdapter } from '../database/core/types';
 import { EntityConfig } from '../entity/entity-config';
 import { EntityDao } from '../entity/entity-manager';
+import { StringValue } from 'ms';
 
 /**
  * Application configuration
@@ -209,12 +210,12 @@ export interface AuthConfig {
 	/**
 	 * Token expiration time
 	 */
-	tokenExpiry?: string;
+	tokenExpiry?: StringValue | number;
 
 	/**
 	 * Refresh token expiration time
 	 */
-	refreshTokenExpiry?: string;
+	refreshTokenExpiry?: StringValue | number;
 
 	/**
 	 * User entity name
