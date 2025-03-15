@@ -110,7 +110,7 @@ async function registerPluginCommands(program: Command, logger: ConsoleLogger) {
 						command.action(async (options) => {
 							try {
 								await commandDef.handler(options, logger);
-							} catch (error) {
+							} catch (error: any) {
 								logger.error(`Error executing command: ${error}`);
 								process.exit(1);
 							}
@@ -119,7 +119,7 @@ async function registerPluginCommands(program: Command, logger: ConsoleLogger) {
 				}
 			}
 		}
-	} catch (error) {
+	} catch (error: any) {
 		logger.error(`Error loading plugin commands: ${error}`);
 	}
 }

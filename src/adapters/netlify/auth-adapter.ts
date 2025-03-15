@@ -68,7 +68,7 @@ ${typescript ? '/**\n * Verify JWT token\n * @param token JWT token\n * @returns
 ${typescript ? 'export function verifyToken(token: string): any | null {' : 'exports.verifyToken = function(token) {'}
   try {
     return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
+  } catch (error: any) {
     return null;
   }
 }
@@ -103,7 +103,7 @@ ${typescript ? 'export async function authenticate(event: any): Promise<any> {' 
       ...event,
       user: decoded
     };
-  } catch (error) {
+  } catch (error: any) {
     return {
       statusCode: 401,
       headers: CORS_HEADERS,
@@ -163,7 +163,7 @@ ${typescript ? 'export async function verifyToken(event: Event): Promise<Event |
       ...event,
       user: decoded,
     }${typescript ? ' as Event' : ''};
-  } catch (error) {
+  } catch (error: any) {
     return {
       statusCode: 401,
       headers: CORS_HEADERS,

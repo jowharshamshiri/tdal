@@ -96,7 +96,7 @@ export abstract class DatabaseAdapterBase implements DatabaseAdapter {
 			}
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			if (isOutermostTransaction) {
 				await this.rollbackTransaction();
 			}

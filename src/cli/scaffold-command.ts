@@ -205,7 +205,7 @@ export class ScaffoldCommand {
 				execSync('git init', { cwd: projectDir });
 				fs.writeFileSync(path.join(projectDir, '.gitignore'), this.getGitignoreContent());
 				this.logger.info(chalk.green('Git repository initialized.'));
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.warn(`Failed to initialize git repository: ${error}`);
 			}
 		}
@@ -217,7 +217,7 @@ export class ScaffoldCommand {
 			try {
 				execSync('npm install', { cwd: projectDir, stdio: 'inherit' });
 				this.logger.info(chalk.green('Dependencies installed.'));
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to install dependencies: ${error}`);
 			}
 		}

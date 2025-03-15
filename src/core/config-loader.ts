@@ -137,7 +137,7 @@ export class ConfigLoader {
 			this.logger.info('Application configuration loaded successfully');
 
 			return config;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load application configuration: ${error}`);
 			throw new Error(`Failed to load application configuration: ${error}`);
 		}
@@ -185,7 +185,7 @@ export class ConfigLoader {
 			this.logger.info(`Loaded ${this.entities.size} entity configurations`);
 
 			return this.entities;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load entity configurations: ${error}`);
 			throw new Error(`Failed to load entity configurations: ${error}`);
 		}
@@ -228,7 +228,7 @@ export class ConfigLoader {
 			// Add to entities map
 			this.entities.set(config.entity, config);
 			this.logger.debug(`Loaded entity configuration for ${config.entity}`);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load entity file ${filePath}: ${error}`);
 			throw new Error(`Failed to load entity file ${filePath}: ${error}`);
 		}
@@ -325,7 +325,7 @@ export class ConfigLoader {
 				const module = require(resolvedPath);
 				return module.default || module;
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load external code from ${filePath}: ${error}`);
 			throw new Error(`Failed to load external code from ${filePath}: ${error}`);
 		}
@@ -355,7 +355,7 @@ export class ConfigLoader {
 			// Check for import/export statements
 			const content = fs.readFileSync(filePath, 'utf8');
 			return /\bimport\s+|export\s+/.test(content);
-		} catch (error) {
+		} catch (error: any) {
 			return false;
 		}
 	}

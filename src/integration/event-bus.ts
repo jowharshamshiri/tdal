@@ -229,7 +229,7 @@ export class EventBus {
 
 			// Race the handler against the timeout
 			await Promise.race([handlerPromise, timeoutPromise]);
-		} catch (error) {
+		} catch (error: any) {
 			// If catchErrors is true, log the error but don't rethrow
 			if (registration.catchErrors) {
 				this.logger.error(`Error in event handler for ${context.eventName}: ${error}`);
@@ -329,7 +329,7 @@ export class EventBus {
 			// Mark as loaded
 			this.loadedHandlers.add(handlerKey);
 			this.logger.debug(`Loaded event handler ${handlerKey}`);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load event handler ${handlerKey}: ${error}`);
 		}
 	}

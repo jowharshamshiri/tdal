@@ -7,6 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppContext } from '../core/app-context';
 import { HookContext, Logger } from '../core/types';
 import { DatabaseAdapter } from '../database';
+import { EntityDao } from '@/entity';
 
 /**
  * Hook error class
@@ -67,7 +68,7 @@ export function createHookContext(
 		logger,
 		entityName,
 		operation,
-		user: req?.user,
+		user: (req as any)?.user,
 		request: req,
 		response: res,
 		next,
@@ -76,9 +77,8 @@ export function createHookContext(
 		getService: <T>(name: string): T => {
 			return appContext.getService<T>(name);
 		},
-		// Add entity manager accessor method
-		getEntityManager: <T>(name: string = entityName) => {
-			return appContext.getEntityManager<T>(name);
+		getEntityManager: <T>(name?: string): EntityDao<T, number> => {
+			return appContext.getEntityManager<T>(name || entityName);
 		}
 	};
 }
@@ -157,10 +157,8 @@ export function createEmptyHookContext(
 		getService: <T>(_name: string): T => {
 			throw new Error('Service not available in empty context');
 		},
-		getEntityManager: <T>(_name: string): any => {
+		getEntityManager: <T>(name?: string): any => {
 			throw new Error('Entity manager not available in empty context');
 		}
 	};
 }
-
-export { HookContext };

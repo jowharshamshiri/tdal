@@ -876,7 +876,7 @@ export class SQLiteQueryBuilder implements QueryBuilder {
 				return this.adapter.query<T>(query, ...params);
 			}
 
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof Error && error.message.includes('No table specified')) {
 				// Enhance the error with more context
 				console.error('Query Builder Error:', error.message);

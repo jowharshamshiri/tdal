@@ -391,7 +391,7 @@ export async function executeExtensions(
 			} else {
 				logger.warn(`Invalid extension from plugin ${plugin} for point ${point}`);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			logger.error(`Error executing extension from plugin ${plugin} for point ${point}: ${error}`);
 		}
 	}

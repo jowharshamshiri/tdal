@@ -96,7 +96,7 @@ export async function loadComputedPropertyImplementations(
 
 			implementations[prop.name] = implementation;
 			logger.debug(`Loaded computed property ${prop.name} for ${entity.entity}`);
-		} catch (error) {
+		} catch (error: any) {
 			logger.error(`Failed to load computed property ${prop.name} for ${entity.entity}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
@@ -118,13 +118,13 @@ export function createComputedPropertyFunction(prop: ComputedProperty): (entity:
 			`
       try {
         return (${prop.implementation})(entity, context);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error in computed property ${prop.name}:', error);
         return undefined;
       }
       `
 		) as (entity: any, context?: HookContext) => any;
-	} catch (error) {
+	} catch (error: any) {
 		throw new Error(`Failed to create function for computed property ${prop.name}: ${error instanceof Error ? error.message : String(error)}`);
 	}
 }
@@ -161,7 +161,7 @@ export function processComputedProperties<T extends {}>(
 	for (const propName of propertyOrder) {
 		try {
 			result[propName as keyof T] = implementations[propName](result, context) as T[keyof T];
-		} catch (error) {
+		} catch (error: any) {
 			if (context?.logger) {
 				context.logger.error(`Error calculating computed property ${propName}: ${error instanceof Error ? error.message : String(error)}`);
 			} else {
@@ -464,7 +464,7 @@ export function createComputedPropertiesProcessor(
 			if (implementation) {
 				try {
 					result[propName] = implementation(result, context);
-				} catch (error) {
+				} catch (error: any) {
 					if (context?.logger) {
 						context.logger.error(`Error calculating computed property ${propName}: ${error instanceof Error ? error.message : String(error)}`);
 					} else {

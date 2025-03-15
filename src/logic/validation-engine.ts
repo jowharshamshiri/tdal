@@ -31,6 +31,8 @@ export interface ValidationContext {
 	entityConfig: EntityConfig;
 	/** Is this a create operation? */
 	isCreate: boolean;
+	/** Value from the rule - needed for rules like minLength, maxLength, etc. */
+	value?: any;
 	/** Hook context */
 	hookContext?: HookContext;
 	/** Logger instance */
@@ -271,7 +273,7 @@ export class ValidationEngine {
 						// Register the custom rule
 						const ruleType = `${field}:custom`;
 						this.registerCustomRule(ruleType, implementation, true);
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Failed to load custom validation rule for ${field}: ${error}`);
 					}
 				}
@@ -354,10 +356,13 @@ export class ValidationEngine {
 			const builtInRule = this.builtInRules.get(rule.type);
 			if (builtInRule) {
 				const ruleContext = { ...context, value: rule.value };
-				const result = builtInRule.validate(value, ruleContext);
+				const result = await builtInRule.validate(value, ruleContext);
 
 				if (builtInRule.isAsync) {
-					return await result as Promise<boolean>;
+					// return await result as Promise<boolean>;
+					return typeof result === 'string'
+						? Promise.resolve(false)
+						: Promise.resolve(result);
 				}
 
 				return result as boolean;
@@ -380,7 +385,7 @@ export class ValidationEngine {
 
 			this.logger.warn(`Unknown validation rule type: ${rule.type} for field ${field}`);
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error validating ${field} with rule ${rule.type}: ${error}`);
 			return false;
 		}

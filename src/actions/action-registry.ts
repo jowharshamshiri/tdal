@@ -6,7 +6,7 @@
 import { Logger } from '../core/types';
 import { EntityConfig, EntityAction } from '../entity/entity-config';
 import { HookContext } from '../core/types';
-import { DatabaseAdapter } from '../database';
+import { DatabaseAdapter, TransactionIsolationLevel } from '../database';
 import { executeHookWithTimeout, HookImplementation, createHook } from '../hooks/hooks-executor';
 import { HookError } from '../hooks/hook-context';
 import * as path from 'path';
@@ -73,7 +73,7 @@ export interface ActionExecutionOptions {
 	/**
 	 * Transaction isolation level
 	 */
-	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
+	isolationLevel?: TransactionIsolationLevel;
 
 	/**
 	 * Whether to throw errors (true) or return error results (false)
@@ -180,7 +180,7 @@ export class ActionRegistry {
 								}
 
 								return await fn(params, context);
-							} catch (error) {
+							} catch (error: any) {
 								this.logger.error(`Error executing action ${actionKey}: ${error.message}`);
 								throw error;
 							}
@@ -230,7 +230,7 @@ export class ActionRegistry {
 
 			this.logger.info(`Registered action ${actionKey}`);
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error registering action ${entityName}.${action.name}: ${error.message}`);
 			return false;
 		}
@@ -363,7 +363,7 @@ export class ActionRegistry {
 						if (result && result.params) {
 							processedParams = result.params;
 						}
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Error executing before hook for action ${entityName}.${actionName}: ${error.message}`);
 
 						if (options.throwErrors) {
@@ -388,7 +388,7 @@ export class ActionRegistry {
 					[processedParams, context],
 					timeout
 				);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Error executing action ${entityName}.${actionName}: ${error.message}`);
 
 				if (options.throwErrors) {
@@ -416,7 +416,7 @@ export class ActionRegistry {
 						if (hookResult && hookResult.result !== undefined) {
 							processedResult = hookResult.result;
 						}
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Error executing after hook for action ${entityName}.${actionName}: ${error.message}`);
 
 						if (options.throwErrors) {
@@ -434,7 +434,7 @@ export class ActionRegistry {
 				data: processedResult,
 				statusCode: 200
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error executing action ${entityName}.${actionName}: ${error.message}`);
 
 			// Return error result

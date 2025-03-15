@@ -107,7 +107,7 @@ export class ActionExecutor {
 			}
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			// Clear timeout if set
 			if (timeoutId) {
 				clearTimeout(timeoutId);
@@ -179,7 +179,7 @@ export class ActionExecutor {
 				}, isolationLevel);
 
 				return result;
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Transaction error in action ${entityName}.${actionName}: ${error.message}`);
 
 				return {
@@ -211,7 +211,7 @@ export class ActionExecutor {
 		for (const action of entity.actions) {
 			try {
 				await this.actionRegistry.registerAction(entity.entity, action);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to register action '${action.name}' for entity ${entity.entity}:`, error);
 			}
 		}

@@ -225,7 +225,7 @@ export class TestExecutor {
 		try {
 			// Load environment variables from process.env
 			this.env = { ...process.env };
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.warn(`Failed to load environment variables: ${error}`);
 		}
 	}
@@ -239,7 +239,7 @@ export class TestExecutor {
 		try {
 			const definition = this.loadTestFile(testFile);
 			return await this.executeTest(definition);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to execute test file ${testFile}: ${error}`);
 			return {
 				name: path.basename(testFile),
@@ -271,7 +271,7 @@ export class TestExecutor {
 			}
 
 			return results;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to execute tests in directory ${testDir}: ${error}`);
 			return [];
 		}
@@ -288,7 +288,7 @@ export class TestExecutor {
 			const definition = yaml.load(content) as TestDefinition;
 			definition.file = testFile;
 			return definition;
-		} catch (error) {
+		} catch (error: any) {
 			throw new Error(`Failed to load test file ${testFile}: ${error}`);
 		}
 	}
@@ -337,7 +337,7 @@ export class TestExecutor {
 					result.passed = false;
 				}
 			}
-		} catch (error) {
+		} catch (error: any) {
 			result.passed = false;
 			result.error = `Test execution failed: ${error}`;
 		}
@@ -413,12 +413,12 @@ export class TestExecutor {
 					try {
 						const stepResult = await this.executeStep(step, context);
 						result.steps.push(stepResult);
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.warn(`Teardown step failed: ${error}`);
 					}
 				}
 			}
-		} catch (error) {
+		} catch (error: any) {
 			result.passed = false;
 			result.error = `Test case execution failed: ${error}`;
 		}
@@ -474,7 +474,7 @@ export class TestExecutor {
 				default:
 					throw new Error(`Unknown step type: ${(step as any).type}`);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			result.passed = false;
 			result.error = `Step execution failed: ${error}`;
 		}
@@ -587,7 +587,7 @@ export class TestExecutor {
 					result.logs?.push(`Stored ${what} as ${step.request.store.as}: ${JSON.stringify(value)}`);
 				}
 			}
-		} catch (error) {
+		} catch (error: any) {
 			// Log the error
 			if (context.verbose) {
 				result.logs?.push(`Request error: ${error}`);
@@ -636,7 +636,7 @@ export class TestExecutor {
 					try {
 						const matches = jsonpath.query(value, path);
 						value = matches.length === 1 ? matches[0] : matches;
-					} catch (error) {
+					} catch (error: any) {
 						throw new Error(`Invalid JSONPath expression: ${path}`);
 					}
 				}
@@ -692,7 +692,7 @@ export class TestExecutor {
 					const scriptFn = new Function('value', 'expect', 'context', assertion.script);
 					await scriptFn(value, expect, context);
 				}
-			} catch (error) {
+			} catch (error: any) {
 				throw new Error(`Assertion failed: ${error}`);
 			}
 		}

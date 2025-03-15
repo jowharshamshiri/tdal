@@ -328,7 +328,7 @@ export class WebhookHandler {
 			);
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to retry delivery ${deliveryId}: ${error}`);
 
 			// Update delivery status
@@ -413,7 +413,7 @@ export class WebhookHandler {
 		try {
 			await this.sendWebhook(webhook, deliveryId, eventName, eventData);
 			return deliveryId;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to deliver webhook ${webhook.id}: ${error}`);
 
 			// Schedule retry if configured
@@ -530,7 +530,7 @@ export class WebhookHandler {
 			});
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			const errorMessage = error.response ?
 				`Status ${error.response.status}: ${error.response.statusText}` :
 				String(error);
@@ -620,7 +620,7 @@ export class WebhookHandler {
 		setTimeout(async () => {
 			try {
 				await this.sendWebhook(webhook, deliveryId, eventName, eventData);
-			} catch (error) {
+			} catch (error: any) {
 				// Schedule next retry
 				this.scheduleRetry(webhook, deliveryId, eventName, eventData, retryCount + 1);
 			}

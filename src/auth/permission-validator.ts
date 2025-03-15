@@ -290,7 +290,7 @@ export class PermissionValidator {
 					this.logger.debug(`Custom permission condition failed for ${entityName}.${operation}`);
 					return false;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Error in custom permission condition for ${entityName}.${operation}: ${error.message}`);
 				return false;
 			}
@@ -386,7 +386,7 @@ export class PermissionValidator {
 					// Create a function that evaluates the condition
 					const conditionFn = new Function('user', 'record', `return ${condition};`);
 					return conditionFn(user, record);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Error evaluating record access condition for ${entityConfig.entity}: ${error.message}`);
 					return false;
 				}

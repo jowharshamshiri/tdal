@@ -56,7 +56,7 @@ ${typescript ? 'export function createContextFromEvent(event: any, db: DatabaseA
   if (event.body) {
     try {
       body = JSON.parse(event.body);
-    } catch (error) {
+    } catch (error: any) {
       console.warn('Error parsing request body:', error);
     }
   }

@@ -102,7 +102,7 @@ export function createEntityController(
 
 			// Send response
 			response.json(processedResponse);
-		} catch (error) {
+		} catch (error: any) {
 			handleError(error, context);
 		}
 	}
@@ -157,7 +157,7 @@ export function createEntityController(
 
 			// Send response
 			response.json(processedResponse);
-		} catch (error) {
+		} catch (error: any) {
 			handleError(error, context);
 		}
 	}
@@ -198,7 +198,7 @@ export function createEntityController(
 
 			// Send created response
 			response.status(201).json(processedResponse);
-		} catch (error) {
+		} catch (error: any) {
 			handleError(error, context);
 		}
 	}
@@ -251,7 +251,7 @@ export function createEntityController(
 
 			// Send response
 			response.json(processedResponse);
-		} catch (error) {
+		} catch (error: any) {
 			handleError(error, context);
 		}
 	}
@@ -295,7 +295,7 @@ export function createEntityController(
 
 			// Send response
 			response.json(processedResponse);
-		} catch (error) {
+		} catch (error: any) {
 			handleError(error, context);
 		}
 	}

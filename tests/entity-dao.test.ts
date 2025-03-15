@@ -211,7 +211,7 @@ describe("EntityDao", () => {
 					role: "user",
 				} as Partial<User>);
 			});
-		} catch (error) {
+		} catch (error: any) {
 			// Expected error
 		}
 

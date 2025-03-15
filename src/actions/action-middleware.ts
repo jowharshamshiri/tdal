@@ -208,7 +208,7 @@ export class ActionMiddleware {
 					success: true,
 					data: responseData
 				});
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Action middleware error: ${error.message}`);
 
 				// Forward to error handler

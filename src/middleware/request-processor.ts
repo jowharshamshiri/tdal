@@ -66,7 +66,7 @@ export class RequestProcessor {
 
 			// Continue with next middleware or handler
 			next();
-		} catch (error) {
+		} catch (error: any) {
 			// Handle errors
 			this.handleError(error, req, res, next);
 		}
@@ -227,7 +227,7 @@ export class RequestProcessor {
 			// Set user in request and context
 			context.user = result.user;
 			(req as any).user = result.user;
-		} catch (error) {
+		} catch (error: any) {
 			if (error.name !== 'AuthenticationError') {
 				this.logger.error(`Authentication error: ${error.message}`);
 
@@ -288,7 +288,7 @@ export class RequestProcessor {
 					recordId: req.params.id
 				}, context);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			if (error.name !== 'AuthorizationError') {
 				this.logger.error(`Authorization error: ${error.message}`);
 
@@ -343,7 +343,7 @@ export class RequestProcessor {
 				if (res.headersSent) {
 					break;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Middleware error in ${middlewareName}: ${error.message}`);
 				throw error;
 			}
@@ -400,7 +400,7 @@ export class RequestProcessor {
 			if (hookExecutor) {
 				return await hookExecutor.execute(hookType, data, context);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug(`Hook executor not available: ${error.message}`);
 		}
 

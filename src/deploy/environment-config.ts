@@ -181,7 +181,7 @@ export class EnvironmentConfigManager {
 
 			// Store environment variables
 			this.envVars = process.env as EnvVars;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.warn(`Failed to load environment variables: ${error}`);
 		}
 	}
@@ -208,7 +208,7 @@ export class EnvironmentConfigManager {
 
 			this.config = mergedConfig;
 			return mergedConfig;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load environment config: ${error}`);
 			throw new Error(`Failed to load environment configuration: ${error}`);
 		}

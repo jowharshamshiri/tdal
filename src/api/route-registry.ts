@@ -541,7 +541,7 @@ export class RouteRegistry {
 				if (middlewareConfig && middlewareConfig.handler) {
 					return middlewareConfig.handler;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.warn(`Error resolving middleware ${middleware}: ${error.message}`);
 			}
 		}

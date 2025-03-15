@@ -606,7 +606,7 @@ export class ValidationService {
 							errors: entityResult.errors,
 							statusCode: 400
 						};
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Error loading entity for validation: ${error.message}`);
 						validationResult = {
 							valid: false,
@@ -636,7 +636,7 @@ export class ValidationService {
 
 				// Validation successful
 				next();
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Validation error: ${error.message}`);
 				res.status(500).json({
 					success: false,
@@ -720,7 +720,7 @@ export class ValidationService {
 						errors: entityResult.errors,
 						statusCode: 400
 					};
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Error loading entity for validation: ${error.message}`);
 					return {
 						valid: false,
@@ -732,7 +732,7 @@ export class ValidationService {
 
 			// No validation method specified
 			return { valid: true };
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Validation error: ${error.message}`);
 			return {
 				valid: false,

@@ -165,7 +165,7 @@ export class ApiGenerator {
 			this.logger.info(`Generated ${result.files?.length || 0} files using ${adapterName} adapter`);
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating API with adapter ${adapterName}: ${error}`);
 			throw error;
 		}
@@ -217,7 +217,7 @@ export class ApiGenerator {
 			this.logger.info(`Generated ${result.files?.length || 0} files for ${entityName} using ${adapterName} adapter`);
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating API for ${entityName} with adapter ${adapterName}: ${error}`);
 			throw error;
 		}
@@ -256,7 +256,7 @@ export class ApiGenerator {
 				this.context,
 				this.logger
 			);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to create controller for ${entityConfig.entity}: ${error}`);
 			throw new Error(`Failed to create controller for ${entityConfig.entity}: ${error}`);
 		}
@@ -458,7 +458,7 @@ export class ApiGenerator {
 					}
 
 					middlewareHandler = middlewareConfig.handler;
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Error loading middleware ${handler}: ${error}`);
 					return;
 				}
@@ -510,7 +510,7 @@ export class ApiGenerator {
 
 				// Execute controller method
 				await controllerMethod.call(null, context);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Error in ${entityName}.${operation}: ${error}`);
 				next(error);
 			}
@@ -586,7 +586,7 @@ export class ApiGenerator {
 						data: processedResult
 					});
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Error in action ${entityName}.${actionName}: ${error}`);
 
 				if (!res.headersSent) {

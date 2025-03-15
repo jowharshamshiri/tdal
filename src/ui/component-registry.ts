@@ -214,7 +214,7 @@ export class ComponentRegistry {
 
 			// Call the function with the context values
 			return Boolean(evaluator(...Object.values(evalContext)));
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error evaluating condition "${condition}":`, error);
 			return false;
 		}

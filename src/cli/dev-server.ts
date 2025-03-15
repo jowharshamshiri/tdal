@@ -98,7 +98,7 @@ export class DevServer {
 			if (this.options.open) {
 				this.openBrowser(`http://localhost:${config.port}`);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to start server: ${error}`);
 			process.exit(1);
 		}
@@ -139,7 +139,7 @@ export class DevServer {
 				}
 
 				this.isReloading = false;
-			} catch (error) {
+			} catch (error: any) {
 				this.isReloading = false;
 				this.logger.error(`Error during hot reload: ${error}`);
 			}
@@ -164,7 +164,7 @@ export class DevServer {
 			await this.framework.start();
 
 			this.logger.info(chalk.green('Server restarted successfully'));
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to restart server: ${error}`);
 		}
 	}
@@ -183,7 +183,7 @@ export class DevServer {
 			await this.restartServer();
 
 			this.logger.info(chalk.green('Entity configurations reloaded'));
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to reload entities: ${error}`);
 		}
 	}
@@ -198,7 +198,7 @@ export class DevServer {
 
 		try {
 			open(url);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to open browser: ${error}`);
 		}
 	}

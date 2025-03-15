@@ -248,7 +248,7 @@ export class ApiContext implements ControllerContext, HookContext {
 			if (authService && typeof authService.hasRole === 'function') {
 				return authService.hasRole(this.user, role);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug('Authentication service not available for role check');
 		}
 
@@ -289,7 +289,7 @@ export class ApiContext implements ControllerContext, HookContext {
 			if (permissionValidator && typeof permissionValidator.validate === 'function') {
 				return permissionValidator.validate(this.user, entityConfig, op);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug('Permission validator service not available');
 		}
 

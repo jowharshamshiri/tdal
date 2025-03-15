@@ -766,7 +766,7 @@ export class SQLiteAdapter
 				} else {
 					return this.dbInstance.prepare(query).get() as T | undefined;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logDebug(`[SQLite Error] ${error}`);
 				throw error;
 			}
@@ -818,7 +818,7 @@ export class SQLiteAdapter
 				// Execute as a single script
 				this.dbInstance.exec(sql);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logDebug(`[SQLite Execute Script Error] ${error}`);
 			throw error;
 		}
@@ -879,7 +879,7 @@ export class SQLiteAdapter
 				// For queries without parameters
 				return this.dbInstance.prepare(query).all() as T[];
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logDebug(`[SQLite Error] ${error}`);
 			throw error;
 		}
@@ -912,7 +912,7 @@ export class SQLiteAdapter
 					: (result.lastInsertRowid as number),
 				changes: result.changes,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logDebug(`[SQLite Error] ${error}`);
 			throw error;
 		}

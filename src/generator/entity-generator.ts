@@ -50,7 +50,7 @@ export class EntityGenerator {
 		try {
 			const entities = loadEntities(this.entityDirectory);
 			return Array.from(entities.values());
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load entity metadata: ${error}`);
 			return [];
 		}
@@ -74,7 +74,7 @@ export class EntityGenerator {
 
 			this.logger.info(`Loaded and registered ${entitiesMap.size} entities`);
 			return entitiesMap;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load and register entities: ${error}`);
 			throw error;
 		}
@@ -106,7 +106,7 @@ export class EntityGenerator {
 				this.registry.registerRepository(entityName, repositories[entityName]);
 
 				this.logger.debug(`Created repository for ${entityName}`);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to create repository for ${entityName}: ${error}`);
 			}
 		}
@@ -176,7 +176,7 @@ export class EntityGenerator {
 			this.registry.registerRepository(entityName, repository);
 
 			return repository;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to get repository for ${entityName}: ${error}`);
 			throw error;
 		}

@@ -123,7 +123,7 @@ export class NetlifyHandlerGenerator {
 				],
 				success: true
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating handler for ${entityName}: ${error}`);
 			return {
 				files: [],
@@ -185,7 +185,7 @@ export class NetlifyHandlerGenerator {
 				files: utilsFiles,
 				success: true
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating utilities: ${error}`);
 			return {
 				files: [],
@@ -230,7 +230,7 @@ export class NetlifyHandlerGenerator {
 			}
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error writing files: ${error}`);
 			return false;
 		}

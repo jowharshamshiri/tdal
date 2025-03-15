@@ -1091,6 +1091,44 @@ export interface AuthenticationResult {
 	statusCode?: number;
 }
 
+// Add these to your @/core/types.ts file
+
+export interface Workflow {
+	name: string;
+	states: WorkflowState[];
+	transitions: WorkflowTransition[];
+}
+
+export interface WorkflowState {
+	name: string;
+	initial?: boolean;
+	description?: string;
+	metadata?: Record<string, any>;
+}
+
+export interface WorkflowTransition {
+	from: string;
+	to: string;
+	action: string;
+	permissions?: string[];
+	hooks?: {
+		before?: string;
+		after?: string;
+	};
+	description?: string;
+	metadata?: Record<string, any>;
+}
+
+// Missing interface from entity-manager.ts
+export interface ActionImplementations {
+	[actionName: string]: (params: any, context: HookContext) => Promise<any>;
+}
+
+// Missing interface from hook-context.ts
+export interface EntityHookHandler {
+	executeHook: (hookType: string, data: any, context: HookContext) => Promise<any>;
+}
+
 /**
  * Creates a generic API error
  * @param message Error message

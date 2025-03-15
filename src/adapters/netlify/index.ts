@@ -118,7 +118,7 @@ export class NetlifyAdapter implements PlatformAdapter {
 
 			this.logger.info(`Generated ${result.files.length} files for Netlify`);
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating Netlify handlers: ${error}`);
 			return {
 				files: [],
@@ -151,7 +151,7 @@ export class NetlifyAdapter implements PlatformAdapter {
 				appContext,
 				options
 			);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating Netlify handler for entity ${entity.entity}: ${error}`);
 			return {
 				files: [],

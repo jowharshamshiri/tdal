@@ -186,7 +186,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 				session,
 				records,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting session with records: ${error}`);
 			return undefined;
 		}
@@ -254,7 +254,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 				);
 
 				return true;
-			} catch (error) {
+			} catch (error: any) {
 				console.error("Error completing view:", error);
 				return false;
 			}
@@ -285,7 +285,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 
 			const result = await this.update(sessionId, updateData);
 			return result > 0;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error updating session status:", error);
 			return false;
 		}
@@ -350,7 +350,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 				completedSessions,
 				lastSession: stats.last_session,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting user shopping stats: ${error}`);
 			return {
 				totalSessions: 0,
@@ -445,7 +445,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 				lastViewed: stats.last_viewed === null ? undefined : stats.last_viewed,
 				hintViewRate,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting product performance: ${error}`);
 			return {
 				viewCount: 0,

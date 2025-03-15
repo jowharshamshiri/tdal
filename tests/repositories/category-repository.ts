@@ -184,7 +184,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 	async findByParentId(parentId: number): Promise<ProductCategory[]> {
 		try {
 			return this.findBy({ parent_id: parentId } as Partial<ProductCategory>);
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error finding categories by parent ID: ${error}`);
 			return [];
 		}
@@ -209,7 +209,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 
 			// Add the relation
 			return this.addRelation(productCategoryId, "products", productId);
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error adding product to category:", error);
 			return false;
 		}
@@ -227,7 +227,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 	): Promise<boolean> {
 		try {
 			return this.removeRelation(productCategoryId, "products", productId);
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error removing product from category:", error);
 			return false;
 		}
@@ -270,7 +270,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 			}
 
 			return { direct: directCount, total: totalCount };
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting product counts: ${error}`);
 			return { direct: 0, total: 0 };
 		}
@@ -329,7 +329,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 				descendant_count: descendantCount,
 				products,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting category detail: ${error}`);
 			return undefined;
 		}

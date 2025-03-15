@@ -165,7 +165,7 @@ export class PluginManager {
 			await this.initializePlugins();
 
 			this.logger.info(`Plugin manager initialized with ${this.plugins.size} plugins`);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to initialize plugin manager: ${error}`);
 			throw new Error(`Failed to initialize plugin manager: ${error}`);
 		}
@@ -236,7 +236,7 @@ export class PluginManager {
 			});
 
 			this.logger.info(`Loaded plugin ${name} v${plugin.version}`);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load plugin ${config.name}: ${error}`);
 			throw new Error(`Failed to load plugin ${config.name}: ${error}`);
 		}
@@ -261,7 +261,7 @@ export class PluginManager {
 				// Initialize the plugin
 				await pluginResult.plugin.initialize(this.appContext, pluginResult.config);
 				this.logger.info(`Initialized plugin ${pluginName}`);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to initialize plugin ${pluginName}: ${error}`);
 				throw new Error(`Failed to initialize plugin ${pluginName}: ${error}`);
 			}
@@ -342,7 +342,7 @@ export class PluginManager {
 				try {
 					await pluginResult.plugin.cleanup();
 					this.logger.info(`Cleaned up plugin ${pluginName}`);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Failed to clean up plugin ${pluginName}: ${error}`);
 				}
 			}
@@ -488,7 +488,7 @@ class NpmPluginLoader implements PluginLoader {
 
 			this.logger.warn(`Package ${packageName} does not export valid plugins`);
 			return [];
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load plugins from package ${packageName}: ${error}`);
 			throw new Error(`Failed to load plugins from package ${packageName}: ${error}`);
 		}
@@ -577,13 +577,13 @@ class DirectoryPluginLoader implements PluginLoader {
 					}
 
 					this.logger.warn(`File ${file} does not export valid plugins`);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Failed to load plugin from file ${file}: ${error}`);
 				}
 			}
 
 			return plugins;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load plugins from directory ${directory}: ${error}`);
 			throw new Error(`Failed to load plugins from directory ${directory}: ${error}`);
 		}

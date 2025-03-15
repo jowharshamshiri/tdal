@@ -173,7 +173,7 @@ export class RestClient {
 						endpoint.name,
 						this.createMappingFunction(endpoint.requestMapping)
 					);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Failed to load request mapping for ${endpoint.name}:`, error);
 				}
 			}
@@ -184,7 +184,7 @@ export class RestClient {
 						endpoint.name,
 						this.createMappingFunction(endpoint.responseMapping)
 					);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Failed to load response mapping for ${endpoint.name}:`, error);
 				}
 			}
@@ -331,7 +331,7 @@ export class RestClient {
 			}
 
 			throw new Error('Invalid token response');
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error('Failed to get OAuth2 token:', error);
 			throw error;
 		}
@@ -475,7 +475,7 @@ export class RestClient {
 			}
 
 			return responseData;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error executing ${endpointConfig.name}:`, error);
 			throw error;
 		}

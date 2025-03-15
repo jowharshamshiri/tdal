@@ -118,7 +118,7 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
 		try {
 			const result = await this.update(packageId, packageData);
 			return result > 0;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error updating credit package:", error);
 			return false;
 		}
@@ -136,7 +136,7 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
 			} as unknown as Partial<CreditPackage>);
 
 			return result > 0;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error deactivating credit package:", error);
 			return false;
 		}
@@ -359,7 +359,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 
 			await this.update(transactionId, updateData);
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error updating transaction status:", error);
 			return false;
 		}
@@ -401,7 +401,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 				);
 
 				return true;
-			} catch (error) {
+			} catch (error: any) {
 				console.error("Error completing transaction:", error);
 				return false;
 			}
@@ -489,7 +489,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 				totalAmount: aggregateResults[0]?.total_amount as number || 0,
 				totalCredits: aggregateResults[0]?.total_credits as number || 0,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting transaction stats: ${error}`);
 			return {
 				total: 0,

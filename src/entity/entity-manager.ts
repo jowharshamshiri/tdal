@@ -47,7 +47,7 @@ export class EntityActionHandler {
 		for (const action of this.config.actions) {
 			try {
 				await this.loadAction(action);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to load action ${action.name} for ${this.config.entity}: ${error}`);
 			}
 		}
@@ -84,7 +84,7 @@ export class EntityActionHandler {
 			this.implementations[action.name] = implementation;
 			this.loadedActions.add(action.name);
 			this.logger.debug(`Loaded action ${action.name} for ${this.config.entity}`);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to load action ${action.name} for ${this.config.entity}: ${error}`);
 			throw error;
 		}
@@ -126,7 +126,7 @@ export class EntityActionHandler {
 				// Execute without a transaction
 				return await implementation(params, context);
 			}
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error executing action ${actionName} for ${this.config.entity}: ${error}`);
 			throw error;
 		}
@@ -259,7 +259,7 @@ export class EntityDao<T, IdType = number> {
 
 				implementations[prop.name] = implementation;
 				this.logger.debug(`Loaded computed property ${prop.name} for ${this.entityConfig.entity}`);
-			} catch (error) {
+			} catch (error: any) {
 				if (this.logger) {
 					this.logger.error(`Failed to load computed property ${prop.name} for ${this.entityConfig.entity}: ${error}`);
 				}
@@ -429,7 +429,7 @@ export class EntityDao<T, IdType = number> {
 			}
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error deleting entity: ${error}`);
 			}
@@ -461,7 +461,7 @@ export class EntityDao<T, IdType = number> {
 			);
 
 			return this.db.deleteBy(this.tableName, physicalConditions, options);
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error deleting entities by conditions: ${error}`);
 			}
@@ -487,7 +487,7 @@ export class EntityDao<T, IdType = number> {
 			});
 
 			return exists;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error checking if entity exists: ${error}`);
 			}
@@ -567,7 +567,7 @@ export class EntityDao<T, IdType = number> {
 				physicalData,
 				options
 			);
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error updating entities by conditions: ${error}`);
 			}
@@ -797,7 +797,7 @@ export class EntityDao<T, IdType = number> {
 			});
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error adding relation ${relationName}: ${error}`);
 			}
@@ -845,7 +845,7 @@ export class EntityDao<T, IdType = number> {
 			});
 
 			return result > 0;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error removing relation ${relationName}: ${error}`);
 			}
@@ -912,7 +912,7 @@ export class EntityDao<T, IdType = number> {
 		try {
 			const results = await this.db.query<Record<string, unknown>>(query, ...params);
 			return results.map(result => mapToEntity(this.entityConfig, result)) as R[];
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error executing raw query: ${error}`);
 			}
@@ -933,7 +933,7 @@ export class EntityDao<T, IdType = number> {
 				return undefined;
 			}
 			return mapToEntity(this.entityConfig, result) as R;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error executing raw query for single result: ${error}`);
 			}
@@ -1731,7 +1731,7 @@ export class EntityDao<T, IdType = number> {
 			await this.executeHooks('afterUpdate', processedData, ctx);
 
 			return result;
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error updating entity: ${error}`);
 			}
@@ -1798,7 +1798,7 @@ export class EntityDao<T, IdType = number> {
 
 			// Execute after hooks
 			return await this.executeHooks('afterGetById', withComputed, ctx);
-		} catch (error) {
+		} catch (error: any) {
 			if (this.logger) {
 				this.logger.error(`Error finding entity by ID: ${error}`);
 			}

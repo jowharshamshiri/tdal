@@ -147,10 +147,10 @@ export class WorkflowEngine {
 					const afterHook = await this.loadStateChangeHook(transition.hooks.after);
 					workflowHooks.set(`after:${key}`, afterHook);
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(
 					`Failed to load state change hooks for transition ${transition.from} -> ${transition.to}:`,
-					error
+					error instanceof Error ? error.message : String(error)
 				);
 			}
 		}
@@ -218,7 +218,7 @@ export class WorkflowEngine {
 			return [];
 		}
 
-		return workflow.transitions.filter(transition => transition.from === state);
+		return workflow.transitions.filter(t => t.from === state);
 	}
 
 	/**
@@ -290,8 +290,21 @@ export class WorkflowEngine {
 	): Promise<WorkflowTransitionResult> {
 		try {
 			// Get entity data
-			const entityDao = context.getEntityManager(entityName);
-			const entity = await entityDao.findById(entityId);
+			if (!context.getEntityManager) {
+				return {
+					success: false,
+					error: `Context does not have getEntityManager method`
+				};
+			}
+
+			const entityDao = context.getEntityManager<any>(entityName);
+
+			// Convert entityId to number if it's a numeric string
+			const idValue = typeof entityId === 'string' && !isNaN(Number(entityId))
+				? parseInt(entityId, 10)
+				: entityId;
+
+			const entity = await entityDao.findById(idValue);
 
 			if (!entity) {
 				return {
@@ -322,7 +335,7 @@ export class WorkflowEngine {
 
 			// Find transition
 			const transition = workflow.transitions.find(
-				t => t.from === currentState && t.action === action
+				(t: WorkflowTransition) => t.from === currentState && t.action === action
 			);
 
 			if (!transition) {
@@ -343,7 +356,7 @@ export class WorkflowEngine {
 					};
 				}
 
-				const userRole = user.role;
+				const userRole = (user as any).role;
 
 				if (!transition.permissions.includes(userRole)) {
 					return {
@@ -382,7 +395,12 @@ export class WorkflowEngine {
 				[stateField]: transition.to
 			};
 
-			await entityDao.update(entityId, { [stateField]: transition.to });
+			// Convert entityId to number if it's a numeric string for the update operation
+			const updateIdValue = typeof entityId === 'string' && !isNaN(Number(entityId))
+				? parseInt(entityId, 10)
+				: entityId;
+
+			await entityDao.update(updateIdValue, { [stateField]: transition.to });
 
 			// Execute after hook if defined
 			await this.executeStateChangeHook(
@@ -409,10 +427,10 @@ export class WorkflowEngine {
 				fromState: currentState,
 				toState: transition.to
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(
 				`Error transitioning ${entityName} ${entityId} in workflow ${workflowName}:`,
-				error
+				error instanceof Error ? error.message : String(error)
 			);
 
 			return {
@@ -460,10 +478,10 @@ export class WorkflowEngine {
 
 		try {
 			await hook(event, context);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(
 				`Error executing ${hookType} hook for ${entityName} transition ${fromState} -> ${toState}:`,
-				error
+				error instanceof Error ? error.message : String(error)
 			);
 
 			throw new HookError(
@@ -594,8 +612,8 @@ export class WorkflowEngine {
 				paths.push([...path]);
 			} else {
 				// Continue traversal
-				for (const transition of transitions) {
-					dfs(transition.to, [...path]);
+				for (const t of transitions) {
+					dfs(t.to, [...path]);
 				}
 			}
 
@@ -626,14 +644,18 @@ export function createWorkflowTransitionAction(
 ): (req: any, context: HookContext) => Promise<any> {
 	return async (req: any, context: HookContext) => {
 		// Get ID from request params
-		const entityId = req.params.id;
+		const entityId = req.params?.id;
 
 		if (!entityId) {
 			throw new HookError('Entity ID is required', 400);
 		}
 
 		// Get workflow engine from context
-		const workflowEngine = context.getService('workflowEngine');
+		if (!context.getService) {
+			throw new HookError('Context does not have getService method', 500);
+		}
+
+		const workflowEngine = context.getService<any>('workflowEngine');
 
 		if (!workflowEngine) {
 			throw new HookError('Workflow engine not available', 500);

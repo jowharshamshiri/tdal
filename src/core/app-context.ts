@@ -143,7 +143,7 @@ export class AppContext {
 
 			this.logger.info('Application context initialized successfully');
 			return this;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to initialize application context: ${error}`);
 			throw error;
 		}
@@ -164,7 +164,7 @@ export class AppContext {
 				this.entityManagers.set(entityName, entityManager);
 
 				this.logger.debug(`Initialized entity manager for ${entityName}`);
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to initialize entity manager for ${entityName}: ${error}`);
 				throw new Error(`Failed to initialize entity manager for ${entityName}: ${error}`);
 			}
@@ -232,7 +232,7 @@ export class AppContext {
 					try {
 						this.actionRegistry.registerAction(entityName, action);
 						this.logger.debug(`Registered action ${action.name} for entity ${entityName}`);
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Failed to register action ${action.name} for entity ${entityName}: ${error}`);
 					}
 				}
@@ -303,7 +303,7 @@ export class AppContext {
 					}
 
 					this.logger.debug(`Registered API routes for entity ${entityName}`);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Failed to register API routes for entity ${entityName}: ${error}`);
 				}
 			}
@@ -588,7 +588,7 @@ export class AppContext {
 				try {
 					await service.shutdown();
 					this.logger.debug(`Shutdown service: ${name}`);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Error shutting down service ${name}: ${error}`);
 				}
 			}

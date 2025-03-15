@@ -252,7 +252,7 @@ export class ProductRepository extends EntityDao<Product> {
 			} as Partial<Product>);
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error bookmarking product:", error);
 			return false;
 		}
@@ -284,7 +284,7 @@ export class ProductRepository extends EntityDao<Product> {
 			} as Partial<Product>);
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error removing bookmark:", error);
 			return false;
 		}
@@ -318,7 +318,7 @@ export class ProductRepository extends EntityDao<Product> {
 				.orderBy("f.title");
 
 			return qb.execute<Product>();
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error finding products by category ID: ${error}`);
 			return [];
 		}
@@ -435,7 +435,7 @@ export class ProductRepository extends EntityDao<Product> {
 			} as Partial<Product>);
 
 			return true;
-		} catch (error) {
+		} catch (error: any) {
 			console.error("Error updating user product data:", error);
 			return false;
 		}
@@ -608,7 +608,7 @@ export class ProductRepository extends EntityDao<Product> {
 				}
 
 				return true;
-			} catch (error) {
+			} catch (error: any) {
 				console.error("Error granting access:", error);
 				return false;
 			}
@@ -625,7 +625,7 @@ export class ProductRepository extends EntityDao<Product> {
 			return this.db.query<Product>(
 				`SELECT * FROM products WHERE is_free = 1`
 			);
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error finding free products: ${error}`);
 			return [];
 		}
@@ -644,7 +644,7 @@ export class ProductRepository extends EntityDao<Product> {
 				`%${searchTerm}%`,
 				`%${searchTerm}%`
 			);
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error searching products: ${error}`);
 			return [];
 		}

@@ -81,7 +81,7 @@ export function registerGenerateCommands(program: Command, logger: Logger) {
 
 					logger.info(`Generated entity: ${chalk.green(name)} in ${chalk.cyan(outputDir)}`);
 				}
-			} catch (error) {
+			} catch (error: any) {
 				logger.error(`Error generating entity: ${error}`);
 			}
 		});
@@ -135,7 +135,7 @@ export function registerGenerateCommands(program: Command, logger: Logger) {
 				fs.writeFileSync(path.join(outputDir, 'index.ts'), indexContent, 'utf8');
 
 				logger.info(`Generated models index file`);
-			} catch (error) {
+			} catch (error: any) {
 				logger.error(`Error generating models: ${error}`);
 			}
 		});
@@ -178,7 +178,7 @@ export function registerGenerateCommands(program: Command, logger: Logger) {
 				fs.writeFileSync(yamlPath, yamlContent, 'utf8');
 
 				logger.info(`Generated entity YAML: ${chalk.green(yamlPath)}`);
-			} catch (error) {
+			} catch (error: any) {
 				logger.error(`Error generating entity from interface: ${error}`);
 			}
 		});
@@ -234,7 +234,7 @@ export function registerGenerateCommands(program: Command, logger: Logger) {
 
 					logger.info(`Generated empty migration: ${chalk.green(fileName)}`);
 				}
-			} catch (error) {
+			} catch (error: any) {
 				logger.error(`Error generating migration: ${error}`);
 			}
 		});
@@ -450,7 +450,7 @@ async function generateEntityInteractive(
 		}
 
 		return entity;
-	} catch (error) {
+	} catch (error: any) {
 		logger.error(`Error in interactive entity generation: ${error}`);
 		throw error;
 	}

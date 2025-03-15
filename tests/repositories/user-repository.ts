@@ -87,7 +87,7 @@ export class UserRepository extends EntityDao<User> {
 		try {
 			const lastLogin = new Date().toISOString();
 			return this.update(userId, { last_login: lastLogin } as Partial<User>);
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error updating last login: ${error}`);
 			return 0;
 		}
@@ -117,7 +117,7 @@ export class UserRepository extends EntityDao<User> {
 			};
 
 			return profile;
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting user profile: ${error}`);
 			return undefined;
 		}
@@ -167,7 +167,7 @@ export class UserRepository extends EntityDao<User> {
 				details,
 				access_history: accessHistory,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting credit balance: ${error}`);
 			return {
 				total: 0,
@@ -216,7 +216,7 @@ export class UserRepository extends EntityDao<User> {
 				credit_balance: creditResult?.credit_balance || 0,
 				recent_access: recentAccess || [],
 			};
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error getting user with access history: ${error}`);
 			return {};
 		}
@@ -235,7 +235,7 @@ export class UserRepository extends EntityDao<User> {
 		 FROM users u
 		 ORDER BY u.name`
 			);
-		} catch (error) {
+		} catch (error: any) {
 			console.error(`Error finding users with credit balance: ${error}`);
 			return [];
 		}

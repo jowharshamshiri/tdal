@@ -412,7 +412,7 @@ export function getRepository<T>(
 			}
 
 			this.logger.info('Code generation completed successfully');
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Code generation failed: ${error}`);
 			throw error;
 		}
@@ -437,7 +437,7 @@ export function getRepository<T>(
 			}
 
 			this.generateCode(entities);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Failed to generate code from YAML: ${error}`);
 			throw error;
 		}

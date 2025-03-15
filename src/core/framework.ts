@@ -229,7 +229,7 @@ export class Framework {
 			this.logger.info('Framework initialized successfully');
 
 			return this;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Framework initialization failed: ${error}`);
 			throw new Error(`Framework initialization failed: ${error}`);
 		}
@@ -370,7 +370,7 @@ export class Framework {
 						} else {
 							this.logger.warn(`Invalid middleware handler for ${middlewareName}`);
 						}
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Error applying middleware ${middlewareName}: ${error}`);
 					}
 				}
@@ -416,7 +416,7 @@ export class Framework {
 						this.logger.debug(`  ${route}`);
 					}
 				}
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to generate API routes: ${error}`);
 			}
 		}
@@ -463,7 +463,7 @@ export class Framework {
 
 					resolve(this.server);
 				});
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Failed to start server: ${error}`);
 				reject(error);
 			}

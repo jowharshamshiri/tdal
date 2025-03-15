@@ -226,7 +226,7 @@ ${typescript ? 'export const handler = async (event: any, context: any): Promise
       headers: CORS_HEADERS,
       body: JSON.stringify({ message: "Method not allowed" }),
     }${typescript ? ' as ApiResponse' : ''};
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error handling ${lowerEntityName}s:", error);
     return {
       statusCode: 500,
@@ -425,7 +425,7 @@ ${typescript ? 'export async function verifyToken(event: Event): Promise<Event |
       ...event,
       user: decoded,
     }${typescript ? ' as Event' : ''};
-  } catch (error) {
+  } catch (error: any) {
     return {
       statusCode: 401,
       headers: CORS_HEADERS,
@@ -542,7 +542,7 @@ function generateCustomActionHandlers(entity: EntityConfig, actions: EntityActio
 		code += `          headers: CORS_HEADERS,\n`;
 		code += `          body: JSON.stringify(result),\n`;
 		code += `        } as ApiResponse;\n`;
-		code += `      } catch (error) {\n`;
+		code += `      } catch (error: any) {\n`;
 		code += `        return {\n`;
 		code += `          statusCode: 400,\n`;
 		code += `          headers: CORS_HEADERS,\n`;

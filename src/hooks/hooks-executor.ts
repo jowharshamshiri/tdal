@@ -184,7 +184,7 @@ export async function executeHookWithTimeout<T>(
 					clearTimeout(timeoutId);
 					reject(error);
 				});
-		} catch (error) {
+		} catch (error: any) {
 			clearTimeout(timeoutId);
 			reject(error);
 		}
@@ -285,7 +285,7 @@ export class HookExecutor<T = any> {
 				if (hookResult !== undefined) {
 					result = hookResult;
 				}
-			} catch (error) {
+			} catch (error: any) {
 				// Log error
 				this.logger?.error(`Error executing hook ${hook.name}: ${error.message}`);
 

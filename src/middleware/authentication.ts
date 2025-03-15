@@ -52,7 +52,7 @@ export class AuthenticationService {
 	async verifyToken(token: string): Promise<any> {
 		try {
 			return jwt.verify(token, this.secret);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Token verification failed: ${error.message}`);
 			throw createApiError(`Invalid token: ${error.message}`, 401, 'AuthenticationError');
 		}
@@ -204,7 +204,7 @@ export class AuthenticationService {
 				let payload;
 				try {
 					payload = jwt.verify(token, secret);
-				} catch (error) {
+				} catch (error: any) {
 					if (required) {
 						return this.handleAuthError(res, `Invalid token: ${error.message}`, 401);
 					} else {
@@ -232,7 +232,7 @@ export class AuthenticationService {
 						if (!hasPermission) {
 							return this.handleAuthError(res, `Insufficient permissions for ${entity}.${operation}`, 403);
 						}
-					} catch (error) {
+					} catch (error: any) {
 						this.logger.error(`Error checking entity permissions: ${error.message}`);
 						return this.handleAuthError(res, 'Error checking permissions', 500);
 					}
@@ -240,7 +240,7 @@ export class AuthenticationService {
 
 				// Authentication successful
 				next();
-			} catch (error) {
+			} catch (error: any) {
 				this.logger.error(`Authentication error: ${error.message}`);
 				return this.handleAuthError(res, 'Authentication error', 500);
 			}
@@ -309,7 +309,7 @@ export class AuthenticationService {
 			let payload;
 			try {
 				payload = jwt.verify(token, secret);
-			} catch (error) {
+			} catch (error: any) {
 				return {
 					authenticated: false,
 					error: `Invalid token: ${error.message}`,
@@ -344,7 +344,7 @@ export class AuthenticationService {
 							statusCode: 403
 						};
 					}
-				} catch (error) {
+				} catch (error: any) {
 					this.logger.error(`Error checking entity permissions: ${error.message}`);
 					return {
 						authenticated: false,
@@ -359,7 +359,7 @@ export class AuthenticationService {
 				authenticated: true,
 				user: payload
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Authentication error: ${error.message}`);
 			return {
 				authenticated: false,

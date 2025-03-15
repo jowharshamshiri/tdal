@@ -154,7 +154,7 @@ export class JwtProvider {
 			// Generate token
 			const token = jwt.sign(enhancedPayload, secretKey, tokenOptions);
 			return token;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating JWT token: ${error.message}`);
 			throw error;
 		}
@@ -189,7 +189,7 @@ export class JwtProvider {
 				payload: decoded,
 				expires,
 			};
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug(`JWT verification failed: ${error.message}`);
 			return {
 				valid: false,
@@ -206,7 +206,7 @@ export class JwtProvider {
 	decodeToken(token: string): any | null {
 		try {
 			return jwt.decode(token);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug(`JWT decode failed: ${error.message}`);
 			return null;
 		}
@@ -239,7 +239,7 @@ export class JwtProvider {
 
 			// Generate token
 			return this.generateToken(payload as TokenPayload, refreshOptions);
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.error(`Error generating refresh token: ${error.message}`);
 			throw error;
 		}
@@ -271,7 +271,7 @@ export class JwtProvider {
 			// Check expiration
 			const now = Math.floor(Date.now() / 1000);
 			return exp < now;
-		} catch (error) {
+		} catch (error: any) {
 			this.logger.debug(`Error checking token expiration: ${error.message}`);
 			return true; // On error, treat as expired
 		}
