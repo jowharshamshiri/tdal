@@ -273,7 +273,7 @@ export class EntityRegistry {
  * @returns EntityRegistry instance
  */
 export function getEntityRegistry(logger?: Logger, db?: DatabaseAdapter): EntityRegistry {
-	if (!db && DatabaseContext.isInitialized()) {
+	if (!db && DatabaseContext.hasInstance()) {
 		db = DatabaseContext.getDatabase();
 	}
 

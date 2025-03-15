@@ -11,35 +11,34 @@ import { Logger } from '../core/types';
 import { DatabaseAdapter } from '../database/core/types';
 import { loadEntities } from './yaml-generator';
 import { mapDbTypeToTypeScript } from '../entity/entity-schema';
-import { EntityRegistry } from '../entity/EntityRegistry';
+import { AppContext } from '../core/app-context';
 
 /**
  * Main class for entity generation and registration
  */
 export class EntityGenerator {
 	private entityDirectory: string;
-	private registry: EntityRegistry;
 	private logger: Logger;
 	private db?: DatabaseAdapter;
+	private appContext: AppContext;
 
 	/**
 	 * Constructor
+	 * @param appContext Application context
 	 * @param options Entity generator options
 	 */
 	constructor(
+		appContext: AppContext,
 		options: {
 			entityDirectory?: string;
 			logger?: Logger;
 			db?: DatabaseAdapter;
 		} = {}
 	) {
+		this.appContext = appContext;
 		this.entityDirectory = options.entityDirectory || path.join(process.cwd(), 'entities');
-		this.logger = options.logger || console;
-		this.db = options.db;
-		this.registry = EntityRegistry.getInstance();
-
-		// Set logger in registry
-		this.registry.setLogger(this.logger);
+		this.logger = options.logger || appContext.getLogger();
+		this.db = options.db || appContext.getDatabase();
 	}
 
 	/**
@@ -68,8 +67,8 @@ export class EntityGenerator {
 				// Validate config (basic validation)
 				this.validateEntityConfig(config);
 
-				// Register the entity configuration
-				this.registry.registerEntity(name, null, config);
+				// Register the entity configuration with AppContext
+				this.appContext.registerEntity(name, config);
 			}
 
 			this.logger.info(`Loaded and registered ${entitiesMap.size} entities`);
@@ -92,19 +91,12 @@ export class EntityGenerator {
 		}
 
 		const repositories: Record<string, any> = {};
-		const mappings = this.registry.getAllMappings();
+		const entityConfigs = this.appContext.getAllEntityConfigs();
 
-		for (const [entityName, config] of mappings.entries()) {
+		for (const [entityName, config] of entityConfigs.entries()) {
 			try {
-				// Dynamically import the EntityDao class
-				const { EntityDao } = await import('../entity/entity-manager');
-
-				// Create repository instance
-				repositories[entityName] = new EntityDao(config, dbInstance, this.logger);
-
-				// Register in registry
-				this.registry.registerRepository(entityName, repositories[entityName]);
-
+				// Get entity manager from app context
+				repositories[entityName] = this.appContext.getEntityManager(entityName);
 				this.logger.debug(`Created repository for ${entityName}`);
 			} catch (error: any) {
 				this.logger.error(`Failed to create repository for ${entityName}: ${error}`);
@@ -144,38 +136,12 @@ export class EntityGenerator {
 	/**
 	 * Get repository for an entity
 	 * @param entityName Entity name
-	 * @param db Optional database adapter
+	 * @param db Optional database adapter (ignored if using AppContext)
 	 * @returns Repository instance
 	 */
 	public async getRepository(entityName: string, db?: DatabaseAdapter): Promise<any> {
-		// Check if repository exists in registry
-		const repo = this.registry.getRepository(entityName);
-		if (repo) {
-			return repo;
-		}
-
-		// If not in registry, create it
-		const dbInstance = db || this.db;
-		if (!dbInstance) {
-			throw new Error('Database adapter is required to create repository');
-		}
-
-		const config = this.registry.getMapping(entityName);
-		if (!config) {
-			throw new Error(`Entity configuration for ${entityName} not found`);
-		}
-
 		try {
-			// Import EntityDao class
-			const { EntityDao } = await import('../entity/entity-manager');
-
-			// Create repository
-			const repository = new EntityDao(config, dbInstance, this.logger);
-
-			// Register in registry
-			this.registry.registerRepository(entityName, repository);
-
-			return repository;
+			return this.appContext.getEntityManager(entityName);
 		} catch (error: any) {
 			this.logger.error(`Failed to get repository for ${entityName}: ${error}`);
 			throw error;
@@ -186,47 +152,26 @@ export class EntityGenerator {
 /**
  * Get repository for an entity
  * @param entityName Entity name
- * @param db Database adapter
+ * @param appContext Application context
  * @returns Repository instance
  */
-export async function getRepository(entityName: string, db: DatabaseAdapter): Promise<any> {
-	const registry = EntityRegistry.getInstance();
-
-	// Check if repository exists in registry
-	const repo = registry.getRepository(entityName);
-	if (repo) {
-		return repo;
-	}
-
-	// Get entity mapping
-	const mapping = registry.getMapping(entityName);
-	if (!mapping) {
-		throw new Error(`Entity mapping for ${entityName} not found`);
-	}
-
-	// Import EntityDao class
-	const { EntityDao } = await import('../entity/entity-manager');
-
-	// Create repository
-	const repository = new EntityDao(mapping, db);
-
-	// Register in registry
-	registry.registerRepository(entityName, repository);
-
-	return repository;
+export async function getRepository(entityName: string, appContext: AppContext): Promise<any> {
+	return appContext.getEntityManager(entityName);
 }
 
 /**
  * Create entity generator instance
+ * @param appContext Application context
  * @param options Options for entity generator
  * @returns Entity generator instance
  */
 export function createEntityGenerator(
+	appContext: AppContext,
 	options: {
 		entityDirectory?: string;
 		logger?: Logger;
 		db?: DatabaseAdapter;
 	} = {}
 ): EntityGenerator {
-	return new EntityGenerator(options);
+	return new EntityGenerator(appContext, options);
 }
