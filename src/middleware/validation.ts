@@ -378,7 +378,7 @@ export class ValidationService {
 	 */
 	private formatErrors(ajvErrors: ErrorObject[] = []): ValidationError[] {
 		return ajvErrors.map(error => {
-			const path = error.instancePath?.replace(/^\//, '') ||
+			const path = (error.params as any).instancePath?.replace(/^\//, '') ||
 				(error.params as any).missingProperty ||
 				'unknown';
 
@@ -387,39 +387,39 @@ export class ValidationService {
 			// Customize message based on error keyword
 			switch (error.keyword) {
 				case 'required':
-					message = `${error.params.missingProperty} is required`;
+					message = `${(error.params as any).missingProperty} is required`;
 					break;
 
 				case 'type':
-					message = `${path} should be a ${error.params.type}`;
+					message = `${path} should be a ${(error.params as any).type}`;
 					break;
 
 				case 'format':
-					message = `${path} should match format "${error.params.format}"`;
+					message = `${path} should match format "${(error.params as any).format}"`;
 					break;
 
 				case 'enum':
-					message = `${path} should be one of: ${error.params.allowedValues.join(', ')}`;
+					message = `${path} should be one of: ${(error.params as any).allowedValues.join(', ')}`;
 					break;
 
 				case 'minLength':
-					message = `${path} should be at least ${error.params.limit} characters`;
+					message = `${path} should be at least ${(error.params as any).limit} characters`;
 					break;
 
 				case 'maxLength':
-					message = `${path} should be at most ${error.params.limit} characters`;
+					message = `${path} should be at most ${(error.params as any).limit} characters`;
 					break;
 
 				case 'minimum':
-					message = `${path} should be >= ${error.params.limit}`;
+					message = `${path} should be >= ${(error.params as any).limit}`;
 					break;
 
 				case 'maximum':
-					message = `${path} should be <= ${error.params.limit}`;
+					message = `${path} should be <= ${(error.params as any).limit}`;
 					break;
 
 				case 'pattern':
-					message = `${path} should match pattern "${error.params.pattern}"`;
+					message = `${path} should match pattern "${(error.params as any).pattern}"`;
 					break;
 			}
 
@@ -606,7 +606,10 @@ export class ValidationService {
 				else if (options.entity && options.operation) {
 					try {
 						const entityConfig = this.appContext.getEntityConfig(options.entity);
-						const entityResult = await this.validateEntity(req, entityConfig, options.operation, context);
+						const entityResult = await this.validateEntity(req, entityConfig, options.operation, {
+							...context,
+							db: this.appContext.getDatabase()
+						});
 
 						validationResult = {
 							valid: entityResult.valid,
@@ -670,8 +673,10 @@ export class ValidationService {
 			// Create hook context for validation
 			const context: HookContext = {
 				request: req,
+				response: {} as Response,
 				user: (req as any).user,
 				data: {},
+				db: this.appContext.getDatabase(),
 				logger: this.logger
 			};
 

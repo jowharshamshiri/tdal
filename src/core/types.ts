@@ -512,7 +512,7 @@ export interface HookContext {
 	/**
 	 * Database adapter
 	 */
-	db: DatabaseAdapter;
+	db: DatabaseAdapter | undefined;
 
 	/**
 	 * Application context
