@@ -61,7 +61,7 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
 	/**
 	 * Entity mapping for CreditPackage
 	 */
-	protected readonly entityMapping = CreditPackageMapping;
+	protected readonly entityConfig = CreditPackageMapping;
 
 	/**
 	 * Find active credit packages
@@ -150,7 +150,7 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 	/**
 	 * Entity mapping for UserCredit
 	 */
-	protected readonly entityMapping = typedUserCreditMapping;
+	protected readonly entityConfig = typedUserCreditMapping;
 
 	/**
 	 * Get available credit balance for a user
@@ -307,7 +307,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 	/**
 	 * Entity mapping for PaymentTransaction
 	 */
-	protected readonly entityMapping = typedPaymentTransactionMapping;
+	protected readonly entityConfig = typedPaymentTransactionMapping;
 
 	/**
 	 * Create a new payment transaction

@@ -39,7 +39,7 @@ export class UserRepository extends EntityDao<User> {
 	/**
 	 * Entity mapping for User
 	 */
-	protected readonly entityMapping = typedUserMapping;
+	protected readonly entityConfig = typedUserMapping;
 
 	/**
 	 * Find user by email

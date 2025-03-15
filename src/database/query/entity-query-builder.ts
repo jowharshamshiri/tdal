@@ -271,10 +271,10 @@ export interface EntityQueryBuilder extends QueryBuilder {
 export interface EntityQueryBuilderFactory {
 	/**
 	 * Create an entity query builder for the specified entity
-	 * @param entityMapping Entity mapping
+	 * @param entityConfig Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder;
+	createEntityQueryBuilder(entityConfig: EntityConfig): EntityQueryBuilder;
 
 	/**
 	 * Create an entity query builder for a one-to-many relationship
@@ -389,10 +389,10 @@ export abstract class EntityQueryBuilderBase implements EntityQueryBuilder {
 export interface EntityQueryBuilderFactory {
 	/**
 	 * Create an entity query builder for the specified entity
-	 * @param entityMapping Entity mapping
+	 * @param entityConfig Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder;
+	createEntityQueryBuilder(entityConfig: EntityConfig): EntityQueryBuilder;
 
 	/**
 	 * Create an entity query builder for a one-to-many relationship
@@ -955,12 +955,12 @@ export class EntityQueryBuilderFactory implements EntityQueryBuilderFactory {
 
 	/**
 	 * Create an entity query builder for the specified entity
-	 * @param entityMapping Entity mapping
+	 * @param entityConfig Entity mapping
 	 * @returns Entity query builder
 	 */
-	createEntityQueryBuilder(entityMapping: EntityConfig): EntityQueryBuilder {
+	createEntityQueryBuilder(entityConfig: EntityConfig): EntityQueryBuilder {
 		const queryBuilder = this.adapter.createQueryBuilder();
-		return new GenericEntityQueryBuilder(queryBuilder, entityMapping, this.adapter);
+		return new GenericEntityQueryBuilder(queryBuilder, entityConfig, this.adapter);
 	}
 
 	/**

@@ -14,7 +14,7 @@ import { Relation } from "../src/database/orm/relation-types";
 
 // Create a concrete implementation of EntityDao for testing
 class TestUserDao extends EntityDao<User> {
-	protected readonly entityMapping: EntityConfig = {
+	protected readonly entityConfig: EntityConfig = {
 		...UserMapping,
 		// Fix the relations type by properly casting each relation
 		relations: UserMapping.relations

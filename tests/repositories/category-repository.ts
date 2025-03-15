@@ -54,7 +54,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 	/**
 	 * Entity mapping for ProductCategory
 	 */
-	protected readonly entityMapping = typedProductCategoryMapping;
+	protected readonly entityConfig = typedProductCategoryMapping;
 
 	/**
 	 * Find all root categories (those without a parent)

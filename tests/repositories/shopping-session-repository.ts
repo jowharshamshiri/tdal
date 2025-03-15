@@ -49,7 +49,7 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 	/**
 	 * Entity mapping for ProductShoppingSession
 	 */
-	protected readonly entityMapping = typedShoppingSessionMapping;
+	protected readonly entityConfig = typedShoppingSessionMapping;
 
 	/**
 	 * Find active sessions for a user

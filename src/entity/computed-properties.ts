@@ -138,7 +138,7 @@ export function createComputedPropertyFunction(prop: ComputedProperty): (entity:
  * @param options Processing options
  * @returns Entity with computed properties
  */
-export function processComputedProperties<T>(
+export function processComputedProperties<T extends {}>(
 	entity: T,
 	implementations: ComputedPropertyImplementations,
 	options: ComputedPropertyOptions = {}
@@ -180,7 +180,7 @@ export function processComputedProperties<T>(
  * @param options Processing options
  * @returns Entities with computed properties
  */
-export function processComputedPropertiesForArray<T>(
+export function processComputedPropertiesForArray<T extends {}>(
 	entities: T[],
 	implementations: ComputedPropertyImplementations,
 	options: ComputedPropertyOptions = {}

@@ -55,7 +55,7 @@ export class ProductRepository extends EntityDao<Product> {
 	/**
 	 * Entity mapping for Product
 	 */
-	protected readonly entityMapping = typedProductMapping;
+	protected readonly entityConfig = typedProductMapping;
 
 	/**
 	 * Find products with metadata for a user

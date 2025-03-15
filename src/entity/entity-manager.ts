@@ -3,13 +3,14 @@
  * Provides entity lifecycle management, DAO factory, and API operations
  */
 
-import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction } from './entity-config';
+import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction, mapToEntity } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
-import { processComputedProperties, loadComputedPropertyImplementations, ComputedPropertyImplementations } from './computed-properties';
+import { processComputedProperties, loadComputedPropertyImplementations, ComputedPropertyImplementations, createComputedPropertyFunction } from './computed-properties';
 import { HookContext, Logger, ControllerContext, ActionFunction, HookFunction } from '@/core/types';
 import { AggregateOptions, DatabaseContext, DeleteOptions, FindOptions, findRelation, isRelationType, JoinOptions, ManyToManyRelation, ManyToOneRelation, OneToManyRelation, OneToOneRelation, QueryOptions, Relation, RelationOptions, TransactionIsolationLevel, UpdateOptions } from '@/database';
 import { executeHookWithTimeout, HookExecutor, HookImplementation } from '@/hooks/hooks-executor';
 import { HookError } from '@/hooks/hook-context';
+
 
 /**
  * Action handler for entity actions
@@ -66,7 +67,7 @@ export class EntityActionHandler {
 			let implementation: ActionFunction;
 
 			// If implementation is a file path, load it
-			if (action.implementation && action.implementation.startsWith('./')) {
+			if (action.implementation && typeof action.implementation === 'string' && action.implementation.startsWith('./')) {
 				const actionModule = await this.configLoader.loadExternalCode(action.implementation);
 				implementation = actionModule.default || actionModule;
 			} else {
@@ -169,7 +170,7 @@ export class EntityDao<T, IdType = number> {
 	/**
 	 * Entity mapping for the DAO
 	 */
-	protected readonly entityMapping: EntityConfig;
+	protected readonly entityConfig: EntityConfig;
 
 	/**
 	 * Hook handler for entity lifecycle events
@@ -198,18 +199,18 @@ export class EntityDao<T, IdType = number> {
 
 	/**
  * Constructor
- * @param entityMapping Entity mapping configuration
+ * @param entityConfig Entity mapping configuration
  * @param db Optional database adapter instance (uses singleton if not provided)
  * @param logger Optional logger instance
  * @param configLoader Optional configuration loader for hooks and computed properties
  */
 	constructor(
-		entityMapping: EntityConfig,
+		entityConfig: EntityConfig,
 		db?: DatabaseAdapter,
 		logger?: Logger,
 		configLoader?: any
 	) {
-		this.entityMapping = entityMapping;
+		this.entityConfig = entityConfig;
 		this.db = db || DatabaseContext.getDatabase();
 		this.logger = logger;
 
@@ -219,7 +220,7 @@ export class EntityDao<T, IdType = number> {
 		// Initialize hooks, actions, and computed properties if logger and configLoader are provided
 		if (logger && configLoader) {
 			this.initialize(configLoader).catch(error => {
-				logger.error(`Failed to initialize entity dao for ${entityMapping.entity}: ${error.message}`);
+				logger.error(`Failed to initialize entity dao for ${entityConfig.entity}: ${error.message}`);
 			});
 		}
 	}
@@ -230,13 +231,13 @@ export class EntityDao<T, IdType = number> {
 	 * @returns Map of computed property implementations
 	 */
 	private async loadComputedPropertyImplementations(configLoader: any): Promise<ComputedPropertyImplementations> {
-		if (!this.entityMapping.computed || !this.logger) {
+		if (!this.entityConfig.computed || !this.logger) {
 			return {};
 		}
 
 		const implementations: ComputedPropertyImplementations = {};
 
-		for (const prop of this.entityMapping.computed) {
+		for (const prop of this.entityConfig.computed) {
 			try {
 				let implementation: (entity: any) => any;
 
@@ -247,7 +248,7 @@ export class EntityDao<T, IdType = number> {
 						implementation = module.default || module;
 					} else {
 						// Inline implementation
-						implementation = this.createComputedPropertyFunction(prop);
+						implementation = createComputedPropertyFunction(prop);
 					}
 				} else if (typeof prop.implementation === 'function') {
 					// Direct function reference
@@ -257,123 +258,15 @@ export class EntityDao<T, IdType = number> {
 				}
 
 				implementations[prop.name] = implementation;
-				this.logger.debug(`Loaded computed property ${prop.name} for ${this.entityMapping.entity}`);
+				this.logger.debug(`Loaded computed property ${prop.name} for ${this.entityConfig.entity}`);
 			} catch (error) {
 				if (this.logger) {
-					this.logger.error(`Failed to load computed property ${prop.name} for ${this.entityMapping.entity}: ${error}`);
+					this.logger.error(`Failed to load computed property ${prop.name} for ${this.entityConfig.entity}: ${error}`);
 				}
 			}
 		}
 
 		return implementations;
-	}
-
-	/**
-	 * Create a function from computed property definition
-	 * @param prop Computed property definition
-	 * @returns Implementation function
-	 */
-	private createComputedPropertyFunction(prop: any): (entity: any) => any {
-		// Create a function from the implementation string
-		return new Function(
-			'entity',
-			`return (${prop.implementation})(entity);`
-		) as (entity: any) => any;
-	}
-
-	/**
-	 * Process computed properties for an entity
-	 * @param entity Entity object
-	 * @param implementations Computed property implementations
-	 * @returns Entity with computed properties
-	 */
-	private processComputedProperties<T>(
-		entity: T,
-		implementations: ComputedPropertyImplementations
-	): T {
-		if (!entity || Object.keys(implementations).length === 0) {
-			return entity;
-		}
-
-		// Create a new object to avoid modifying the original
-		const result = { ...entity };
-
-		// Get property order to handle dependencies correctly
-		const propertyOrder = this.getComputedPropertyOrder(
-			Object.keys(implementations),
-			prop => implementations[prop].toString().match(/entity\.(\w+)/g)?.map(m => m.replace('entity.', '')) || []
-		);
-
-		// Calculate each computed property in the correct order
-		for (const propName of propertyOrder) {
-			try {
-				result[propName as keyof T] = implementations[propName](entity) as T[keyof T];
-			} catch (error) {
-				if (this.logger) {
-					this.logger.error(`Error calculating computed property ${propName}: ${error}`);
-				}
-			}
-		}
-
-		return result;
-	}
-
-	/**
-	 * Sort computed properties by dependencies using topological sort
-	 * Ensures properties are calculated in the correct order
-	 * 
-	 * @param propertyNames Names of computed properties
-	 * @param getDependenciesFn Function to get dependencies for a property
-	 * @returns Sorted property names
-	 */
-	private getComputedPropertyOrder(
-		propertyNames: string[],
-		getDependenciesFn: (prop: string) => string[]
-	): string[] {
-		if (propertyNames.length === 0) {
-			return [];
-		}
-
-		const result: string[] = [];
-		const visited = new Set<string>();
-		const visiting = new Set<string>();
-
-		// Build dependency graph
-		const graph = new Map<string, string[]>();
-		for (const prop of propertyNames) {
-			graph.set(prop, getDependenciesFn(prop));
-		}
-
-		// Topological sort with cycle detection
-		function visit(prop: string): void {
-			if (visited.has(prop)) return;
-			if (visiting.has(prop)) {
-				throw new Error(`Cyclic dependency detected in computed properties: ${prop}`);
-			}
-
-			visiting.add(prop);
-
-			const dependencies = graph.get(prop) || [];
-			for (const dep of dependencies) {
-				// Only consider dependencies that are computed properties
-				if (graph.has(dep)) {
-					visit(dep);
-				}
-			}
-
-			visiting.delete(prop);
-			visited.add(prop);
-			result.push(prop);
-		}
-
-		// Visit all properties
-		for (const prop of graph.keys()) {
-			if (!visited.has(prop)) {
-				visit(prop);
-			}
-		}
-
-		return result;
 	}
 
 	/**
@@ -389,28 +282,28 @@ export class EntityDao<T, IdType = number> {
 	 * @returns Entity mapping
 	 */
 	getEntityConfig(): EntityConfig {
-		return this.entityMapping;
+		return this.entityConfig;
 	}
 
 	/**
 	 * Get the table name for the entity
 	 */
 	protected get tableName(): string {
-		return this.entityMapping.table;
+		return this.entityConfig.table;
 	}
 
 	/**
 	 * Get the ID field name for the entity
 	 */
 	protected get idField(): string {
-		return this.entityMapping.idField;
+		return this.entityConfig.idField;
 	}
 
 	/**
 	 * Get the physical ID field name for the entity
 	 */
 	protected get physicalIdField(): string {
-		return mapColumnToPhysical(this.entityMapping, this.idField);
+		return mapColumnToPhysical(this.entityConfig, this.idField);
 	}
 
 	/**
@@ -427,7 +320,7 @@ export class EntityDao<T, IdType = number> {
 		const processedConditions = await this.executeHooks('beforeFindBy', { ...conditions }, ctx);
 
 		const physicalConditions = mapRecordToPhysical(
-			this.entityMapping,
+			this.entityConfig,
 			processedConditions as unknown as Record<string, unknown>
 		);
 
@@ -444,7 +337,7 @@ export class EntityDao<T, IdType = number> {
 		}
 
 		// Map result and apply computed properties
-		const mappedResult = this.mapToEntity(result) as T;
+		const mappedResult = mapToEntity(this.entityConfig, result) as T;
 		const withComputed = this.computedPropertiesProcessor(mappedResult);
 
 		// Process result through hooks
@@ -462,7 +355,7 @@ export class EntityDao<T, IdType = number> {
 		}
 
 		const physicalConditions = mapRecordToPhysical(
-			this.entityMapping,
+			this.entityConfig,
 			conditions as unknown as Record<string, unknown>
 		);
 
@@ -486,7 +379,7 @@ export class EntityDao<T, IdType = number> {
 				db: DatabaseAdapter,
 				logger?: Logger,
 				configLoader?: any
-			) => this)(this.entityMapping, db, this.logger);
+			) => this)(this.entityConfig, db, this.logger);
 
 			// Copy hook executors to the new DAO instance
 			(transactionDao as any).hookExecutors = this.hookExecutors;
@@ -515,8 +408,8 @@ export class EntityDao<T, IdType = number> {
 			}
 
 			// Check if soft delete is enabled
-			if (this.entityMapping.softDelete) {
-				const { column, deletedValue } = this.entityMapping.softDelete;
+			if (this.entityConfig.softDelete) {
+				const { column, deletedValue } = this.entityConfig.softDelete;
 
 				// Apply soft delete
 				return this.update(id, {
@@ -553,8 +446,8 @@ export class EntityDao<T, IdType = number> {
 	async deleteBy(conditions: Partial<T>, options?: DeleteOptions): Promise<number> {
 		try {
 			// Check if soft delete is enabled
-			if (this.entityMapping.softDelete) {
-				const { column, deletedValue } = this.entityMapping.softDelete;
+			if (this.entityConfig.softDelete) {
+				const { column, deletedValue } = this.entityConfig.softDelete;
 
 				// Apply soft delete with update
 				return this.updateBy(conditions, {
@@ -563,7 +456,7 @@ export class EntityDao<T, IdType = number> {
 			}
 
 			const physicalConditions = mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				conditions as unknown as Record<string, unknown>
 			);
 
@@ -623,7 +516,7 @@ export class EntityDao<T, IdType = number> {
 		const convertedData = this.convertToDbValues(processedData);
 
 		const physicalData = mapRecordToPhysical(
-			this.entityMapping,
+			this.entityConfig,
 			convertedData
 		);
 
@@ -659,12 +552,12 @@ export class EntityDao<T, IdType = number> {
 			const convertedData = this.convertToDbValues(data);
 
 			const physicalData = mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				convertedData
 			);
 
 			const physicalConditions = mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				conditions as unknown as Record<string, unknown>
 			);
 
@@ -735,7 +628,7 @@ export class EntityDao<T, IdType = number> {
 		const physicalDataArray = processedArray.map(data => {
 			const convertedData = this.convertToDbValues(data);
 			return mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				convertedData
 			);
 		});
@@ -763,20 +656,20 @@ export class EntityDao<T, IdType = number> {
 		// Map logical field names to physical column names
 		if (options.groupBy) {
 			options.groupBy = options.groupBy.map(field =>
-				mapColumnToPhysical(this.entityMapping, field)
+				mapColumnToPhysical(this.entityConfig, field)
 			);
 		}
 
 		if (options.aggregates) {
 			options.aggregates = options.aggregates.map(agg => ({
 				...agg,
-				field: mapColumnToPhysical(this.entityMapping, agg.field)
+				field: mapColumnToPhysical(this.entityConfig, agg.field)
 			}));
 		}
 
 		if (options.conditions) {
 			options.conditions = mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				options.conditions
 			);
 		}
@@ -784,7 +677,7 @@ export class EntityDao<T, IdType = number> {
 		if (options.orderBy) {
 			options.orderBy = options.orderBy.map(order => ({
 				...order,
-				field: mapColumnToPhysical(this.entityMapping, order.field)
+				field: mapColumnToPhysical(this.entityConfig, order.field)
 			}));
 		}
 
@@ -812,17 +705,17 @@ export class EntityDao<T, IdType = number> {
 		const processedId = processedParams.id;
 		const processedRelationName = processedParams.relationName;
 
-		if (!this.entityMapping.relations) {
+		if (!this.entityConfig.relations) {
 			throw new Error(
-				`No relationships defined for entity ${this.entityMapping.entity}`
+				`No relationships defined for entity ${this.entityConfig.entity}`
 			);
 		}
 
-		const relation = findRelation(this.entityMapping.relations, processedRelationName);
+		const relation = findRelation(this.entityConfig.relations, processedRelationName);
 
 		if (!relation) {
 			throw new Error(
-				`Relationship ${processedRelationName} not found on entity ${this.entityMapping.entity}`
+				`Relationship ${processedRelationName} not found on entity ${this.entityConfig.entity}`
 			);
 		}
 
@@ -866,17 +759,17 @@ export class EntityDao<T, IdType = number> {
 		relationName: string,
 		targetId: number | string
 	): Promise<boolean> {
-		if (!this.entityMapping.relations) {
+		if (!this.entityConfig.relations) {
 			throw new Error(
-				`No relationships defined for entity ${this.entityMapping.entity}`
+				`No relationships defined for entity ${this.entityConfig.entity}`
 			);
 		}
 
-		const relation = findRelation(this.entityMapping.relations, relationName);
+		const relation = findRelation(this.entityConfig.relations, relationName);
 
 		if (!relation) {
 			throw new Error(
-				`Relationship ${relationName} not found on entity ${this.entityMapping.entity}`
+				`Relationship ${relationName} not found on entity ${this.entityConfig.entity}`
 			);
 		}
 
@@ -924,17 +817,17 @@ export class EntityDao<T, IdType = number> {
 		relationName: string,
 		targetId: number | string
 	): Promise<boolean> {
-		if (!this.entityMapping.relations) {
+		if (!this.entityConfig.relations) {
 			throw new Error(
-				`No relationships defined for entity ${this.entityMapping.entity}`
+				`No relationships defined for entity ${this.entityConfig.entity}`
 			);
 		}
 
-		const relation = findRelation(this.entityMapping.relations, relationName);
+		const relation = findRelation(this.entityConfig.relations, relationName);
 
 		if (!relation) {
 			throw new Error(
-				`Relationship ${relationName} not found on entity ${this.entityMapping.entity}`
+				`Relationship ${relationName} not found on entity ${this.entityConfig.entity}`
 			);
 		}
 
@@ -977,7 +870,7 @@ export class EntityDao<T, IdType = number> {
 		const convertedConditions: Record<string, unknown> = {};
 
 		// Find boolean columns
-		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
+		const booleanColumns = getColumnsByType(this.entityConfig, ["boolean", "bool"]);
 		const booleanColumnNames = booleanColumns.map(col => col.logical);
 
 		for (const [key, value] of Object.entries(processedConditions)) {
@@ -989,7 +882,7 @@ export class EntityDao<T, IdType = number> {
 		}
 
 		const physicalConditions = mapRecordToPhysical(
-			this.entityMapping,
+			this.entityConfig,
 			convertedConditions as Record<string, unknown>
 		);
 
@@ -1002,7 +895,7 @@ export class EntityDao<T, IdType = number> {
 		);
 
 		// Map results and apply computed properties
-		const mappedResults = results.map((result) => this.mapToEntity(result) as T);
+		const mappedResults = results.map((result) => mapToEntity(this.entityConfig, result) as T);
 		const withComputed = mappedResults.map(entity => this.computedPropertiesProcessor(entity));
 
 		// Process results through hooks
@@ -1018,7 +911,7 @@ export class EntityDao<T, IdType = number> {
 	async executeRawQuery<R>(query: string, ...params: unknown[]): Promise<R[]> {
 		try {
 			const results = await this.db.query<Record<string, unknown>>(query, ...params);
-			return results.map(result => this.mapToEntity(result)) as R[];
+			return results.map(result => mapToEntity(this.entityConfig, result)) as R[];
 		} catch (error) {
 			if (this.logger) {
 				this.logger.error(`Error executing raw query: ${error}`);
@@ -1039,7 +932,7 @@ export class EntityDao<T, IdType = number> {
 			if (!result) {
 				return undefined;
 			}
-			return this.mapToEntity(result) as R;
+			return mapToEntity(this.entityConfig, result) as R;
 		} catch (error) {
 			if (this.logger) {
 				this.logger.error(`Error executing raw query for single result: ${error}`);
@@ -1110,9 +1003,9 @@ export class EntityDao<T, IdType = number> {
 		const ctx = context || this.createDefaultContext();
 
 		// Find the action definition
-		const actionConfig = findAction(this.entityMapping, actionName);
+		const actionConfig = findAction(this.entityConfig, actionName);
 		if (!actionConfig) {
-			throw new HookError(`Action ${actionName} not found for entity ${this.entityMapping.entity}`, 404);
+			throw new HookError(`Action ${actionName} not found for entity ${this.entityConfig.entity}`, 404);
 		}
 
 		try {
@@ -1161,7 +1054,7 @@ export class EntityDao<T, IdType = number> {
 				...ctx,
 				action: actionName
 			});
-		} catch (error) {
+		} catch (error: any) {
 			this.logger?.error(`Error executing action ${actionName}: ${error.message}`);
 			throw new HookError(
 				`Action execution failed: ${error.message}`,
@@ -1174,7 +1067,7 @@ export class EntityDao<T, IdType = number> {
 	 * @returns API configuration or undefined if not exposed
 	 */
 	getApiConfig() {
-		return this.entityMapping.api;
+		return this.entityConfig.api;
 	}
 
 	/**
@@ -1196,7 +1089,7 @@ export class EntityDao<T, IdType = number> {
 	 * @returns List of API-readable fields
 	 */
 	getApiReadableFields(role?: string): string[] {
-		return getApiReadableColumns(this.entityMapping, role);
+		return getApiReadableColumns(this.entityConfig, role);
 	}
 
 	/**
@@ -1205,7 +1098,7 @@ export class EntityDao<T, IdType = number> {
 	 * @returns List of API-writable fields
 	 */
 	getApiWritableFields(role?: string): string[] {
-		return getApiWritableColumns(this.entityMapping, role);
+		return getApiWritableColumns(this.entityConfig, role);
 	}
 
 	/**
@@ -1432,33 +1325,33 @@ export class EntityDao<T, IdType = number> {
 		data: Partial<T>,
 		operation: "create" | "update"
 	): void {
-		if (!this.entityMapping.timestamps) {
+		if (!this.entityConfig.timestamps) {
 			return;
 		}
 
 		const now = new Date().toISOString();
 
 		// First check if the columns exist in the mapping before applying
-		if (operation === "create" && this.entityMapping.timestamps.createdAt) {
-			const createdAtColumn = this.entityMapping.columns.find(
-				(col) => col.logical === this.entityMapping.timestamps?.createdAt
+		if (operation === "create" && this.entityConfig.timestamps.createdAt) {
+			const createdAtColumn = this.entityConfig.columns.find(
+				(col) => col.logical === this.entityConfig.timestamps?.createdAt
 			);
 
 			if (createdAtColumn) {
 				(data as Record<string, unknown>)[
-					this.entityMapping.timestamps.createdAt
+					this.entityConfig.timestamps.createdAt
 				] = now;
 			}
 		}
 
-		if (this.entityMapping.timestamps.updatedAt) {
-			const updatedAtColumn = this.entityMapping.columns.find(
-				(col) => col.logical === this.entityMapping.timestamps?.updatedAt
+		if (this.entityConfig.timestamps.updatedAt) {
+			const updatedAtColumn = this.entityConfig.columns.find(
+				(col) => col.logical === this.entityConfig.timestamps?.updatedAt
 			);
 
 			if (updatedAtColumn) {
 				(data as Record<string, unknown>)[
-					this.entityMapping.timestamps.updatedAt
+					this.entityConfig.timestamps.updatedAt
 				] = now;
 			}
 		}
@@ -1475,11 +1368,11 @@ export class EntityDao<T, IdType = number> {
 		const enhancedOptions: QueryOptions = { ...options };
 
 		// Map relation names to join options if relations are provided
-		if (options.relations && options.relations.length > 0 && this.entityMapping.relations) {
+		if (options.relations && options.relations.length > 0 && this.entityConfig.relations) {
 			enhancedOptions.joins = enhancedOptions.joins || [];
 
 			for (const r of options.relations) {
-				const relation = findRelation(this.entityMapping.relations, r.name);
+				const relation = findRelation(this.entityConfig.relations, r.name);
 				if (relation) {
 					const joinOptions = this.relationToJoinOptions(relation);
 					if (joinOptions) {
@@ -1503,11 +1396,11 @@ export class EntityDao<T, IdType = number> {
 		const enhancedOptions: FindOptions = { ...options };
 
 		// Map relation names to relation options if relations are provided
-		if (options.relations && options.relations.length > 0 && this.entityMapping.relations) {
+		if (options.relations && options.relations.length > 0 && this.entityConfig.relations) {
 			enhancedOptions.relations = [];
 
 			for (const r of options.relations) {
-				const relation = findRelation(this.entityMapping.relations, r.name);
+				const relation = findRelation(this.entityConfig.relations, r.name);
 				if (relation) {
 					// Create RelationOptions from the Relation definition
 					const relationType = relation.type === "manyToMany" || relation.type === "oneToMany" ? "left" : "inner";
@@ -1620,11 +1513,11 @@ export class EntityDao<T, IdType = number> {
 		const result: Record<string, unknown> = {};
 
 		// Find boolean columns
-		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
+		const booleanColumns = getColumnsByType(this.entityConfig, ["boolean", "bool"]);
 		const booleanColumnNames = booleanColumns.map(col => col.logical);
 
 		// Find date columns
-		const dateColumns = getColumnsByType(this.entityMapping, ["date", "datetime", "timestamp"]);
+		const dateColumns = getColumnsByType(this.entityConfig, ["date", "datetime", "timestamp"]);
 		const dateColumnNames = dateColumns.map(col => col.logical);
 
 		for (const [key, value] of Object.entries(data)) {
@@ -1646,76 +1539,28 @@ export class EntityDao<T, IdType = number> {
 	}
 
 	/**
-	 * Enhanced mapToEntity with better type conversion
-	 * @param record Database record with physical column names
-	 * @returns Entity with logical column names and correct types
-	 */
-	protected mapToEntity(record: Record<string, unknown>): unknown {
-		const logicalRecord = mapRecordToLogical(this.entityMapping, record);
-		return this.convertToEntityValues(logicalRecord);
-	}
-
-	/**
-	 * Convert database values to entity values
-	 * @param data Database data
-	 * @returns Converted data with entity-specific types
-	 */
-	private convertToEntityValues(data: Record<string, unknown>): Record<string, unknown> {
-		const result: Record<string, unknown> = { ...data };
-
-		// Find boolean columns
-		const booleanColumns = getColumnsByType(this.entityMapping, ["boolean", "bool"]);
-		const booleanColumnNames = booleanColumns.map(col => col.logical);
-
-		// Find date columns
-		const dateColumns = getColumnsByType(this.entityMapping, ["date", "datetime", "timestamp"]);
-		const dateColumnNames = dateColumns.map(col => col.logical);
-
-		for (const col of booleanColumnNames) {
-			if (col in result) {
-				const value = result[col];
-				// Convert 0/1 or string "0"/"1" to boolean
-				result[col] = value === 1 || value === "1" || value === true;
-			}
-		}
-
-		for (const col of dateColumnNames) {
-			if (col in result && result[col] !== null && typeof result[col] === 'string') {
-				try {
-					// Try to convert string to Date object
-					result[col] = new Date(result[col] as string);
-				} catch (e) {
-					// If conversion fails, keep as string
-				}
-			}
-		}
-
-		return result;
-	}
-
-	/**
 	 * Initialize hooks for the entity
 	 * @param configLoader Configuration loader
 	 */
 	private async initializeHooks(configLoader: any): Promise<void> {
-		if (!this.entityMapping.hooks) {
+		if (!this.entityConfig.hooks) {
 			return;
 		}
 
-		for (const [hookType, hooks] of Object.entries(this.entityMapping.hooks)) {
+		for (const [hookType, hooks] of Object.entries(this.entityConfig.hooks)) {
 			if (!Array.isArray(hooks) || hooks.length === 0) {
 				continue;
 			}
 
 			// Create hook executor for this hook type
-			const executor = createHookExecutor(this.logger);
+			const executor = new HookExecutor<any>(this.logger);
 
 			// Load and add each hook
 			for (const hook of hooks) {
 				try {
 					const hookImpl = await this.loadHookImplementation(hook, hookType, configLoader);
 					executor.add(hookImpl);
-				} catch (error) {
+				} catch (error: any) {
 					this.logger?.error(`Failed to load hook ${hookType}.${hook.name}: ${error.message}`);
 				}
 			}
@@ -1802,7 +1647,7 @@ export class EntityDao<T, IdType = number> {
 
 		// Create hook implementation
 		return {
-			name: `${this.entityMapping.entity}.${hookType}.${hook.name}`,
+			name: `${this.entityConfig.entity}.${hookType}.${hook.name}`,
 			fn,
 			isAsync: hook.async !== false, // Default to async=true
 			priority: hook.priority || 10,
@@ -1841,9 +1686,9 @@ export class EntityDao<T, IdType = number> {
 		await this.initializeHooks(configLoader);
 
 		// Initialize computed properties
-		if (this.entityMapping.computed && this.entityMapping.computed.length > 0 && this.logger) {
+		if (this.entityConfig.computed && this.entityConfig.computed.length > 0 && this.logger) {
 			const implementations = await this.loadComputedPropertyImplementations(configLoader);
-			this.computedPropertiesProcessor = (entity: any) => this.processComputedProperties(entity, implementations);
+			this.computedPropertiesProcessor = (entity: any) => processComputedProperties(entity, implementations);
 		}
 	}
 
@@ -1871,7 +1716,7 @@ export class EntityDao<T, IdType = number> {
 			const convertedData = this.convertToDbValues(processedData);
 
 			const physicalData = mapRecordToPhysical(
-				this.entityMapping,
+				this.entityConfig,
 				convertedData
 			);
 
@@ -1883,7 +1728,7 @@ export class EntityDao<T, IdType = number> {
 			);
 
 			// Execute after hooks
-			await this.executeHooks('afterUpdate', { id, ...processedData }, ctx);
+			await this.executeHooks('afterUpdate', processedData, ctx);
 
 			return result;
 		} catch (error) {
@@ -1913,7 +1758,7 @@ export class EntityDao<T, IdType = number> {
 		);
 
 		// Map results and apply computed properties
-		const mappedResults = results.map((result) => this.mapToEntity(result) as T);
+		const mappedResults = results.map((result) => mapToEntity(this.entityConfig, result) as T);
 		const withComputed = mappedResults.map(entity => this.computedPropertiesProcessor(entity));
 
 		// Execute after hooks
@@ -1948,7 +1793,7 @@ export class EntityDao<T, IdType = number> {
 			}
 
 			// Map result and apply computed properties
-			const mappedResult = this.mapToEntity(result) as T;
+			const mappedResult = mapToEntity(this.entityConfig, result) as T;
 			const withComputed = this.computedPropertiesProcessor(mappedResult);
 
 			// Execute after hooks
@@ -2013,7 +1858,7 @@ export class EntityDao<T, IdType = number> {
 		return {
 			db: this.db,
 			logger: this.logger,
-			entityName: this.entityMapping.entity,
+			entityName: this.entityConfig.entity,
 			data: {},
 			getService: <T>(_name: string): T => {
 				throw new Error('Service not available in default context');

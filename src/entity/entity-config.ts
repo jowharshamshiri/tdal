@@ -3,8 +3,8 @@
  * Defines the structure and behavior of entities in the framework
  */
 
-import { ActionDefinition, EntityApiConfig, MiddlewareConfig, Workflow } from "@/core/types";
-import { Relation } from "@/database/core/types";
+import { EntityApiConfig, MiddlewareConfig, Workflow } from "@/core/types";
+import { Relation } from "@/database";
 
 /**
  * Column mapping type
@@ -1177,4 +1177,54 @@ export function createEntityAction(
 		implementation,
 		...options
 	};
+}
+
+
+
+/**
+ * Enhanced mapToEntity with better type conversion
+ * @param record Database record with physical column names
+ * @returns Entity with logical column names and correct types
+ */
+export function mapToEntity(entityConfig: EntityConfig, record: Record<string, unknown>): unknown {
+	const logicalRecord = mapRecordToLogical(entityConfig, record);
+	return convertToEntityValues(entityConfig, logicalRecord);
+}
+
+/**
+ * Convert database values to entity values
+ * @param data Database data
+ * @returns Converted data with entity-specific types
+ */
+export function convertToEntityValues(entityConfig: EntityConfig, data: Record<string, unknown>): Record<string, unknown> {
+	const result: Record<string, unknown> = { ...data };
+
+	// Find boolean columns
+	const booleanColumns = getColumnsByType(entityConfig, ["boolean", "bool"]);
+	const booleanColumnNames = booleanColumns.map(col => col.logical);
+
+	// Find date columns
+	const dateColumns = getColumnsByType(entityConfig, ["date", "datetime", "timestamp"]);
+	const dateColumnNames = dateColumns.map(col => col.logical);
+
+	for (const col of booleanColumnNames) {
+		if (col in result) {
+			const value = result[col];
+			// Convert 0/1 or string "0"/"1" to boolean
+			result[col] = value === 1 || value === "1" || value === true;
+		}
+	}
+
+	for (const col of dateColumnNames) {
+		if (col in result && result[col] !== null && typeof result[col] === 'string') {
+			try {
+				// Try to convert string to Date object
+				result[col] = new Date(result[col] as string);
+			} catch (e) {
+				// If conversion fails, keep as string
+			}
+		}
+	}
+
+	return result;
 }

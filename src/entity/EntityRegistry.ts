@@ -1,5 +1,5 @@
 import { EntityConfig } from './entity-config';
-import { Logger } from './types';
+import { Logger } from '../core/types';
 
 /**
  * Entity Registry for tracking generated entities and repositories
