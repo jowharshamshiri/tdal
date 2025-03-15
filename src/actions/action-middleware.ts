@@ -10,6 +10,7 @@ import { HookContext } from '../core/types';
 import { createControllerContext } from '../entity/entity-manager';
 import { createHookContext } from '../hooks/hook-context';
 import { EntityAction } from '../entity/entity-config';
+import { TransactionIsolationLevel } from '@/database';
 
 /**
  * Middleware options
@@ -23,7 +24,7 @@ export interface ActionMiddlewareOptions {
 	/**
 	 * Transaction isolation level
 	 */
-	isolationLevel?: 'READ_UNCOMMITTED' | 'READ_COMMITTED' | 'REPEATABLE_READ' | 'SERIALIZABLE';
+	isolationLevel?: TransactionIsolationLevel;
 
 	/**
 	 * Timeout in milliseconds
