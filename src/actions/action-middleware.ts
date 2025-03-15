@@ -10,7 +10,7 @@ import { HookContext } from '../core/types';
 import { createControllerContext } from '../entity/entity-manager';
 import { createHookContext } from '../hooks/hook-context';
 import { EntityAction } from '../entity/entity-config';
-import { TransactionIsolationLevel } from '@/database';
+import { TransactionIsolationLevel } from '../database';
 
 /**
  * Middleware options

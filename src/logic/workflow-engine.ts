@@ -3,9 +3,9 @@
  * State machine for entity workflows defined in YAML
  */
 
-import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '@/core/types';
-import { EntityConfig, EntityDao } from '@/entity';
-import { HookError } from '@/hooks/hook-context';
+import { Workflow, WorkflowState, WorkflowTransition, HookContext, Logger } from '../core/types';
+import { EntityConfig, EntityDao } from '../entity';
+import { HookError } from '../hooks/hook-context';
 
 /**
  * Workflow transition result

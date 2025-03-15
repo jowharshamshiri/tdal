@@ -8,7 +8,7 @@ import { AppContext } from '../core/app-context';
 import { Logger, HookContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
 import { createHookContext, HookError } from '../hooks/hook-context';
-import { EntityConfig } from '@/entity';
+import { EntityConfig } from '../entity';
 
 /**
  * Action executor

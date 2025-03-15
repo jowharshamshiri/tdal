@@ -4,8 +4,8 @@
  */
 
 import { Router, RequestHandler } from 'express';
-import { Logger } from '@/core/types';
-import { AppContext } from '@/core/app-context';
+import { Logger } from '../core/types';
+import { AppContext } from '../core/app-context';
 
 /**
  * Route configuration interface

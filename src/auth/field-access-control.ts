@@ -3,8 +3,8 @@
  * Manages field-level access control for entities
  */
 
-import { EntityConfig, ColumnMapping } from '@/entity/entity-config';
-import { HookContext, Logger } from '@/core/types';
+import { EntityConfig, ColumnMapping } from '../entity/entity-config';
+import { HookContext, Logger } from '../core/types';
 import { resolveRoleInheritance } from './auth-config';
 
 /**

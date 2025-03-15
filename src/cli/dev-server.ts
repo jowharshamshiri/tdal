@@ -13,15 +13,15 @@ import morgan from 'morgan';
 import bodyParser from 'body-parser';
 import compression from 'compression';
 import { Command } from 'commander';
-import { Logger } from '@/core/types';
-import { Framework } from '@/core/framework';
-import { ConfigLoader } from '@/core/config-loader';
-import { DatabaseAdapter } from '@/database/core/types';
-import { DatabaseContext } from '@/database';
-import { EntityConfig } from '@/entity/entity-config';
+import { Logger } from '../core/types';
+import { Framework } from '../core/framework';
+import { ConfigLoader } from '../core/config-loader';
+import { DatabaseAdapter } from '../database/core/types';
+import { DatabaseContext } from '../database';
+import { EntityConfig } from '../entity/entity-config';
 import { getAvailablePort } from './utils';
 import open from 'open';
-import { ConsoleLogger } from '@/core/logger';
+import { ConsoleLogger } from '../core/logger';
 
 /**
  * Development server options

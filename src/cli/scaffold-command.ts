@@ -9,13 +9,13 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { Command } from 'commander';
-import { Logger } from '@/core/types';
-import { EntityConfig, ColumnMapping, EntityAction, EntityHook, ComputedProperty } from '@/entity/entity-config';
-import { scaffoldEntity, writeEntityYaml } from '@/entity/yaml-generator';
-import { DatabaseAdapter } from '@/database/core/types';
-import { MigrationGenerator } from '@/database/migration-generator';
-import { generateEntityInterface } from '@/entity/entity-schema';
-import { createInMemoryConfig } from '@/database/adapter-factory';
+import { Logger } from '../core/types';
+import { EntityConfig, ColumnMapping, EntityAction, EntityHook, ComputedProperty } from '../entity/entity-config';
+import { scaffoldEntity, writeEntityYaml } from '../generator/yaml-generator';
+import { DatabaseAdapter } from '../database/core/types';
+import { MigrationGenerator } from '../database/migration-generator';
+import { generateEntityInterface } from '../entity/entity-schema';
+import { createInMemoryConfig } from '../database/adapter-factory';
 
 /**
  * Default project structure
@@ -1110,7 +1110,7 @@ export class ScaffoldCommand {
 	 * User entity hooks
 	 */
 	import bcrypt from 'bcrypt';
-	import { HookContext } from '@/core/types';
+	import { HookContext } from 'src/core/types';
 	
 	/**
 	 * Hash password before user creation
@@ -1156,7 +1156,7 @@ export class ScaffoldCommand {
 	 * User entity actions
 	 */
 	import bcrypt from 'bcrypt';
-	import { HookContext } from '@/core/types';
+	import { HookContext } from 'src/core/types';
 	
 	/**
 	 * User login action

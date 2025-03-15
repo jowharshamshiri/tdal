@@ -3,8 +3,8 @@
  * Processes validation rules defined in entity configurations
  */
 
-import { EntityConfig, ValidationRule } from '@/entity/entity-config';
-import { HookContext, Logger } from '@/core/types';
+import { EntityConfig, ValidationRule } from '../entity/entity-config';
+import { HookContext, Logger } from '../core/types';
 
 /**
  * Validation error interface

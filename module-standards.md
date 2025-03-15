@@ -69,8 +69,8 @@ import express from 'express';
 import \* as yaml from 'js-yaml';
 
 // Framework modules
-import { Logger } from '@/core/types';
-import { EntityConfig } from '@/entity/entity-config';
+import { Logger } from 'src/core/types';
+import { EntityConfig } from 'src/entity/entity-config';
 
 // Relative imports
 import { someFunction } from './helper';

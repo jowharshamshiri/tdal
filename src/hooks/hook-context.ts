@@ -7,7 +7,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppContext } from '../core/app-context';
 import { HookContext, Logger } from '../core/types';
 import { DatabaseAdapter } from '../database';
-import { EntityDao } from '@/entity';
+import { EntityDao } from '../entity';
 
 /**
  * Hook error class

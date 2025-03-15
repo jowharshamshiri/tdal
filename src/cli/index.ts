@@ -9,15 +9,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { ConsoleLogger } from '@/core/logger';
-import { registerGenerateCommands } from '@/cli/generate-command';
-import { registerDevServerCommand } from '@/cli/dev-server';
-import { registerScaffoldCommands } from '@/cli/scaffold-command';
-import { PluginManager } from '@/plugins/plugin-manager';
-import { registerActionCommands } from '@/cli/action-command';
-import { registerAdapterCommands } from '@/cli/adapter-command';
-import { registerMigrationCommands } from '@/cli/migration-command';
-import { Logger } from '@/core/types';
+import { ConsoleLogger } from '../core/logger';
+import { registerGenerateCommands } from '../cli/generate-command';
+import { registerDevServerCommand } from '../cli/dev-server';
+import { registerScaffoldCommands } from '../cli/scaffold-command';
+import { PluginManager } from '../plugins/plugin-manager';
+import { registerActionCommands } from '../cli/action-command';
+import { registerAdapterCommands } from '../cli/adapter-command';
+import { registerMigrationCommands } from '../cli/migration-command';
+import { Logger } from '../core/types';
 
 // Get package version from package.json
 const packageJsonPath = path.resolve(__dirname, '../../package.json');

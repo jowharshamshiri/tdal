@@ -8,17 +8,17 @@ import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { Logger } from '@/core/types';
-import { ConfigLoader } from '@/core/config-loader';
-import { scaffoldEntity, generateEntityFromTypeScript } from '@/entity/yaml-generator';
-import { MigrationGenerator } from '@/database/migration-generator';
-import { DatabaseAdapter } from '@/database/core/types';
-import { generateEntityInterface } from '@/entity/entity-schema';
-import { Framework } from '@/core/framework';
-import { EntityConfig, ColumnMapping, ComputedProperty, EntityHook, EntityAction } from '@/entity/entity-config';
-import { PluginManager } from '@/plugins/plugin-manager';
-import { createApiGenerator } from '@/api/api-generator';
-import { createAdapterRegistry } from '@/adapters';
+import { Logger } from 'src/core/types';
+import { ConfigLoader } from 'src/core/config-loader';
+import { scaffoldEntity, generateEntityFromTypeScript } from '../generator/yaml-generator';
+import { MigrationGenerator } from '../database/migration-generator';
+import { DatabaseAdapter } from '../database/core/types';
+import { generateEntityInterface } from '../entity/entity-schema';
+import { Framework } from '../core/framework';
+import { EntityConfig, ColumnMapping, ComputedProperty, EntityHook, EntityAction } from '../entity/entity-config';
+import { PluginManager } from '../plugins/plugin-manager';
+import { createApiGenerator } from '../api/api-generator';
+import { createAdapterRegistry } from '../adapters';
 
 /**
  * Register generate commands

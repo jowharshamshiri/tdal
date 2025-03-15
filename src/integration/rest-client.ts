@@ -9,7 +9,7 @@ import {
 	RestEndpoint,
 	IntegrationAuthConfig
 } from './integration-schema';
-import { Logger } from '@/core/types';
+import { Logger } from '../core/types';
 
 /**
  * Request options

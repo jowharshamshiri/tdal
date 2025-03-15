@@ -3,8 +3,8 @@
  * Defines configuration for authentication providers and strategies
  */
 
-import { AuthConfig, Role } from '@/core/types';
-import { Logger } from '@/core/types';
+import { AuthConfig, Role } from '../core/types';
+import { Logger } from '../core/types';
 
 /**
  * Default authentication configuration
