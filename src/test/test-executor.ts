@@ -224,7 +224,7 @@ export class TestExecutor {
 	private loadEnvironmentVariables(): void {
 		try {
 			// Load environment variables from process.env
-			this.env = { ...process.env };
+			this.env = { ...process.env as Record<string, string> };
 		} catch (error: any) {
 			this.logger.warn(`Failed to load environment variables: ${error}`);
 		}
@@ -516,6 +516,7 @@ export class TestExecutor {
 
 		// Add custom headers (resolve variables)
 		if (step.request.headers) {
+			config.headers = config.headers || {};
 			for (const [key, value] of Object.entries(step.request.headers)) {
 				config.headers[key] = this.resolveValue(value, context);
 			}
@@ -535,7 +536,7 @@ export class TestExecutor {
 		}
 
 		// Prepend base URL if URL is relative
-		if (!config.url.startsWith('http://') && !config.url.startsWith('https://')) {
+		if (config.url && !config.url.startsWith('http://') && !config.url.startsWith('https://')) {
 			config.url = `${context.baseUrl}${config.url}`;
 		}
 
