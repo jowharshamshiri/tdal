@@ -1,6 +1,7 @@
 /**
  * Application Context
  * Provides a central dependency container and context for the application
+ * Updated to use EntityRegistry as the single source of truth for entity management
  */
 
 import * as path from 'path';
@@ -13,6 +14,7 @@ import { RouteRegistry } from '../api/route-registry';
 import { ApiGenerator } from '../api/api-generator';
 import { DatabaseAdapter, DatabaseContext } from '../database';
 import { HookExecutor, HookImplementation } from '../hooks/hooks-executor';
+import { EntityRegistry, getEntityRegistry } from '../entity/EntityRegistry';
 
 /**
  * Application Context class
@@ -20,19 +22,9 @@ import { HookExecutor, HookImplementation } from '../hooks/hooks-executor';
  */
 export class AppContext {
 	/**
-	 * Entity managers by entity name
-	 */
-	private entityManagers: Map<string, EntityDao<any>> = new Map();
-
-	/**
 	 * Service instances by name
 	 */
 	private services: Map<string, any> = new Map();
-
-	/**
-	 * Entity configurations by name
-	 */
-	private entityConfigs: Map<string, EntityConfig> = new Map();
 
 	/**
 	 * Registered service definitions
@@ -80,6 +72,11 @@ export class AppContext {
 	private logger: Logger;
 
 	/**
+	 * Entity registry
+	 */
+	private entityRegistry: EntityRegistry;
+
+	/**
 	 * Express application instance
 	 */
 	private app?: Express;
@@ -107,12 +104,18 @@ export class AppContext {
 		// Get database adapter
 		this.db = DatabaseContext.getDatabase();
 
+		// Get or initialize entity registry
+		this.entityRegistry = getEntityRegistry(logger, this.db);
+
 		// Set app context in database context for cross-referencing
 		DatabaseContext.setAppContext(this);
 
 		// Initialize registries
 		this.routeRegistry = new RouteRegistry(logger, this);
 		this.actionRegistry = new ActionRegistry(logger);
+
+		// Set action registry in entity registry
+		this.entityRegistry.setActionRegistry(this.actionRegistry);
 
 		// Initialize API generator
 		this.apiGenerator = new ApiGenerator(this, logger);
@@ -129,45 +132,17 @@ export class AppContext {
 		try {
 			this.logger.info('Initializing application context');
 
-			// Store entity configurations
-			this.entityConfigs = new Map(entities);
-
-			// Initialize entity managers
-			await this.initializeEntityManagers();
+			// Register entities with the registry
+			this.entityRegistry.registerEntityConfigs(entities);
 
 			// Initialize core services
 			this.initializeCoreServices();
-
-			// Initialize actions from entity configurations
-			this.initializeActions();
 
 			this.logger.info('Application context initialized successfully');
 			return this;
 		} catch (error: any) {
 			this.logger.error(`Failed to initialize application context: ${error}`);
 			throw error;
-		}
-	}
-
-	/**
-	 * Initialize entity managers for all entities
-	 */
-	private async initializeEntityManagers(): Promise<void> {
-		this.logger.info(`Initializing entity managers for ${this.entityConfigs.size} entities`);
-
-		for (const [entityName, config] of this.entityConfigs.entries()) {
-			try {
-				// Create entity manager/DAO
-				const entityManager = new EntityDao(config, this.db, this.logger);
-
-				// Store entity manager
-				this.entityManagers.set(entityName, entityManager);
-
-				this.logger.debug(`Initialized entity manager for ${entityName}`);
-			} catch (error: any) {
-				this.logger.error(`Failed to initialize entity manager for ${entityName}: ${error}`);
-				throw new Error(`Failed to initialize entity manager for ${entityName}: ${error}`);
-			}
 		}
 	}
 
@@ -196,6 +171,13 @@ export class AppContext {
 			singleton: true
 		});
 
+		// Register entity registry service
+		this.registerService({
+			name: 'entityRegistry',
+			implementation: this.entityRegistry,
+			singleton: true
+		});
+
 		// Register entity manager factory service
 		this.registerService({
 			name: 'entityManagerFactory',
@@ -221,26 +203,6 @@ export class AppContext {
 	}
 
 	/**
-	 * Initialize actions from entity configurations
-	 */
-	private initializeActions(): void {
-		this.logger.info('Initializing entity actions');
-
-		for (const [entityName, config] of this.entityConfigs.entries()) {
-			if (config.actions && config.actions.length > 0) {
-				for (const action of config.actions) {
-					try {
-						this.actionRegistry.registerAction(entityName, action);
-						this.logger.debug(`Registered action ${action.name} for entity ${entityName}`);
-					} catch (error: any) {
-						this.logger.error(`Failed to register action ${action.name} for entity ${entityName}: ${error}`);
-					}
-				}
-			}
-		}
-	}
-
-	/**
 	 * Initialize API routes for entities
 	 * @param apiBasePath Base path for API routes
 	 * @returns Array of registered route paths
@@ -257,8 +219,11 @@ export class AppContext {
 		// Create a main router for all API routes
 		const apiRouter = Router();
 
+		// Get all entity configurations from the registry
+		const entityConfigs = this.entityRegistry.getAllEntityConfigs();
+
 		// Generate and register routes for each entity
-		for (const [entityName, config] of this.entityConfigs.entries()) {
+		for (const [entityName, config] of entityConfigs.entries()) {
 			if (config.api && config.api.exposed) {
 				try {
 					const entityManager = this.getEntityManager(entityName);
@@ -427,33 +392,53 @@ export class AppContext {
 	}
 
 	/**
+	 * Register an entity
+	 * Delegates to EntityRegistry
+	 * @param name Entity name
+	 * @param config Entity configuration
+	 * @returns True if successful, false otherwise
+	 */
+	registerEntity(name: string, config: EntityConfig): boolean {
+		return this.entityRegistry.registerEntityConfig(name, config);
+	}
+
+	/**
+	 * Unregister an entity
+	 * Delegates to EntityRegistry
+	 * @param name Entity name
+	 * @returns True if successful, false otherwise
+	 */
+	unregisterEntity(name: string): boolean {
+		return this.entityRegistry.unregisterEntityConfig(name);
+	}
+
+	/**
 	 * Get an entity manager by entity name
+	 * Delegates to EntityRegistry
 	 * @param entityName Entity name
 	 * @returns Entity manager
 	 */
 	getEntityManager<T>(entityName: string): EntityDao<T> {
-		const manager = this.entityManagers.get(entityName);
-		if (!manager) {
-			throw new Error(`Entity manager not found for entity: ${entityName}`);
-		}
-		return manager as EntityDao<T>;
+		return this.entityRegistry.getEntityManager<T>(entityName);
 	}
 
 	/**
 	 * Get all entity managers
+	 * Delegates to EntityRegistry
 	 * @returns Map of entity name to entity manager
 	 */
 	getAllEntityManagers(): Map<string, EntityDao<any>> {
-		return new Map(this.entityManagers);
+		return this.entityRegistry.getAllEntityManagers();
 	}
 
 	/**
 	 * Get entity configuration
+	 * Delegates to EntityRegistry
 	 * @param entityName Entity name
 	 * @returns Entity configuration
 	 */
 	getEntityConfig(entityName: string): EntityConfig {
-		const config = this.entityConfigs.get(entityName);
+		const config = this.entityRegistry.getEntityConfig(entityName);
 		if (!config) {
 			throw new Error(`Entity configuration not found for entity: ${entityName}`);
 		}
@@ -462,10 +447,11 @@ export class AppContext {
 
 	/**
 	 * Get all entity configurations
+	 * Delegates to EntityRegistry
 	 * @returns Map of entity name to entity configuration
 	 */
 	getAllEntityConfigs(): Map<string, EntityConfig> {
-		return new Map(this.entityConfigs);
+		return this.entityRegistry.getAllEntityConfigs();
 	}
 
 	/**

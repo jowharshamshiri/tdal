@@ -7,13 +7,17 @@ import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs';
 import chalk from 'chalk';
+// Fix: Add types for inquirer
 import inquirer from 'inquirer';
-import { Logger } from 'src/core/types';
-import { ConfigLoader } from 'src/core/config-loader';
-import { scaffoldEntity, generateEntityFromTypeScript } from '../generator/yaml-generator';
-import { MigrationGenerator } from '../database/migration-generator';
+import { Logger } from '../core/types';
+import { ConfigLoader } from '../core/config-loader';
+// Fix: Import correctly from the generator module
+import { scaffoldEntity, generateEntityFromTypeScript } from '../generator/entity-generator';
+// Fix: Create or import migration generator correctly
+import { MigrationGenerator } from '../database/migration/migration-generator';
 import { DatabaseAdapter } from '../database/core/types';
-import { generateEntityInterface } from '../entity/entity-schema';
+// Fix: Import correctly from entity-schema
+import { generateEntityInterface } from '../entity/interface-generator';
 import { Framework } from '../core/framework';
 import { EntityConfig, ColumnMapping, ComputedProperty, EntityHook, EntityAction } from '../entity/entity-config';
 import { PluginManager } from '../plugins/plugin-manager';
@@ -600,7 +604,7 @@ async function promptForFields(columns: ColumnMapping[]): Promise<void> {
 				type: 'input',
 				name: 'name',
 				message: 'Field name (empty to finish):',
-				validate: (input) => {
+				validate: (input: string) => {
 					if (!input) return true; // Empty is valid to finish
 					if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(input)) {
 						return 'Field name must start with a letter and contain only letters, numbers, and underscores';
@@ -957,7 +961,11 @@ async function promptForActions(actions: EntityAction[]): Promise<void> {
 async function generateModelCommand(options: any, logger: Logger): Promise<void> {
 	try {
 		// Load entities
-		const configLoader = new ConfigLoader(logger);
+		// Load entities
+		const configLoader = new ConfigLoader({
+			logger,
+			entitiesDir: path.join(process.cwd(), 'entities')
+		});
 		const entitiesDir = path.resolve(process.cwd(), options.dir);
 
 		if (!fs.existsSync(entitiesDir)) {
@@ -1434,13 +1442,16 @@ async function createTemporaryAppContext(logger: Logger, entities: Map<string, E
 			autoGenerateApi: false
 		});
 
-		// Manually create a context with entities
+		// Initialize the framework with config
+		await framework.initialize();
+
+		// Get the context and register entities
 		const context = framework.getContext();
 
-		// Add entities to context
-		entities.forEach((entity, name) => {
-			context.addEntity(name, entity);
-		});
+		// Register all entities with the context
+		for (const [name, entity] of entities.entries()) {
+			context.registerEntity(name, entity);
+		}
 
 		return context;
 	} catch (error: any) {

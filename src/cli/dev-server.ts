@@ -9,6 +9,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import chalk from 'chalk';
 import chokidar from 'chokidar';
 import cors from 'cors';
+// Fix: Add types for morgan
 import morgan from 'morgan';
 import bodyParser from 'body-parser';
 import compression from 'compression';
@@ -19,7 +20,9 @@ import { ConfigLoader } from '../core/config-loader';
 import { DatabaseAdapter } from '../database/core/types';
 import { DatabaseContext } from '../database';
 import { EntityConfig } from '../entity/entity-config';
-import { getAvailablePort } from './utils';
+// Fix: Create utils.ts or import correctly
+import { getAvailablePort } from '../utils/network-utils';
+// Fix: Add types for open
 import open from 'open';
 import { ConsoleLogger } from '../core/logger';
 
@@ -72,7 +75,9 @@ export class DevServer {
 	/** Framework instance */
 	private framework: Framework | null = null;
 
-	/** File watcher for hot reloading */
+	/**
+	 * File watcher for hot reloading
+	 */
 	private watcher: chokidar.FSWatcher | null = null;
 
 	/** Directories to watch for changes */
@@ -305,9 +310,8 @@ export class DevServer {
 				pollInterval: 100
 			}
 		});
-
 		// Handle file changes
-		this.watcher.on('change', async (filePath) => {
+		this.watcher.on('change', async (filePath: string) => {
 			try {
 				if (this.isReloading) {
 					return;
@@ -337,7 +341,7 @@ export class DevServer {
 		});
 
 		// Handle new files
-		this.watcher.on('add', async (filePath) => {
+		this.watcher.on('add', async (filePath: string) => {
 			try {
 				if (this.isReloading) {
 					return;
@@ -361,7 +365,7 @@ export class DevServer {
 		});
 
 		// Handle deleted files
-		this.watcher.on('unlink', async (filePath) => {
+		this.watcher.on('unlink', async (filePath: string) => {
 			try {
 				if (this.isReloading) {
 					return;
@@ -490,7 +494,9 @@ export class DevServer {
 
 		this.logger.info(chalk.green('Development server stopped'));
 	}
-	/**
+
+}
+/**
  * Create and start a development server
  * @param options Server options
  * @returns Development server instance
