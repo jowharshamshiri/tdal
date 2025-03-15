@@ -498,6 +498,10 @@ function generateCustomActionHandlers(entity: EntityConfig, actions: EntityActio
 		const route = action.route;
 		const actionName = action.name;
 
+		if (!route) {
+			throw new Error(`Route is required for custom action ${actionName}`);
+		}
+
 		code += `    // ${method} ${route} - ${action.description || actionName}\n`;
 		code += `    if (modifiedEvent.httpMethod === "${method}" && path.endsWith("${route.replace(/^\//, '')}")) {\n`;
 
