@@ -7,7 +7,7 @@
  */
 
 import { EntityConfig } from '../entity';
-import { FormConfig, FormFieldConfig, FormMode, ComponentType, FormSectionConfig } from './ui-schema';
+import { FormConfig, FormFieldConfig, FormMode, ComponentType, FormSectionConfig, ActionType } from './ui-schema';
 
 /**
  * Form field type mapping
@@ -174,13 +174,13 @@ export class FormBuilder {
 			layout: mergedOptions.layout,
 			sections: mergedOptions.sections,
 			submitAction: {
-				type: 'api',
+				type: ActionType.Api,
 				label: mergedOptions.submitLabel || 'Submit',
 				apiEndpoint: `/api/${this.entity.table}${mergedOptions.mode === FormMode.Edit ? '/:id' : ''}`,
 				method: mergedOptions.mode === FormMode.Create ? 'POST' : 'PUT',
 			},
 			cancelAction: {
-				type: 'navigate',
+				type: ActionType.Navigate,
 				label: mergedOptions.cancelLabel || 'Cancel',
 				target: `/api/${this.entity.table}`,
 			},
