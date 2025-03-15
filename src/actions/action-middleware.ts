@@ -257,9 +257,12 @@ export class ActionMiddleware {
 					// Add a fallback middleware that handles role checking
 					middlewares.push((req: Request, res: Response, next: NextFunction) => {
 						// Simple role check 
-						if (action.roles && action.roles.length > 0 &&
-							(!req.user || !req.user.role || !action.roles.includes(req.user.role))) {
-							return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
+						if (action.roles && action.roles.length > 0) {
+							// Use type assertion to access user property
+							const user = (req as any).user;
+							if (!user || !user.role || !action.roles.includes(user.role)) {
+								return res.status(403).json({ error: 'Forbidden', message: 'Insufficient permissions' });
+							}
 						}
 						next();
 					});
