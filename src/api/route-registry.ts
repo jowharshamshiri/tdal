@@ -539,7 +539,9 @@ export class RouteRegistry {
 				const middlewareConfig = this.appContext.getMiddlewareConfig(middleware);
 
 				if (middlewareConfig && middlewareConfig.handler) {
-					return middlewareConfig.handler;
+					if (typeof middlewareConfig.handler === 'function') {
+						return middlewareConfig.handler;
+					}
 				}
 			} catch (error: any) {
 				this.logger.warn(`Error resolving middleware ${middleware}: ${error.message}`);

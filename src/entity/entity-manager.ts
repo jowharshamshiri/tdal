@@ -161,7 +161,7 @@ export class EntityActionHandler {
  * @template T The model type
  * @template IdType The type of the ID field (usually number)
  */
-export class EntityDao<T, IdType = number> {
+export class EntityDao<T, IdType = string | number> {
 	/**
 	 * The database adapter instance
 	 */
@@ -1034,7 +1034,7 @@ export class EntityDao<T, IdType = number> {
 					) as any;
 				}
 			} else if (typeof actionConfig.implementation === 'function') {
-				implementationFn = actionConfig.implementation;
+				implementationFn = actionConfig.implementation as (params: any, context: HookContext) => Promise<any>;
 			} else {
 				throw new HookError(`Invalid implementation for action ${actionName}`, 500);
 			}
@@ -1863,7 +1863,7 @@ export class EntityDao<T, IdType = number> {
 			getService: <T>(_name: string): T => {
 				throw new Error('Service not available in default context');
 			},
-			getEntityManager: <T>(_name: string): any => {
+			getEntityManager: <T>(_name?: string): any => {
 				return this;
 			}
 		};

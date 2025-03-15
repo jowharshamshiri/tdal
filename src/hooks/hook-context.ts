@@ -77,7 +77,7 @@ export function createHookContext(
 		getService: <T>(name: string): T => {
 			return appContext.getService<T>(name);
 		},
-		getEntityManager: <T>(name?: string): EntityDao<T, number> => {
+		getEntityManager: <T>(name?: string): EntityDao<T, string | number> => {
 			return appContext.getEntityManager<T>(name || entityName);
 		}
 	};

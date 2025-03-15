@@ -9,6 +9,7 @@ import { AppContext } from '../core/app-context';
 import { Logger, AuthenticationOptions, AuthenticationResult } from '../core/types';
 import { EntityConfig } from '../entity/entity-config';
 import { createApiError } from '../core/types';
+import { StringValue } from 'ms';
 
 /**
  * Authentication service
@@ -64,7 +65,7 @@ export class AuthenticationService {
 	 * @param expiresIn Token expiration time
 	 * @returns JWT token
 	 */
-	generateToken(payload: any, expiresIn: string = '24h'): string {
+	generateToken(payload: any, expiresIn: StringValue | number = '24h'): string {
 		return jwt.sign(payload, this.secret, { expiresIn });
 	}
 

@@ -243,7 +243,7 @@ export class ApiContext implements ControllerContext, HookContext {
 
 		// Try to get authentication service for role checking
 		try {
-			const authService = this.appContext.getService('auth');
+			const authService = this.appContext.getService<{ hasRole: (user: any, role: string) => boolean }>('auth');
 			if (authService && typeof authService.hasRole === 'function') {
 				return authService.hasRole(this.user, role);
 			}
@@ -284,7 +284,7 @@ export class ApiContext implements ControllerContext, HookContext {
 
 		// Try to use permission validator service if available
 		try {
-			const permissionValidator = this.appContext.getService('permissionValidator');
+			const permissionValidator = this.appContext.getService<{ validate: (user: any, entityConfig: EntityConfig, operation: string) => boolean }>('permissionValidator');
 			if (permissionValidator && typeof permissionValidator.validate === 'function') {
 				return permissionValidator.validate(this.user, entityConfig, op);
 			}

@@ -48,7 +48,7 @@ export class FieldAccessControl {
 
 		// Include only readable fields
 		for (const field of readableFields) {
-			if (field in data) {
+			if (typeof data === 'object' && data !== null && field in data) {
 				result[field as keyof T] = data[field as keyof T];
 			}
 		}
@@ -83,7 +83,7 @@ export class FieldAccessControl {
 
 		// Include only writable fields
 		for (const field of writableFields) {
-			if (field in data) {
+			if (typeof data === 'object' && data !== null && field in data) {
 				result[field as keyof T] = data[field as keyof T];
 			}
 		}
@@ -99,7 +99,7 @@ export class FieldAccessControl {
 	 */
 	getReadableFields(entity: EntityConfig, role: string): string[] {
 		// Get all roles including inherited ones
-		const roles = entity.api?.roles || [];
+		const roles = (entity.api as any)?.roles || [];
 		const allRoles = resolveRoleInheritance(role, roles);
 
 		// Start with all fields
@@ -149,7 +149,7 @@ export class FieldAccessControl {
 	 */
 	getWritableFields(entity: EntityConfig, role: string): string[] {
 		// Get all roles including inherited ones
-		const roles = entity.api?.roles || [];
+		const roles = (entity.api as any)?.roles || [];
 		const allRoles = resolveRoleInheritance(role, roles);
 
 		// Start with all fields

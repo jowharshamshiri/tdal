@@ -384,6 +384,7 @@ export interface EntityRouteConfig {
 	 * Enable/disable specific CRUD operations
 	 */
 	operations?: {
+		[key: string]: boolean | undefined;
 		/**
 		 * Whether to enable GET all endpoint
 		 */
@@ -414,6 +415,7 @@ export interface EntityRouteConfig {
 	 * Role-based permissions for operations
 	 */
 	permissions?: {
+		[key: string]: string[] | undefined;
 		/**
 		 * Roles that can access getAll
 		 */

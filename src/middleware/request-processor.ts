@@ -4,10 +4,11 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Logger, RequestProcessorOptions, ControllerContext } from '@/core/types';
-import { HookContext } from '@/hooks/hook-context';
+import { Logger, RequestProcessorOptions, ControllerContext, HookContext } from '@/core/types';
 import { createControllerContext } from '@/entity/entity-manager';
 import { AppContext } from '@/core/app-context';
+import { HookExecutor } from '@/hooks';
+import { EntityConfig } from '@/entity';
 
 /**
  * Request Processor class
@@ -160,7 +161,7 @@ export class RequestProcessor {
 	 */
 	private async validateRequest(req: Request, context: ControllerContext): Promise<void> {
 		// Get validation service from context
-		const validationService = this.context.getService('validationService');
+		const validationService = this.context.getService<{ validate: (req: Request, options: any) => Promise<{ valid: boolean, statusCode?: number, errors?: any[] }> }>('validationService');
 		if (!validationService) {
 			this.logger.warn('Validation service not available');
 			return;
@@ -201,7 +202,7 @@ export class RequestProcessor {
 
 		try {
 			// Try to get the auth service from the context
-			const authService = this.context.getService('auth');
+			const authService = this.context.getService<{ authenticate: (req: Request, options: any) => Promise<{ authenticated: boolean, user?: any, error?: string, statusCode?: number }> }>('auth');
 
 			if (!authService) {
 				this.logger.warn('Authentication service not found');
@@ -256,7 +257,7 @@ export class RequestProcessor {
 
 		try {
 			// Get permission validator from context
-			const permissionValidator = this.context.getService('permissionValidator');
+			const permissionValidator = this.context.getService<{ validate: (user: any, entityConfig: EntityConfig, operation: string) => boolean }>('permissionValidator');
 
 			if (!permissionValidator) {
 				this.logger.warn('Permission validator not found');
@@ -330,13 +331,18 @@ export class RequestProcessor {
 
 				// Apply middleware
 				await new Promise<void>((resolve, reject) => {
-					middlewareConfig.handler(req, res, (err?: any) => {
-						if (err) {
-							reject(err);
-						} else {
-							resolve();
-						}
-					}, middlewareConfig.options || {}, context);
+					if (typeof middlewareConfig.handler === 'function') {
+						middlewareConfig.handler(req, res, (err?: any) => {
+							if (err) {
+								reject(err);
+							} else {
+								resolve();
+							}
+						}, middlewareConfig.options || {}, context);
+					} else {
+						this.logger.warn(`Invalid middleware handler for ${middlewareName}`);
+						resolve();
+					}
 				});
 
 				// If response is already sent, stop middleware chain
@@ -396,7 +402,7 @@ export class RequestProcessor {
 	private async executeHook(hookType: string, data: any, context: HookContext): Promise<any> {
 		// Get hook executor service if available
 		try {
-			const hookExecutor = this.context.getService('hookExecutor');
+			const hookExecutor = this.context.getService<{ execute: (hookType: string, data: any, context: HookContext) => Promise<HookExecutor> }>('hookExecutor');
 			if (hookExecutor) {
 				return await hookExecutor.execute(hookType, data, context);
 			}

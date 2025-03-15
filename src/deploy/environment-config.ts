@@ -8,6 +8,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import * as yaml from 'js-yaml';
 import { AppConfig, Logger } from '../core/types';
+import { StringValue } from 'ms';
 
 /**
  * Environment types
@@ -66,7 +67,7 @@ export interface EnvironmentConfig {
 		/** JWT secret */
 		secret: string;
 		/** Token expiration time */
-		tokenExpiry: string;
+		tokenExpiry: StringValue | number;
 	};
 	/** Logging configuration */
 	logging?: {
@@ -119,7 +120,7 @@ export interface EnvVars {
 	API_PORT?: string;
 	/** Auth settings */
 	JWT_SECRET?: string;
-	JWT_EXPIRY?: string;
+	JWT_EXPIRY?: StringValue | number;
 	/** Deployment settings */
 	DEPLOY_HOST?: string;
 	DEPLOY_HTTPS?: string;
