@@ -1,0 +1,1126 @@
+# Todo Application Configuration
+name: Todo App
+version: 1.0.0
+description: A simple Todo application built with the YAML-driven framework
+
+# Server configuration
+port: 3000
+host: localhost
+apiBasePath: /api
+production: false
+
+# Database configuration
+database:
+  type: sqlite
+  filename: ./data/todo-app.db
+  options:
+    synchronize: true # Auto-create tables in development
+  pool:
+    min: 1
+    max: 10
+    idleTimeoutMillis: 30000
+
+# Authentication configuration
+auth:
+  provider: jwt
+  secret: ${process.env.JWT_SECRET || 'change-me-in-production'}
+  tokenExpiry: 24h
+  refreshTokenExpiry: 7d
+  userEntity: User
+  usernameField: email
+  passwordField: password
+  roleField: role
+
+  # JWT options
+  jwtOptions:
+    algorithm: HS256
+    issuer: todo-app
+
+  # Token verification
+  tokenVerification:
+    extractHeader: Authorization
+    autoRenew: true
+    renewThreshold: 1h
+
+  # Field access control
+  fieldAccessControl:
+    enabled: true
+    defaultReadAccess: [user, admin]
+    defaultWriteAccess: [admin]
+
+  # Permission validation
+  permissionValidation:
+    publicOperations: [login]
+
+  # Available roles
+  roles:
+    - name: admin
+      description: Administrator with full access
+      permissions: [manage_users, manage_todos, view_reports]
+    - name: user
+      description: Regular user with limited access
+      permissions: [manage_own_todos, view_own_stats]
+
+# Logging configuration
+logging:
+  level: info # debug, info, warn, error
+  pretty: true
+  console: true
+  file: ./logs/app.log
+
+# CORS configuration
+cors:
+  origin: "*"
+  methods: [GET, POST, PUT, DELETE, PATCH, OPTIONS]
+  allowedHeaders: [Content-Type, Authorization]
+  credentials: false
+
+# API configuration
+api:
+  basePath: /api
+  version: 1.0.0
+
+  compression:
+    enabled: true
+    level: 6
+
+  bodyParser:
+    json:
+      enabled: true
+      limit: 1mb
+    urlencoded:
+      enabled: true
+      extended: true
+
+  security:
+    helmet:
+      enabled: true
+      contentSecurityPolicy: true
+
+  documentation:
+    enabled: true
+    path: /api-docs
+    title: Todo App API
+    description: API for managing todos and users
+    version: 1.0.0
+
+  # Request processor configuration
+  requestProcessor:
+    parseBody: true
+    validate: true
+    authenticate: true
+    authorize: true
+
+  # Route registry
+  routeRegistry:
+    enabled: true
+    generateDocs: true
+
+  # API adapters
+  adapters:
+    default: netlify
+    config:
+      netlify:
+        type: netlify
+        enabled: true
+        outputDir: ./netlify/functions
+        auth:
+          enabled: true
+          provider: jwt
+
+  # Entity configuration for API
+  entities:
+    - entity: Todo
+      basePath: /todos
+      operations:
+        getAll:
+          enabled: true
+          pagination:
+            enabled: true
+            defaultLimit: 20
+          filters: [completed, user_id, priority, due_date]
+          sort: [due_date, priority, created_at]
+        getById:
+          enabled: true
+          include: [user]
+        create:
+          enabled: true
+          validation: true
+        update:
+          enabled: true
+          validation: true
+        delete:
+          enabled: true
+          softDelete: true
+
+    - entity: User
+      basePath: /users
+      operations:
+        getAll:
+          enabled: true
+          auth: [admin]
+        getById:
+          enabled: true
+          auth: [user, admin]
+        create:
+          enabled: true
+          auth: [admin]
+        update:
+          enabled: true
+          auth: [user, admin]
+        delete:
+          enabled: true
+          auth: [admin]
+
+# Framework-specific options
+framework:
+  enableApi: true
+  syncSchema: true
+  enableMigrations: true
+  migrationsDir: ./migrations
+
+# Email configuration (for notifications)
+email:
+  enabled: false
+  provider: smtp
+  from: noreply@example.com
+  smtp:
+    host: smtp.example.com
+    port: 587
+    secure: false
+    auth:
+      user: ${process.env.SMTP_USER}
+      pass: ${process.env.SMTP_PASS}
+
+# Plugin configuration
+plugins:
+  - name: Todo Stats
+    enabled: true
+    source: npm
+    config:
+      enableCharts: true
+      calculateTrends: true
+
+  - name: Task Reminders
+    enabled: true
+    source: directory
+    config:
+      checkInterval: 3600 # seconds
+      notificationMethods: [email, inApp]
+
+# Custom settings
+settings:
+  maxTodosPerUser: 100
+  defaultPriority: 3
+  allowedCategories:
+    - Work
+    - Personal
+    - Health
+    - Finance
+    - Education
+    - Other
+  priorityLabels:
+    1: Very Low
+    2: Low
+    3: Medium
+    4: High
+    5: Critical
+  autoArchiveCompletedAfterDays: 30
+
+# Entity Definitions
+# =================
+
+# Todo Entity
+entities:
+  - entity: Todo
+    table: todos
+    idField: id
+
+    # Database columns
+    columns:
+      - logical: id
+        physical: id
+        primaryKey: true
+        autoIncrement: true
+        type: integer
+        comment: Unique identifier for the todo item
+
+      - logical: title
+        physical: title
+        type: string
+        nullable: false
+        comment: Todo item title
+        api:
+          readable: true
+          writable: true
+
+      - logical: description
+        physical: description
+        type: string
+        nullable: true
+        comment: Optional detailed description of the todo item
+        api:
+          readable: true
+          writable: true
+
+      - logical: completed
+        physical: completed
+        type: boolean
+        nullable: false
+        comment: Whether the todo item is completed
+        api:
+          readable: true
+          writable: true
+
+      - logical: due_date
+        physical: due_date
+        type: datetime
+        nullable: true
+        comment: Optional due date for the todo item
+        api:
+          readable: true
+          writable: true
+
+      - logical: priority
+        physical: priority
+        type: integer
+        nullable: false
+        comment: Priority level (1-5, where 5 is highest)
+        api:
+          readable: true
+          writable: true
+
+      - logical: user_id
+        physical: user_id
+        type: integer
+        nullable: false
+        comment: ID of the user who owns this todo item
+        foreignKey: users.id
+        api:
+          readable: true
+          writable: true
+          roles:
+            read: [user, admin]
+            write: [admin]
+
+      - logical: category
+        physical: category
+        type: string
+        nullable: true
+        comment: Optional category for the todo item
+        api:
+          readable: true
+          writable: true
+
+      - logical: tags
+        physical: tags
+        type: string
+        nullable: true
+        comment: Comma-separated list of tags
+        api:
+          readable: true
+          writable: true
+
+      - logical: created_at
+        physical: created_at
+        type: datetime
+        nullable: false
+        comment: When the todo item was created
+        managedTimestamp: create
+        api:
+          readable: true
+          writable: false
+
+      - logical: updated_at
+        physical: updated_at
+        type: datetime
+        nullable: true
+        comment: When the todo item was last updated
+        managedTimestamp: update
+        api:
+          readable: true
+          writable: false
+
+    # Entity relationships
+    relations:
+      - name: user
+        type: manyToOne
+        sourceEntity: Todo
+        targetEntity: User
+        sourceColumn: user_id
+        targetColumn: id
+
+    # Automatic timestamps
+    timestamps:
+      createdAt: created_at
+      updatedAt: updated_at
+
+    # REST API configuration
+    api:
+      exposed: true
+      basePath: /api/todos
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+      # Role-based permissions
+      permissions:
+        getAll: [user, admin]
+        getById: [user, admin]
+        create: [user, admin]
+        update: [user, admin]
+        delete: [user, admin]
+
+      # Field-level access control
+      fields:
+        user_id:
+          read: [user, admin]
+          write: [admin]
+
+      # Record-level access control
+      recordAccess:
+        ownerField: user_id
+        condition: "user_id = :currentUserId OR :currentUserRole = 'admin'"
+
+      # Query parameters
+      queryParams:
+        filters: [completed, priority, due_date, category, user_id]
+        sort: [due_date, priority, created_at]
+        pagination: true
+
+    # Validation rules
+    validation:
+      rules:
+        title:
+          - type: required
+            message: Title is required
+            applyToApi: true
+          - type: maxLength
+            value: 100
+            message: Title cannot exceed 100 characters
+            applyToApi: true
+
+        priority:
+          - type: required
+            message: Priority is required
+            applyToApi: true
+          - type: min
+            value: 1
+            message: Priority must be at least 1
+            applyToApi: true
+          - type: max
+            value: 5
+            message: Priority cannot exceed 5
+            applyToApi: true
+
+        due_date:
+          - type: custom
+            implementation: |
+              (value) => {
+                if (!value) return true;
+                const dueDate = new Date(value);
+                return !isNaN(dueDate.getTime());
+              }
+            message: Due date must be a valid date
+            applyToApi: true
+
+    # Computed properties
+    computed:
+      - name: isOverdue
+        dependencies: [due_date, completed]
+        implementation: |
+          (todo) => {
+            if (!todo.due_date || todo.completed) return false;
+            const dueDate = new Date(todo.due_date);
+            return dueDate < new Date();
+          }
+        cache: true
+        exposeInApi: true
+
+      - name: formattedDueDate
+        dependencies: [due_date]
+        implementation: |
+          (todo) => {
+            if (!todo.due_date) return 'No due date';
+            return new Date(todo.due_date).toLocaleDateString();
+          }
+        exposeInApi: true
+
+      - name: tagList
+        dependencies: [tags]
+        implementation: |
+          (todo) => {
+            if (!todo.tags) return [];
+            return todo.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+          }
+        exposeInApi: true
+
+    # Lifecycle hooks
+    hooks:
+      beforeCreate:
+        - name: setDefaultPriority
+          implementation: |
+            async (entity) => {
+              if (!entity.priority) {
+                entity.priority = 3; // Default to medium priority
+              }
+              return entity;
+            }
+          async: true
+          priority: 10
+
+      afterCreate:
+        - name: logCreation
+          implementation: |
+            async (entity, context) => {
+              context.logger.info(`Todo created: ${entity.title}`);
+              return entity;
+            }
+          async: true
+
+      beforeUpdate:
+        - name: validatePriorityChange
+          implementation: |
+            async (params, context) => {
+              const { id, data } = params;
+              // Only allow priority changes for non-completed items
+              if (data.priority && data.completed) {
+                const existingTodo = await context.getEntityManager().findById(id);
+                if (existingTodo && existingTodo.completed) {
+                  data.priority = existingTodo.priority;
+                }
+              }
+              return params;
+            }
+          async: true
+
+      afterUpdate:
+        - name: notifyOnCompletion
+          condition: "params.data.completed === true"
+          implementation: |
+            async (params, context) => {
+              const { id } = params;
+              const todo = await context.getEntityManager().findById(id);
+              if (todo && todo.completed) {
+                // In a real app, this would send a notification
+                context.logger.info(`Todo completed: ${todo.title}`);
+              }
+              return params;
+            }
+          async: true
+
+    # Custom actions beyond CRUD
+    actions:
+      - name: markAllCompleted
+        description: Mark all todos as completed for a user
+        httpMethod: POST
+        route: /complete-all
+        roles: [user, admin]
+        implementation: |
+          async (params, context) => {
+            const { user_id } = params;
+            
+            // Require user_id parameter
+            if (!user_id) {
+              return { 
+                success: false,
+                error: "Missing user_id parameter",
+                statusCode: 400
+              };
+            }
+            
+            // Check authorization
+            if (context.user.role !== 'admin' && context.user.user_id !== user_id) {
+              return {
+                success: false,
+                error: "Unauthorized",
+                statusCode: 403
+              };
+            }
+            
+            // Update all todos for the user
+            const result = await context.getEntityManager().updateBy(
+              { user_id, completed: false },
+              { completed: true }
+            );
+            
+            return { 
+              success: true,
+              data: {
+                message: `Marked ${result} todo items as completed`,
+                count: result
+              },
+              statusCode: 200
+            };
+          }
+        transactional: true
+        parameters:
+          - name: user_id
+            type: number
+            required: true
+            description: User ID to mark todos for
+        returns:
+          type: object
+          description: Result with count of marked todos
+
+      - name: getTodoStats
+        description: Get statistics about todo items
+        httpMethod: GET
+        route: /stats
+        roles: [user, admin]
+        implementation: |
+          async (params, context) => {
+            const { user_id } = params;
+            
+            // Check authorization
+            if (context.user.role !== 'admin' && context.user.user_id !== parseInt(user_id)) {
+              return {
+                success: false,
+                error: "Unauthorized",
+                statusCode: 403
+              };
+            }
+            
+            // Create conditions based on user role
+            const conditions = context.user.role === 'admin' && !user_id
+              ? {} // Admin can see all stats
+              : { user_id: parseInt(user_id) }; // User or admin with user_id specified
+            
+            // Get todo statistics
+            const total = await context.getEntityManager().count(conditions);
+            const completed = await context.getEntityManager().count({
+              ...conditions,
+              completed: true
+            });
+            const overdue = await context.getEntityManager().executeRawQuery(`
+              SELECT COUNT(*) as count 
+              FROM todos 
+              WHERE completed = 0 
+              AND due_date IS NOT NULL 
+              AND due_date < datetime('now')
+              ${conditions.user_id ? `AND user_id = ${conditions.user_id}` : ''}
+            `);
+            
+            return {
+              success: true,
+              data: {
+                total,
+                completed,
+                pending: total - completed,
+                overdue: overdue[0]?.count || 0,
+                completion_rate: total > 0 ? Math.round((completed / total) * 100) : 0
+              },
+              statusCode: 200
+            };
+          }
+        parameters:
+          - name: user_id
+            type: number
+            required: false
+            description: User ID to get stats for
+        returns:
+          type: object
+          description: Todo statistics
+
+  # User Entity
+  - entity: User
+    table: users
+    idField: id
+
+    # Database columns
+    columns:
+      - logical: id
+        physical: id
+        primaryKey: true
+        autoIncrement: true
+        type: integer
+        comment: Unique identifier for the user
+        api:
+          readable: true
+          writable: false
+
+      - logical: name
+        physical: name
+        type: string
+        nullable: false
+        comment: User's full name
+        api:
+          readable: true
+          writable: true
+
+      - logical: email
+        physical: email
+        type: string
+        nullable: false
+        unique: true
+        comment: User's email address (used for login)
+        api:
+          readable: true
+          writable: true
+          roles:
+            read: [user, admin]
+            write: [user, admin]
+
+      - logical: password
+        physical: password
+        type: string
+        nullable: false
+        comment: User's hashed password
+        api:
+          readable: false
+          writable: true
+          roles:
+            read: []
+            write: [user, admin]
+
+      - logical: role
+        physical: role
+        type: string
+        nullable: false
+        comment: User's role (user, admin)
+        api:
+          readable: true
+          writable: true
+          roles:
+            read: [user, admin]
+            write: [admin]
+
+      - logical: avatar
+        physical: avatar
+        type: string
+        nullable: true
+        comment: URL to user's profile image
+        api:
+          readable: true
+          writable: true
+
+      - logical: bio
+        physical: bio
+        type: string
+        nullable: true
+        comment: User's biography or description
+        api:
+          readable: true
+          writable: true
+
+      - logical: last_login
+        physical: last_login
+        type: datetime
+        nullable: true
+        comment: When the user last logged in
+        api:
+          readable: true
+          writable: false
+
+      - logical: created_at
+        physical: created_at
+        type: datetime
+        nullable: false
+        comment: When the user account was created
+        managedTimestamp: create
+        api:
+          readable: true
+          writable: false
+
+      - logical: updated_at
+        physical: updated_at
+        type: datetime
+        nullable: true
+        comment: When the user account was last updated
+        managedTimestamp: update
+        api:
+          readable: true
+          writable: false
+
+    # Entity relationships
+    relations:
+      - name: todos
+        type: oneToMany
+        sourceEntity: User
+        targetEntity: Todo
+        sourceColumn: id
+        targetColumn: user_id
+
+    # Automatic timestamps
+    timestamps:
+      createdAt: created_at
+      updatedAt: updated_at
+
+    # REST API configuration
+    api:
+      exposed: true
+      basePath: /api/users
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+      # Role-based permissions
+      permissions:
+        getAll: [admin]
+        getById: [user, admin]
+        create: [admin]
+        update: [user, admin]
+        delete: [admin]
+
+      # Field-level permissions
+      fields:
+        password:
+          read: [] # Nobody can read passwords
+          write: [user, admin]
+
+        email:
+          read: [user, admin]
+          write: [user, admin]
+
+        role:
+          read: [user, admin]
+          write: [admin] # Only admins can change roles
+
+      # Record-level access control
+      recordAccess:
+        ownerField: id
+        condition: "id = :currentUserId OR :currentUserRole = 'admin'"
+
+      queryParams:
+        filters: [role, email]
+        sort: [name, created_at]
+        pagination: true
+
+    # Validation rules
+    validation:
+      rules:
+        name:
+          - type: required
+            message: Name is required
+            applyToApi: true
+          - type: minLength
+            value: 2
+            message: Name must be at least 2 characters
+            applyToApi: true
+          - type: maxLength
+            value: 100
+            message: Name cannot exceed 100 characters
+            applyToApi: true
+
+        email:
+          - type: required
+            message: Email is required
+            applyToApi: true
+          - type: email
+            message: Please enter a valid email address
+            applyToApi: true
+          - type: custom
+            implementation: |
+              async (value, entity, context) => {
+                if (!value) return true;
+                const exists = await context.getEntityManager().findOneBy({ email: value });
+                if (exists && exists.id !== entity.id) {
+                  return false;
+                }
+                return true;
+              }
+            message: This email is already registered
+            applyToApi: true
+
+        password:
+          - type: required
+            message: Password is required
+            applyToApi: true
+          - type: minLength
+            value: 8
+            message: Password must be at least 8 characters
+            applyToApi: true
+          - type: custom
+            implementation: |
+              (value) => {
+                // Password must contain at least one number, one uppercase letter, and one lowercase letter
+                return /\d/.test(value) && /[A-Z]/.test(value) && /[a-z]/.test(value);
+              }
+            message: Password must include at least one number, one uppercase letter, and one lowercase letter
+            applyToApi: true
+
+        role:
+          - type: required
+            message: Role is required
+            applyToApi: true
+          - type: pattern
+            value: ^(user|admin)$
+            message: Role must be either 'user' or 'admin'
+            applyToApi: true
+
+    # Computed properties
+    computed:
+      - name: displayName
+        dependencies: [name, email]
+        implementation: |
+          (user) => {
+            return user.name || user.email.split('@')[0];
+          }
+        exposeInApi: true
+
+      - name: isAdmin
+        dependencies: [role]
+        implementation: |
+          (user) => {
+            return user.role === 'admin';
+          }
+        exposeInApi: true
+
+      - name: todoCount
+        implementation: |
+          async (user, context) => {
+            const todoManager = context.getEntityManager('Todo');
+            return await todoManager.count({ user_id: user.id });
+          }
+        exposeInApi: true
+
+    # Lifecycle hooks
+    hooks:
+      beforeCreate:
+        - name: hashPassword
+          implementation: |
+            async (entity, context) => {
+              if (entity.password) {
+                const bcrypt = require('bcrypt');
+                entity.password = await bcrypt.hash(entity.password, 10);
+              }
+              return entity;
+            }
+          async: true
+
+      afterCreate:
+        - name: logUserCreation
+          implementation: |
+            async (entity, context) => {
+              context.logger.info(`User created: ${entity.email}`);
+              return entity;
+            }
+          async: true
+
+      beforeUpdate:
+        - name: hashPasswordOnUpdate
+          implementation: |
+            async (params, context) => {
+              const { id, data } = params;
+              if (data.password) {
+                const bcrypt = require('bcrypt');
+                data.password = await bcrypt.hash(data.password, 10);
+              }
+              return params;
+            }
+          async: true
+
+    # Custom actions beyond CRUD
+    actions:
+      - name: login
+        description: User login endpoint
+        httpMethod: POST
+        route: /login
+        roles: [] # No auth required for login
+        implementation: |
+          async (params, context) => {
+            const { email, password } = params;
+            
+            if (!email || !password) {
+              return { 
+                success: false,
+                error: "Email and password are required",
+                statusCode: 400
+              };
+            }
+            
+            // Find user
+            const user = await context.getEntityManager().findOneBy({ email });
+            if (!user) {
+              return { 
+                success: false,
+                error: "Invalid credentials",
+                statusCode: 401
+              };
+            }
+            
+            // Check password
+            const bcrypt = require('bcrypt');
+            const isMatch = await bcrypt.compare(password, user.password);
+            if (!isMatch) {
+              return { 
+                success: false,
+                error: "Invalid credentials",
+                statusCode: 401
+              };
+            }
+            
+            // Update last login time
+            await context.getEntityManager().update(user.id, { last_login: new Date().toISOString() });
+            
+            // Get JWT service from context
+            const jwtProvider = context.getService('jwtProvider');
+            const token = jwtProvider.generateToken({
+              user_id: user.id,
+              email: user.email,
+              role: user.role
+            });
+            
+            return {
+              success: true,
+              data: {
+                token,
+                user: {
+                  id: user.id,
+                  name: user.name,
+                  email: user.email,
+                  role: user.role,
+                  displayName: user.displayName,
+                  avatar: user.avatar
+                }
+              },
+              statusCode: 200
+            };
+          }
+        parameters:
+          - name: email
+            type: string
+            required: true
+            description: User email
+          - name: password
+            type: string
+            required: true
+            description: User password
+        returns:
+          type: object
+          description: Authentication token and user info
+
+      - name: me
+        description: Get current user information
+        httpMethod: GET
+        route: /me
+        roles: [user, admin]
+        implementation: |
+          async (params, context) => {
+            // Get current user
+            const user = await context.getEntityManager().findById(context.user.user_id);
+            if (!user) {
+              return { 
+                success: false,
+                error: "User not found",
+                statusCode: 404
+              };
+            }
+            
+            // Get todo stats
+            const todoManager = context.getEntityManager('Todo');
+            const todoCount = await todoManager.count({ user_id: user.id });
+            const completedCount = await todoManager.count({ user_id: user.id, completed: true });
+            
+            return {
+              success: true,
+              data: {
+                user: {
+                  id: user.id,
+                  name: user.name,
+                  email: user.email,
+                  role: user.role,
+                  displayName: user.displayName,
+                  avatar: user.avatar,
+                  bio: user.bio,
+                  lastLogin: user.last_login,
+                  created: user.created_at
+                },
+                stats: {
+                  todoCount,
+                  completedCount,
+                  pendingCount: todoCount - completedCount,
+                  completionRate: todoCount > 0 ? Math.round((completedCount / todoCount) * 100) : 0
+                }
+              },
+              statusCode: 200
+            };
+          }
+        returns:
+          type: object
+          description: Current user information and stats
+
+      - name: changePassword
+        description: Change user password
+        httpMethod: POST
+        route: /change-password
+        roles: [user, admin]
+        implementation: |
+          async (params, context) => {
+            const { currentPassword, newPassword } = params;
+            
+            if (!currentPassword || !newPassword) {
+              return { 
+                success: false,
+                error: "Current password and new password are required",
+                statusCode: 400
+              };
+            }
+            
+            // Get current user
+            const user = await context.getEntityManager().findById(context.user.user_id);
+            if (!user) {
+              return { 
+                success: false,
+                error: "User not found",
+                statusCode: 404
+              };
+            }
+            
+            // Verify current password
+            const bcrypt = require('bcrypt');
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+            if (!isMatch) {
+              return { 
+                success: false,
+                error: "Current password is incorrect",
+                statusCode: 401
+              };
+            }
+            
+            // Validate new password
+            if (newPassword.length < 8) {
+              return { 
+                success: false,
+                error: "Password must be at least 8 characters",
+                statusCode: 400
+              };
+            }
+            
+            if (!/\d/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword)) {
+              return { 
+                success: false,
+                error: "Password must include at least one number, one uppercase letter, and one lowercase letter",
+                statusCode: 400
+              };
+            }
+            
+            // Hash and update password
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            await context.getEntityManager().update(user.id, { password: hashedPassword });
+            
+            return { 
+              success: true,
+              data: { message: "Password updated successfully" },
+              statusCode: 200
+            };
+          }
+        transactional: true
+        parameters:
+          - name: currentPassword
+            type: string
+            required: true
+            description: Current password
+          - name: newPassword
+            type: string
+            required: true
+            description: New password
+        returns:
+          type: object
+          description: Password change result

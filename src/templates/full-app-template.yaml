@@ -4,47 +4,61 @@
 # Application information
 name: "Full Featured Application"
 version: "1.0.0"
+description: "A comprehensive application demonstrating all features"
 
 # Server configuration
 port: 3000
+host: "localhost"
 apiBasePath: "/api"
 
 # Database configuration
 database:
-  # Database type: sqlite, postgres, mysql
+  # Database type: sqlite, postgres, mysql, custom
   type: "sqlite"
 
   # Connection details
-  connection:
-    # For SQLite
-    filename: "data/app.sqlite"
+  connectionString: null
+  filename: "data/app.sqlite"
 
-    # For PostgreSQL/MySQL (uncomment as needed)
-    # host: "localhost"
-    # port: 5432
-    # database: "app_db"
-    # user: "app_user"
-    # password: "app_password"
-    # ssl: false
+  # For PostgreSQL/MySQL (uncomment as needed)
+  # host: "localhost"
+  # port: 5432
+  # database: "app_db"
+  # username: "app_user"
+  # password: "app_password"
+
+  # SSL configuration
+  ssl:
+    enabled: false
+    # rejectUnauthorized: true
+    # ca: "path/to/ca.cert"
+    # cert: "path/to/client.cert"
+    # key: "path/to/client.key"
 
   # Connection pool options
   pool:
     min: 1
     max: 10
+    idleTimeoutMillis: 30000
 
   # Whether to automatically synchronize schema
-  synchronize: true
+  syncSchema: true
 
   # Debug mode
   debug: false
 
+  # Additional database options
+  options:
+    enableWAL: true # Write-Ahead Logging for SQLite
+    foreign_keys: true # Enable foreign key constraints
+
 # Authentication configuration
 auth:
-  # Provider type
+  # Provider type: jwt, oauth2, basic, custom
   provider: "jwt"
 
   # JWT secret key (use environment variables in production)
-  secret: "${process.env.JWT_SECRET}"
+  secret: "${process.env.JWT_SECRET || 'change-this-in-production'}"
 
   # Token expiry time
   tokenExpiry: "24h"
@@ -58,84 +72,256 @@ auth:
   passwordField: "password"
   roleField: "role"
 
+  # JWT options
+  jwtOptions:
+    algorithm: "HS256"
+    issuer: "app-api"
+    audience: "app-clients"
+    notBefore: "0s"
+
+  # Token verification
+  tokenVerification:
+    extractHeader: "Authorization"
+    autoRenew: true
+    renewThreshold: "1h"
+
   # Available roles
   roles:
     - name: "admin"
       description: "Administrator with full access"
+      permissions:
+        - "users:manage"
+        - "todos:manage"
+        - "system:manage"
+
     - name: "user"
       description: "Regular user with limited access"
+      permissions:
+        - "todos:read"
+        - "todos:write"
+        - "todos:delete"
+        - "profile:manage"
+
     - name: "guest"
       description: "Guest with read-only access"
+      inherits: []
+      permissions:
+        - "todos:read"
+
+  # Field access control
+  fieldAccessControl:
+    enabled: true
+    defaultReadAccess: ["user", "admin"]
+    defaultWriteAccess: ["admin"]
+
+  # Password policy
+  passwordPolicy:
+    minLength: 8
+    requireUppercase: true
+    requireLowercase: true
+    requireNumbers: true
+    requireSpecialChars: true
+    maxAge: "90d"
+    preventReuse: 3
+
+  # Authentication endpoints
+  endpoints:
+    login: "/auth/login"
+    register: "/auth/register"
+    logout: "/auth/logout"
+    refreshToken: "/auth/refresh"
+    forgotPassword: "/auth/forgot-password"
+    resetPassword: "/auth/reset-password"
+    verifyEmail: "/auth/verify-email"
+
+  # Rate limiting for auth endpoints
+  rateLimiting:
+    enabled: true
+    maxAttempts: 5
+    window: "15m"
+    blockDuration: "1h"
 
 # Entities configuration
 entitiesDir: "entities"
 
 # API configuration
 api:
+  # Base path for API
+  basePath: "/api"
+
+  # API version
+  version: "1.0.0"
+
   # CORS settings
   cors:
+    enabled: true
     # Allow all origins in development
     origin: "${process.env.CORS_ORIGIN || '*'}"
-
     # Methods to allow
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
-
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     # Headers to allow
-    allowedHeaders: ["Content-Type", "Authorization"]
-
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
     # Expose these headers to client
-    exposedHeaders: ["X-Total-Count"]
-
+    exposedHeaders: ["X-Total-Count", "X-Rate-Limit"]
     # Allow credentials
     credentials: true
+    # Max age in seconds
+    maxAge: 86400
 
   # Rate limiting
-  rateLimit:
+  rateLimiting:
+    enabled: true
     # Maximum requests per window
     max: 100
-
     # Time window in milliseconds
     windowMs: 60000
-
     # Message when limit exceeded
     message: "Too many requests, please try again later"
+    # Status code for rate limit response
+    statusCode: 429
+    # Skip counting successful requests
+    skipSuccessfulRequests: false
+    # Rate limit store
+    store:
+      type: "memory"
+      # type: "redis"
+      # options:
+      #   host: "localhost"
+      #   port: 6379
 
-  # Request timeout in milliseconds
-  timeout: 30000
-
-  # Maximum request body size
-  bodyLimit: "1mb"
-
-  # API documentation
-  docs:
-    # Enable Swagger documentation
+  # Compression
+  compression:
     enabled: true
+    level: 6
+    threshold: 1024
 
-    # Documentation path
+  # Body parser
+  bodyParser:
+    json:
+      enabled: true
+      limit: "1mb"
+      strict: true
+    urlencoded:
+      enabled: true
+      extended: true
+      limit: "1mb"
+    raw:
+      enabled: false
+    text:
+      enabled: false
+
+  # Security
+  security:
+    helmet:
+      enabled: true
+      contentSecurityPolicy: true
+      xssFilter: true
+    cors: true
+    rateLimit: true
+
+  # Request processor
+  requestProcessor:
+    parseBody: true
+    validate: true
+    authenticate: true
+    authorize: true
+    defaultMiddleware: ["logger", "cors", "bodyParser"]
+
+  # Documentation
+  documentation:
+    enabled: true
     path: "/docs"
-
-    # API title
     title: "Application API"
-
-    # API description
     description: "API documentation for the application"
-
-    # API version
     version: "1.0.0"
+    contact:
+      name: "API Support"
+      email: "support@example.com"
+      url: "https://example.com/support"
+    license:
+      name: "MIT"
+      url: "https://opensource.org/licenses/MIT"
+    auth:
+      type: "bearer"
+      scheme: "bearer"
+      bearerFormat: "JWT"
+
+  # Route registry
+  routeRegistry:
+    enabled: true
+    generateDocs: true
+    cacheRoutes: true
+
+  # Action registry
+  actionRegistry:
+    enabled: true
+    loadActionsFromEntities: true
+    defaultTimeout: 30000
+
+  # Controllers
+  controllers:
+    useEntityControllers: true
+    directory: "controllers"
+    controllerGenerator:
+      enabled: true
+
+  # Middlewares (global)
+  middleware:
+    - name: "logger"
+      implementation: "./middleware/logger.js"
+      priority: 10
+
+    - name: "errorHandler"
+      implementation: "./middleware/errorHandler.js"
+      priority: 100
+
+    - name: "authentication"
+      implementation: "./middleware/authentication.js"
+      options:
+        headerName: "Authorization"
+        tokenType: "Bearer"
+      priority: 20
+
+# Adapters configuration
+adapters:
+  default: "express"
+  config:
+    express:
+      type: "express"
+      enabled: true
+      options:
+        port: 3000
+        trustProxy: false
+
+    netlify:
+      type: "netlify"
+      enabled: false
+      outputDir: "./netlify/functions"
+      typescript: true
+      auth:
+        enabled: true
+        provider: "jwt"
+
+    aws:
+      type: "lambda"
+      enabled: false
+      outputDir: "./lambda"
+      options:
+        region: "us-east-1"
 
 # Logging configuration
 logging:
-  # Log level
+  # Log level: debug, info, warn, error
   level: "${process.env.LOG_LEVEL || 'info'}"
+
+  # Whether to pretty print logs
+  pretty: true
+
+  # Log file path
+  file: "logs/app.log"
 
   # Whether to log to console
   console: true
-
-  # Whether to log to file
-  file: true
-
-  # Log file path
-  filePath: "logs/app.log"
 
   # Log format
   format: "combined"
@@ -172,33 +358,55 @@ email:
   # Email templates directory
   templatesDir: "templates/emails"
 
+  # Send limits
+  limits:
+    perMinute: 60
+    perHour: 1000
+    perDay: 5000
+
 # File storage configuration
 storage:
   # Storage provider: local, s3, azure
   provider: "local"
 
-  # Local storage configuration
-  local:
-    # Upload directory
-    uploadDir: "uploads"
+  # Default storage
+  default: "local"
 
-    # Maximum file size in bytes
-    maxFileSize: 5242880 # 5MB
+  # Provider configurations
+  providers:
+    # Local storage configuration
+    local:
+      # Upload directory
+      uploadDir: "uploads"
+      # Maximum file size in bytes
+      maxFileSize: 5242880 # 5MB
+      # Allowed file types
+      allowedTypes: ["image/jpeg", "image/png", "application/pdf"]
+      # Public URL base
+      baseUrl: "/uploads"
 
-    # Allowed file types
-    allowedTypes: ["image/jpeg", "image/png", "application/pdf"]
+    # Amazon S3 configuration
+    s3:
+      accessKeyId: "${process.env.AWS_ACCESS_KEY_ID}"
+      secretAccessKey: "${process.env.AWS_SECRET_ACCESS_KEY}"
+      region: "us-east-1"
+      bucket: "app-uploads"
+      acl: "public-read"
+      baseUrl: "https://app-uploads.s3.amazonaws.com"
 
-  # Amazon S3 configuration
-  # s3:
-  #   accessKeyId: "${process.env.AWS_ACCESS_KEY_ID}"
-  #   secretAccessKey: "${process.env.AWS_SECRET_ACCESS_KEY}"
-  #   region: "us-east-1"
-  #   bucket: "app-uploads"
+    # Azure Blob Storage configuration
+    azure:
+      connectionString: "${process.env.AZURE_STORAGE_CONNECTION_STRING}"
+      container: "uploads"
+      baseUrl: "${process.env.AZURE_STORAGE_BASE_URL}"
 
 # Task scheduling configuration
 scheduler:
   # Enable task scheduler
   enabled: true
+
+  # Scheduler backend: node-cron, agenda, bull
+  backend: "node-cron"
 
   # Tasks configuration
   tasks:
@@ -206,28 +414,57 @@ scheduler:
     - name: "cleanup"
       schedule: "0 0 * * *" # Cron expression (daily at midnight)
       handler: "./tasks/cleanup.js"
+      description: "Clean up temporary files daily"
+      enabled: true
+      timeout: 300 # seconds
 
     # Another example task
     - name: "sendReports"
       schedule: "0 8 * * 1" # Every Monday at 8 AM
       handler: "./tasks/sendReports.js"
+      description: "Send weekly reports"
+      enabled: true
+      data:
+        reportType: "weekly"
+        recipients: ["admin@example.com"]
+
+  # Agenda/Bull configuration (if using these backends)
+  options:
+    connectionString: "mongodb://localhost:27017/scheduler"
+    collection: "jobs"
+    processEvery: "30 seconds"
+    concurrency: 10
+    defaultConcurrency: 5
 
 # Cache configuration
 cache:
-  # Cache provider: memory, redis
+  # Cache provider: memory, redis, memcached
   provider: "memory"
 
-  # TTL in seconds
+  # Default TTL in seconds
   ttl: 3600
 
   # Maximum items in memory cache
   max: 1000
 
+  # Key prefix
+  prefix: "app:"
+
   # Redis configuration (if provider is redis)
-  # redis:
-  #   host: "localhost"
-  #   port: 6379
-  #   password: "${process.env.REDIS_PASSWORD}"
+  redis:
+    host: "localhost"
+    port: 6379
+    password: "${process.env.REDIS_PASSWORD}"
+    db: 0
+    connectTimeout: 10000
+
+  # Memcached configuration (if provider is memcached)
+  memcached:
+    servers: ["localhost:11211"]
+    options:
+      retries: 3
+      timeout: 1000
+      reconnect: 10000
 
 # WebSocket configuration
 websocket:
@@ -240,8 +477,33 @@ websocket:
   # Authentication required for WebSocket
   requireAuth: true
 
+  # Allowed origins
+  origins: "*"
+
+  # Ping interval in seconds
+  pingInterval: 30
+
+  # Per-client message rate limit
+  rateLimit:
+    maxMessages: 100
+    windowMs: 60000
+
+  # Channels configuration
+  channels:
+    - name: "system"
+      public: true
+    - name: "todos"
+      public: false
+      requireRoles: ["user", "admin"]
+    - name: "admin"
+      public: false
+      requireRoles: ["admin"]
+
 # UI configuration
 ui:
+  # Enable UI
+  enabled: true
+
   # Default theme
   theme: "light"
 
@@ -249,14 +511,35 @@ ui:
   themes:
     - name: "light"
       description: "Light theme"
+      colors:
+        primary: "#3f51b5"
+        secondary: "#f50057"
+        background: "#ffffff"
+        text: "#212121"
     - name: "dark"
       description: "Dark theme"
+      colors:
+        primary: "#7986cb"
+        secondary: "#ff4081"
+        background: "#121212"
+        text: "#ffffff"
 
   # Feature flags
   features:
     enableChat: true
     enableNotifications: true
     enableFileUpload: true
+    enableRealTimeUpdates: true
+    enableOfflineMode: false
+
+  # Static file directories
+  static:
+    - path: "/assets"
+      dir: "./public/assets"
+    - path: "/uploads"
+      dir: "./uploads"
+      options:
+        maxAge: 86400000 # 1 day
 
 # Internationalization
 i18n:
@@ -264,10 +547,22 @@ i18n:
   defaultLocale: "en"
 
   # Available locales
-  locales: ["en", "es", "fr", "de"]
+  locales: ["en", "es", "fr", "de", "ja"]
 
   # Locales directory
   localesDir: "locales"
+
+  # Fall back to default locale
+  fallbacks: true
+
+  # Auto-reload locales on change
+  autoReload: true
+
+  # Cookie name for storing locale
+  cookie: "app_locale"
+
+  # Query parameter for changing locale
+  queryParameter: "lang"
 
 # Application modes
 modes:
@@ -280,19 +575,74 @@ modes:
   # Debug mode
   debug: "${process.env.DEBUG || false}"
 
+  # Test mode
+  test: false
+
+  # Development mode
+  development: true
+
+# Feature toggles
+featureToggles:
+  newUserInterface: false
+  betaFeatures: false
+  experimentalAPI: false
+  analytics: true
+  newCacheImplementation: false
+
 # Plugins configuration
 plugins:
   - name: "audit-log"
     enabled: true
+    source: "npm"
     config:
       logActions: ["create", "update", "delete"]
       excludeEntities: ["Log"]
+      storageType: "database"
+      retention: "90d"
 
   - name: "data-export"
     enabled: true
+    source: "directory"
     config:
       formats: ["csv", "json", "excel"]
       maxRows: 10000
+      includeHeaders: true
+      compressionEnabled: true
+
+  - name: "analytics"
+    enabled: true
+    source: "npm"
+    config:
+      provider: "google"
+      trackingId: "${process.env.GA_TRACKING_ID}"
+      anonymizeIp: true
+      disableForAdmin: true
+
+# Error handling configuration
+errors:
+  # Whether to show stack traces
+  showStack: false
+
+  # Whether to log errors
+  logErrors: true
+
+  # Default error handler
+  handler: "./errorHandlers/default.js"
+
+  # Custom error handlers by error type
+  handlers:
+    ValidationError: "./errorHandlers/validation.js"
+    AuthenticationError: "./errorHandlers/auth.js"
+    NotFoundError: "./errorHandlers/notFound.js"
+
+  # Error reporting services
+  reporters:
+    - name: "sentry"
+      enabled: false
+      dsn: "${process.env.SENTRY_DSN}"
+      options:
+        environment: "${process.env.NODE_ENV}"
+        release: "1.0.0"
 
 # Deployment configuration
 deployment:
@@ -300,18 +650,93 @@ deployment:
   host: "0.0.0.0"
 
   # Enable HTTPS
-  https: false
-
-  # SSL certificate path
-  certPath: "certs/cert.pem"
-
-  # SSL key path
-  keyPath: "certs/key.pem"
+  https:
+    enabled: false
+    certPath: "certs/cert.pem"
+    keyPath: "certs/key.pem"
+    options:
+      requestCert: false
+      rejectUnauthorized: false
 
   # Server is behind proxy
   behindProxy: false
+
+  # Trust proxy headers
+  trustProxy: false
 
   # Server scaling
   scaling:
     minInstances: 1
     maxInstances: 4
+    autoScale: true
+    targetCpuUtilization: 70
+
+  # Health check endpoint
+  healthCheck:
+    path: "/health"
+    interval: 60 # seconds
+    timeout: 5 # seconds
+    gracePeriod: 300 # seconds
+
+# Monitoring configuration
+monitoring:
+  # Enable monitoring
+  enabled: true
+
+  # Metrics collection interval in seconds
+  interval: 15
+
+  # Monitoring services
+  services:
+    # Prometheus
+    prometheus:
+      enabled: false
+      port: 9090
+      endpoint: "/metrics"
+
+    # StatsD
+    statsd:
+      enabled: false
+      host: "localhost"
+      port: 8125
+      prefix: "app"
+
+  # Alert thresholds
+  alerts:
+    memoryUsage: 90 # percent
+    cpuUsage: 80 # percent
+    errorRate: 5 # percent
+    responseTime: 1000 # ms
+
+# Development configuration
+dev:
+  # Hot reloading
+  hotReload: true
+
+  # Enable source maps
+  sourceMaps: true
+
+  # Mock services
+  mocks:
+    enabled: true
+    directory: "./mocks"
+
+  # Enable development-only endpoints
+  devEndpoints: true
+
+  # Development tools
+  tools:
+    # Swagger UI
+    swagger:
+      enabled: true
+      path: "/api-docs"
+
+    # GraphQL playground
+    graphql:
+      enabled: false
+      path: "/graphql"
+
+    # Database admin interface
+    dbAdmin:
+      enabled: false
+      path: "/db-admin"

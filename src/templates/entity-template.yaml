@@ -1,4 +1,4 @@
-# Basic Entity Template
+# Entity Template
 # Copy this template to create a new entity
 
 # Entity name in PascalCase
@@ -10,6 +10,9 @@ table: my_entities
 # Primary key field name
 idField: id
 
+# Optional database schema name
+# schema: public
+
 # Column definitions
 columns:
   # Primary key column
@@ -18,76 +21,143 @@ columns:
     primaryKey: true
     autoIncrement: true
     type: integer
+    comment: "Unique identifier"
 
   # Example string column
   - logical: name
     physical: name
     type: string
     nullable: false
+    length: 255
     comment: "Entity name"
+    api:
+      readable: true
+      writable: true
+      roles:
+        read: [user, admin]
+        write: [admin]
 
   # Example nullable text column
   - logical: description
     physical: description
     type: text
     nullable: true
+    comment: "Entity description"
 
-  # Example numeric column
+  # Example numeric column with precision
   - logical: amount
     physical: amount
-    type: number
+    type: decimal
+    precision: 10
+    scale: 2
     nullable: false
+    comment: "Monetary amount"
 
   # Example boolean column
   - logical: isActive
     physical: is_active
     type: boolean
     nullable: false
+    defaultValue: true
+    comment: "Whether the entity is active"
+    index: true
+
+  # Example foreign key column
+  - logical: categoryId
+    physical: category_id
+    type: integer
+    nullable: true
+    foreignKey: categories.id
+    comment: "Reference to category"
 
   # Timestamps
   - logical: createdAt
     physical: created_at
     type: datetime
     nullable: false
+    managedTimestamp: create
+    comment: "Creation timestamp"
 
   - logical: updatedAt
     physical: updated_at
     type: datetime
     nullable: true
+    managedTimestamp: update
+    comment: "Last update timestamp"
+
+  - logical: deletedAt
+    physical: deleted_at
+    type: datetime
+    nullable: true
+    managedTimestamp: delete
+    comment: "Deletion timestamp"
+
+# Table indexes
+indexes:
+  - name: idx_my_entity_name
+    columns: [name]
+    unique: false
+
+  - name: idx_my_entity_category
+    columns: [categoryId]
+    type: btree
+
+  # Example multi-column index
+  - name: idx_my_entity_compound
+    columns: [isActive, createdAt]
 
 # Relationship definitions
 relations:
   # Example one-to-many relationship
-  # - name: items
-  #   type: oneToMany
-  #   sourceEntity: MyEntity
-  #   targetEntity: Item
-  #   sourceColumn: id
-  #   targetColumn: myEntityId
+  - name: items
+    type: oneToMany
+    sourceEntity: MyEntity
+    targetEntity: Item
+    sourceColumn: id
+    targetColumn: myEntityId
+    inverseName: myEntity
 
   # Example many-to-one relationship
-  # - name: category
-  #   type: manyToOne
-  #   sourceEntity: MyEntity
-  #   targetEntity: Category
-  #   sourceColumn: categoryId
-  #   targetColumn: id
+  - name: category
+    type: manyToOne
+    sourceEntity: MyEntity
+    targetEntity: Category
+    sourceColumn: categoryId
+    targetColumn: id
+    inverseName: entities
 
   # Example many-to-many relationship
-  # - name: tags
-  #   type: manyToMany
-  #   sourceEntity: MyEntity
-  #   targetEntity: Tag
-  #   sourceColumn: id
-  #   targetColumn: id
-  #   junctionTable: my_entity_tags
-  #   junctionSourceColumn: my_entity_id
-  #   junctionTargetColumn: tag_id
+  - name: tags
+    type: manyToMany
+    sourceEntity: MyEntity
+    targetEntity: Tag
+    sourceColumn: id
+    targetColumn: id
+    junctionTable: my_entity_tags
+    junctionSourceColumn: my_entity_id
+    junctionTargetColumn: tag_id
+
+  # Example one-to-one relationship
+  - name: profile
+    type: oneToOne
+    sourceEntity: MyEntity
+    targetEntity: Profile
+    sourceColumn: id
+    targetColumn: myEntityId
+    isOwner: true
+    inverseName: entity
 
 # Timestamp handling configuration
 timestamps:
   createdAt: createdAt
   updatedAt: updatedAt
+  deletedAt: deletedAt
+
+# Soft delete configuration
+softDelete:
+  column: deletedAt
+  deletedValue: "CURRENT_TIMESTAMP"
+  nonDeletedValue: null
 
 # REST API configuration
 api:
@@ -95,7 +165,7 @@ api:
   exposed: true
 
   # Base path (defaults to /api/table_name)
-  # basePath: "/api/my-entities"
+  basePath: "/api/my-entities"
 
   # Which operations to enable
   operations:
@@ -114,59 +184,326 @@ api:
     delete: ["admin"]
 
   # Field-level permissions
-  # fields:
-  #   sensitiveField:
-  #     read: ["admin"]
-  #     write: ["admin"]
+  fields:
+    sensitiveField:
+      read: ["admin"]
+      write: ["admin"]
+
+  # Record-level access control
+  recordAccess:
+    ownerField: createdBy
+    condition: "entity.createdBy === context.user.id || context.user.role === 'admin'"
+
+  # Query parameter handling
+  queryParams:
+    # Allowed filter fields
+    filters: [name, isActive, categoryId, createdAt]
+    # Allowed sort fields
+    sort: [name, createdAt, updatedAt]
+    # Enable pagination
+    pagination: true
+    # Custom query parameters
+    custom:
+      search: "searchImplementation"
+      filter: "filterImplementation"
+
+  # Custom response transformers
+  transformers:
+    getAll: "transformGetAllResponse"
+    getById: "transformGetByIdResponse"
+
 # Lifecycle hooks
-# hooks:
-#   beforeCreate:
-#     - name: "setDefaults"
-#       implementation: |
-#         async (entity, context) => {
-#           entity.isActive = true;
-#           return entity;
-#         }
-#   afterGetById:
-#     - name: "incrementViewCount"
-#       implementation: |
-#         async (entity, context) => {
-#           // Your code here
-#           return entity;
-#         }
+hooks:
+  beforeCreate:
+    - name: "setDefaults"
+      implementation: |
+        async (entity, context) => {
+          entity.isActive = true;
+          entity.createdBy = context.user?.id;
+          return entity;
+        }
+      priority: 10
+      async: true
+
+  afterCreate:
+    - name: "logCreation"
+      implementation: |
+        async (entity, context) => {
+          context.logger?.info(`Entity created: ${entity.id}`);
+          return entity;
+        }
+
+  beforeUpdate:
+    - name: "validateUpdate"
+      implementation: |
+        async (params, context) => {
+          // Your validation logic
+          return params;
+        }
+      condition: "context.user.role !== 'admin'"
+
+  afterUpdate:
+    - name: "notifyUpdate"
+      implementation: |
+        async (entity, context) => {
+          // Notification logic
+          return entity;
+        }
+
+  beforeDelete:
+    - name: "archiveBeforeDelete"
+      implementation: |
+        async (id, context) => {
+          // Archive logic before deletion
+          return id;
+        }
+
+  afterDelete:
+    - name: "logDeletion"
+      implementation: |
+        async (id, context) => {
+          context.logger?.info(`Entity deleted: ${id}`);
+          return id;
+        }
+
+  beforeFind:
+    - name: "applySoftDeleteFilter"
+      implementation: |
+        async (params, context) => {
+          params.deletedAt = null;
+          return params;
+        }
+
+  afterFind:
+    - name: "enrichResults"
+      implementation: |
+        async (results, context) => {
+          // Enrich results with additional data
+          return results;
+        }
+
+  beforeGetById:
+    - name: "validateAccess"
+      implementation: |
+        async (id, context) => {
+          // Validate access rights
+          return id;
+        }
+
+  afterGetById:
+    - name: "logAccess"
+      implementation: |
+        async (entity, context) => {
+          context.logger?.debug(`Entity accessed: ${entity.id}`);
+          return entity;
+        }
+
+  beforeFindBy:
+    - name: "prepareConditions"
+      implementation: |
+        async (conditions, context) => {
+          // Modify search conditions
+          return conditions;
+        }
+
+  afterFindBy:
+    - name: "processResults"
+      implementation: |
+        async (results, context) => {
+          // Process results
+          return results;
+        }
+
+  beforeApi:
+    - name: "prepareApiRequest"
+      implementation: |
+        async (request, context) => {
+          // Pre-process API request
+          return request;
+        }
+
+  afterApi:
+    - name: "formatApiResponse"
+      implementation: |
+        async (response, context) => {
+          // Post-process API response
+          return response;
+        }
+
+  beforeAction:
+    - name: "validateActionParams"
+      implementation: |
+        async (params, context) => {
+          // Validate custom action parameters
+          return params;
+        }
+
+  afterAction:
+    - name: "processActionResult"
+      implementation: |
+        async (result, context) => {
+          // Process custom action result
+          return result;
+        }
 
 # Custom actions
-# actions:
-#   - name: "archive"
-#     path: "/:id/archive"
-#     method: "POST"
-#     auth: ["admin"]
-#     implementation: |
-#       async (req, context) => {
-#         const id = req.params.id;
-#         await context.entityDao.update(id, { isActive: false });
-#         return { success: true, message: "Entity archived" };
-#       }
+actions:
+  - name: "activate"
+    description: "Activate the entity"
+    httpMethod: "POST"
+    route: "/:id/activate"
+    roles: ["admin"]
+    implementation: |
+      async (params, context) => {
+        const { id } = params;
+        await context.entityDao.update(id, { isActive: true });
+        return { success: true, message: "Entity activated" };
+      }
+    transactional: true
+    parameters:
+      - name: "id"
+        type: "string"
+        required: true
+        description: "Entity ID"
+      - name: "reason"
+        type: "string"
+        required: false
+        description: "Activation reason"
+    returns:
+      type: "object"
+      description: "Activation result"
+    middleware: ["logAction", "validateParams"]
+
+  - name: "getStats"
+    description: "Get entity statistics"
+    httpMethod: "GET"
+    route: "/stats"
+    roles: ["admin", "user"]
+    implementation: |
+      async (params, context) => {
+        // Generate statistics
+        const count = await context.entityDao.count();
+        const activeCount = await context.entityDao.count({ isActive: true });
+        
+        return {
+          total: count,
+          active: activeCount,
+          inactive: count - activeCount
+        };
+      }
+    returns:
+      type: "object"
+      description: "Entity statistics"
 
 # Validation rules
-# validation:
-#   rules:
-#     name:
-#       - type: "required"
-#         message: "Name is required"
-#       - type: "maxLength"
-#         value: 100
-#         message: "Name cannot exceed 100 characters"
-#     amount:
-#       - type: "min"
-#         value: 0
-#         message: "Amount cannot be negative"
+validation:
+  rules:
+    name:
+      - type: "required"
+        message: "Name is required"
+      - type: "maxLength"
+        value: 100
+        message: "Name cannot exceed 100 characters"
+      - type: "pattern"
+        value: "^[a-zA-Z0-9 ]+$"
+        message: "Name can only contain alphanumeric characters and spaces"
+        applyToApi: true
+
+    amount:
+      - type: "min"
+        value: 0
+        message: "Amount cannot be negative"
+      - type: "max"
+        value: 1000000
+        message: "Amount cannot exceed 1,000,000"
 
 # Computed properties
-# computed:
-#   - name: "formattedAmount"
-#     dependencies: ["amount"]
-#     implementation: |
-#       (entity) => {
-#         return `$${entity.amount.toFixed(2)}`;
-#       }
+computed:
+  - name: "formattedAmount"
+    dependencies: ["amount"]
+    implementation: |
+      (entity) => {
+        return `$${entity.amount.toFixed(2)}`;
+      }
+    cache: true
+    exposeInApi: true
+    description: "Amount formatted as currency"
+
+  - name: "displayName"
+    dependencies: ["name"]
+    implementation: |
+      (entity) => {
+        return entity.name ? entity.name.toUpperCase() : 'UNNAMED';
+      }
+    exposeInApi: true
+
+  - name: "isActive"
+    dependencies: ["deletedAt"]
+    implementation: |
+      (entity) => {
+        return !entity.deletedAt;
+      }
+
+# Workflows
+workflows:
+  - name: "approvalWorkflow"
+    states:
+      - name: "draft"
+        initial: true
+        description: "Initial draft state"
+      - name: "submitted"
+        description: "Submitted for approval"
+      - name: "approved"
+        description: "Approved state"
+      - name: "rejected"
+        description: "Rejected state"
+    transitions:
+      - from: "draft"
+        to: "submitted"
+        action: "submit"
+        permissions: ["user", "admin"]
+        hooks:
+          before: "validateSubmission"
+          after: "notifySubmission"
+        description: "Submit for approval"
+      - from: "submitted"
+        to: "approved"
+        action: "approve"
+        permissions: ["admin"]
+        hooks:
+          before: "validateApproval"
+          after: "notifyApproval"
+        description: "Approve the entity"
+      - from: "submitted"
+        to: "rejected"
+        action: "reject"
+        permissions: ["admin"]
+        hooks:
+          after: "notifyRejection"
+        description: "Reject the entity"
+      - from: "rejected"
+        to: "draft"
+        action: "revise"
+        permissions: ["user", "admin"]
+        description: "Revise and redraft"
+
+# Middleware configuration
+middleware:
+  name: "entityMiddleware"
+  handler: "./middlewares/entity-middleware.js"
+  options:
+    validateAll: true
+    cacheResults: true
+  priority: 10
+  global: ["auth", "validate"]
+  method:
+    get: ["cache", "metrics"]
+    post: ["validate", "transform"]
+    put: ["validate", "transform"]
+    delete: ["confirm"]
+
+# Custom database-specific options
+options:
+  engine: "InnoDB"
+  charset: "utf8mb4"
+  collation: "utf8mb4_unicode_ci"
