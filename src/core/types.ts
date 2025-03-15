@@ -609,14 +609,14 @@ export type HookFunction<T = any> = (data: T, context: HookContext) => Promise<a
  */
 export type ActionFunction = (params: any, context: HookContext) => Promise<any> | any;
 
-/**
- * Validation function type
- */
-export type ValidationFunction<T = any> = (
-	value: any,
-	entity: T,
-	context: HookContext
-) => boolean | string | { valid: boolean; message?: string };
+// /**
+//  * Validation function type
+//  */
+// export type ValidationFunction<T = any> = (
+// 	value: any,
+// 	entity: T,
+// 	context: HookContext
+// ) => boolean | string | { valid: boolean; message?: string };
 
 /**
  * Pagination options

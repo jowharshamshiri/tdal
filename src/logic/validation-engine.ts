@@ -4,8 +4,7 @@
  */
 
 import { EntityConfig, ValidationRule } from '@/entity/entity-config';
-import { Logger } from '@/core/types';
-import { HookContext } from '@/hooks/hook-context';
+import { HookContext, Logger } from '@/core/types';
 
 /**
  * Validation error interface

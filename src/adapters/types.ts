@@ -163,3 +163,4 @@ export type AdapterFactory = (
 	logger: Logger,
 	options?: Record<string, any>
 ) => PlatformAdapter;
+
