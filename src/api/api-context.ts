@@ -5,11 +5,10 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AppContext } from '@/core/app-context';
-import { Logger, ControllerContext } from '@/core/types';
+import { Logger, ControllerContext, HookContext } from '@/core/types';
 import { DatabaseAdapter } from '@/database/core/types';
 import { EntityDao } from '@/entity/entity-manager';
 import { EntityConfig } from '@/entity/entity-config';
-import { HookContext } from '@/hooks/hook-context';
 
 /**
  * API context options
