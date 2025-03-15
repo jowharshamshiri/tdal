@@ -7,10 +7,9 @@ import { Request, Response, NextFunction } from 'express';
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { AppContext } from '@/core/app-context';
-import { Logger, ValidationFunction } from '@/core/types';
+import { HookContext, Logger } from '@/core/types';
 import { EntityConfig } from '@/entity/entity-config';
-import { ValidationEngine, ValidationError } from '@/logic/validation-engine';
-import { HookContext } from '@/hooks/hook-context';
+import { ValidationEngine, ValidationError, ValidationFunction } from '@/logic/validation-engine';
 
 /**
  * Validation options
@@ -113,7 +112,6 @@ export class ValidationService {
 			coerceTypes: true,
 			removeAdditional: 'all',
 			useDefaults: true,
-			strict: false
 		});
 
 		// Add string formats like email, date, etc.

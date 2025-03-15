@@ -7,10 +7,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { EntityConfig } from '@/entity/entity-config';
 import { EntityDao } from '@/entity/entity-manager';
 import { ActionRegistry } from '@/actions/action-registry';
-import { Logger, ControllerContext } from '@/core/types';
+import { Logger, ControllerContext, HookContext } from '@/core/types';
 import { createControllerContext } from '@/entity/entity-manager';
 import { AppContext } from '@/core/app-context';
-import { HookContext } from '@/hooks/hook-context';
 
 /**
  * API Route Configuration
