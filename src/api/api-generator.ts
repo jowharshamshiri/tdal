@@ -982,7 +982,7 @@ export class ApiGenerator {
 
 		// Add parameters from route path
 		const pathParams = (action.route.match(/:[a-zA-Z0-9_]+/g) || [])
-			.map(param => param.substring(1));
+			.map((param: string) => param.substring(1));
 
 		for (const param of pathParams) {
 			parameters.push({

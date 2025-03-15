@@ -106,6 +106,10 @@ export function createEntityController(
 				context
 			);
 
+			if (!response) {
+				throw new Error('Response object is required');
+			}
+
 			// Send response
 			response.json(processedResponse);
 		} catch (error: any) {
