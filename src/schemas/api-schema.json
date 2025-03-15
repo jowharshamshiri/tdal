@@ -36,25 +36,35 @@
 							"items": {
 								"type": "string"
 							}
+						},
+						{
+							"type": "boolean"
 						}
 					],
 					"default": "*",
 					"description": "Allowed origins"
 				},
 				"methods": {
-					"type": "array",
-					"items": {
-						"type": "string",
-						"enum": [
-							"GET",
-							"POST",
-							"PUT",
-							"DELETE",
-							"PATCH",
-							"OPTIONS",
-							"HEAD"
-						]
-					},
+					"oneOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string",
+								"enum": [
+									"GET",
+									"POST",
+									"PUT",
+									"DELETE",
+									"PATCH",
+									"OPTIONS",
+									"HEAD"
+								]
+							}
+						}
+					],
 					"default": [
 						"GET",
 						"POST",
@@ -66,10 +76,17 @@
 					"description": "Allowed methods"
 				},
 				"allowedHeaders": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
+					"oneOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					],
 					"default": [
 						"Content-Type",
 						"Authorization"
@@ -77,10 +94,17 @@
 					"description": "Allowed headers"
 				},
 				"exposedHeaders": {
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
+					"oneOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					],
 					"description": "Exposed headers"
 				},
 				"credentials": {
@@ -131,6 +155,27 @@
 				"keyGenerator": {
 					"type": "string",
 					"description": "Function to generate a rate limit key (req, res) => string"
+				},
+				"store": {
+					"type": "object",
+					"description": "Custom rate limiting store configuration",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"memory",
+								"redis",
+								"memcached",
+								"custom"
+							],
+							"description": "Rate limit store type"
+						},
+						"options": {
+							"type": "object",
+							"description": "Store-specific options",
+							"additionalProperties": true
+						}
+					}
 				}
 			}
 		},
@@ -149,6 +194,15 @@
 					"maximum": 9,
 					"default": 6,
 					"description": "Compression level (0-9, where 0 is no compression and 9 is max compression)"
+				},
+				"threshold": {
+					"type": "integer",
+					"default": 1024,
+					"description": "Minimum response size in bytes to compress"
+				},
+				"filter": {
+					"type": "string",
+					"description": "Function to determine whether to compress response (req, res) => boolean"
 				}
 			}
 		},
@@ -168,6 +222,16 @@
 							"type": "string",
 							"default": "1mb",
 							"description": "Size limit of request bodies"
+						},
+						"strict": {
+							"type": "boolean",
+							"default": true,
+							"description": "Only parse objects and arrays"
+						},
+						"inflate": {
+							"type": "boolean",
+							"default": true,
+							"description": "Inflate compressed bodies"
 						}
 					}
 				},
@@ -188,6 +252,11 @@
 							"type": "boolean",
 							"default": true,
 							"description": "Whether to use the qs library for parsing URL-encoded bodies"
+						},
+						"parameterLimit": {
+							"type": "integer",
+							"default": 1000,
+							"description": "Maximum number of parameters"
 						}
 					}
 				},
@@ -203,8 +272,94 @@
 							"type": "string",
 							"default": "1mb",
 							"description": "Size limit of request bodies"
+						},
+						"inflate": {
+							"type": "boolean",
+							"default": true,
+							"description": "Inflate compressed bodies"
+						},
+						"type": {
+							"type": "string",
+							"description": "Content-Type to parse",
+							"default": "application/octet-stream"
 						}
 					}
+				},
+				"text": {
+					"type": "object",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": false,
+							"description": "Whether to enable text body parsing"
+						},
+						"limit": {
+							"type": "string",
+							"default": "1mb",
+							"description": "Size limit of request bodies"
+						},
+						"type": {
+							"type": "string",
+							"description": "Content-Type to parse",
+							"default": "text/plain"
+						}
+					}
+				}
+			}
+		},
+		"security": {
+			"type": "object",
+			"description": "Security configuration",
+			"properties": {
+				"helmet": {
+					"type": "object",
+					"description": "Helmet middleware configuration",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether to enable helmet"
+						},
+						"contentSecurityPolicy": {
+							"oneOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "object",
+									"additionalProperties": true
+								}
+							],
+							"description": "Content Security Policy options"
+						},
+						"xssFilter": {
+							"type": "boolean",
+							"default": true,
+							"description": "X-XSS-Protection header"
+						},
+						"hsts": {
+							"oneOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "object",
+									"additionalProperties": true
+								}
+							],
+							"description": "HTTP Strict Transport Security options"
+						}
+					}
+				},
+				"cors": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to enable CORS (uses CORS config section)"
+				},
+				"rateLimit": {
+					"type": "boolean",
+					"default": false,
+					"description": "Whether to enable rate limiting (uses rateLimiting config section)"
 				}
 			}
 		},
@@ -240,6 +395,13 @@
 						"type": "string",
 						"description": "Endpoint description"
 					},
+					"tags": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Tags for documentation"
+					},
 					"auth": {
 						"oneOf": [
 							{
@@ -270,19 +432,27 @@
 						"description": "Request validation schema",
 						"properties": {
 							"body": {
-								"type": "object"
+								"type": "object",
+								"additionalProperties": true
 							},
 							"query": {
-								"type": "object"
+								"type": "object",
+								"additionalProperties": true
 							},
 							"params": {
-								"type": "object"
+								"type": "object",
+								"additionalProperties": true
+							},
+							"headers": {
+								"type": "object",
+								"additionalProperties": true
 							}
 						}
 					},
 					"responseSchema": {
 						"type": "object",
-						"description": "Response validation schema"
+						"description": "Response validation schema",
+						"additionalProperties": true
 					},
 					"cache": {
 						"type": "object",
@@ -310,6 +480,19 @@
 							},
 							"max": {
 								"type": "integer"
+							},
+							"message": {
+								"type": "string"
+							}
+						}
+					},
+					"errorHandling": {
+						"type": "object",
+						"description": "Endpoint-specific error handling",
+						"properties": {
+							"handler": {
+								"type": "string",
+								"description": "Error handler function or file path"
 							}
 						}
 					}
@@ -341,7 +524,35 @@
 							},
 							"options": {
 								"type": "object",
-								"description": "Middleware options"
+								"description": "Middleware options",
+								"additionalProperties": true
+							},
+							"priority": {
+								"type": "integer",
+								"description": "Middleware execution priority (lower numbers run first)"
+							},
+							"enabled": {
+								"type": "boolean",
+								"default": true,
+								"description": "Whether the middleware is enabled"
+							},
+							"path": {
+								"type": "string",
+								"description": "Path pattern to apply middleware to"
+							},
+							"excludePath": {
+								"oneOf": [
+									{
+										"type": "string"
+									},
+									{
+										"type": "array",
+										"items": {
+											"type": "string"
+										}
+									}
+								],
+								"description": "Path pattern(s) to exclude middleware from"
 							}
 						}
 					}
@@ -371,7 +582,44 @@
 							"type": "string"
 						},
 						"description": "Error types this handler handles"
+					},
+					"priority": {
+						"type": "integer",
+						"description": "Handler execution priority (lower numbers run first)"
 					}
+				}
+			}
+		},
+		"requestProcessor": {
+			"type": "object",
+			"description": "Request processor configuration",
+			"properties": {
+				"parseBody": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to parse request bodies"
+				},
+				"validate": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to validate requests"
+				},
+				"authenticate": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to authenticate requests"
+				},
+				"authorize": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to authorize requests"
+				},
+				"defaultMiddleware": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Default middleware to apply to all requests"
 				}
 			}
 		},
@@ -461,6 +709,109 @@
 							},
 							"description": {
 								"type": "string"
+							}
+						}
+					}
+				},
+				"auth": {
+					"type": "object",
+					"description": "Authentication documentation",
+					"properties": {
+						"type": {
+							"type": "string",
+							"enum": [
+								"bearer",
+								"basic",
+								"apiKey",
+								"oauth2"
+							],
+							"description": "Auth type"
+						},
+						"description": {
+							"type": "string",
+							"description": "Auth description"
+						},
+						"scheme": {
+							"type": "string",
+							"description": "Auth scheme"
+						},
+						"bearerFormat": {
+							"type": "string",
+							"description": "Bearer token format"
+						},
+						"flows": {
+							"type": "object",
+							"description": "OAuth2 flows",
+							"additionalProperties": true
+						}
+					}
+				},
+				"securitySchemes": {
+					"type": "object",
+					"description": "Security schemes",
+					"additionalProperties": {
+						"type": "object",
+						"description": "Security scheme",
+						"additionalProperties": true
+					}
+				}
+			}
+		},
+		"adapters": {
+			"type": "object",
+			"description": "API adapters configuration",
+			"properties": {
+				"default": {
+					"type": "string",
+					"description": "Default adapter to use"
+				},
+				"config": {
+					"type": "object",
+					"description": "Adapters configuration",
+					"additionalProperties": {
+						"type": "object",
+						"required": [
+							"type"
+						],
+						"properties": {
+							"type": {
+								"type": "string",
+								"description": "Adapter type/name"
+							},
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether the adapter is enabled"
+							},
+							"options": {
+								"type": "object",
+								"description": "Adapter-specific options",
+								"additionalProperties": true
+							},
+							"outputDir": {
+								"type": "string",
+								"description": "Output directory for generated files"
+							},
+							"auth": {
+								"type": "object",
+								"properties": {
+									"enabled": {
+										"type": "boolean",
+										"description": "Whether to include authentication in generated API"
+									},
+									"provider": {
+										"type": "string",
+										"description": "Authentication provider (jwt, oauth, etc.)"
+									},
+									"options": {
+										"type": "object",
+										"description": "Authentication options",
+										"additionalProperties": true
+									}
+								}
+							},
+							"templateDir": {
+								"type": "string",
+								"description": "Custom templates location"
 							}
 						}
 					}
@@ -664,6 +1015,10 @@
 														"type": "string"
 													}
 												}
+											},
+											"validation": {
+												"type": "boolean",
+												"description": "Whether to validate input"
 											}
 										}
 									}
@@ -712,6 +1067,10 @@
 														"type": "string"
 													}
 												}
+											},
+											"validation": {
+												"type": "boolean",
+												"description": "Whether to validate input"
 											}
 										}
 									}
@@ -754,6 +1113,10 @@
 														"type": "string"
 													}
 												}
+											},
+											"softDelete": {
+												"type": "boolean",
+												"description": "Whether to use soft delete if configured on entity"
 											}
 										}
 									}
@@ -812,10 +1175,178 @@
 								"implementation": {
 									"type": "string",
 									"description": "Action implementation function or file path"
+								},
+								"middleware": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									},
+									"description": "Middleware to apply to this action"
+								},
+								"parameters": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"required": [
+											"name",
+											"type"
+										],
+										"properties": {
+											"name": {
+												"type": "string",
+												"description": "Parameter name"
+											},
+											"type": {
+												"type": "string",
+												"enum": [
+													"string",
+													"number",
+													"boolean",
+													"object",
+													"array"
+												],
+												"description": "Parameter type"
+											},
+											"required": {
+												"type": "boolean",
+												"description": "Whether the parameter is required"
+											},
+											"description": {
+												"type": "string",
+												"description": "Parameter description"
+											}
+										}
+									}
+								},
+								"returns": {
+									"type": "object",
+									"properties": {
+										"type": {
+											"type": "string",
+											"enum": [
+												"object",
+												"array",
+												"string",
+												"number",
+												"boolean",
+												"void"
+											],
+											"description": "Return type"
+										},
+										"description": {
+											"type": "string",
+											"description": "Description of the return value"
+										}
+									}
 								}
 							}
 						}
+					},
+					"middleware": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Middleware to apply to all routes for this entity"
+					},
+					"routeRegistry": {
+						"type": "boolean",
+						"description": "Whether to register routes in the route registry",
+						"default": true
 					}
+				}
+			}
+		},
+		"routeRegistry": {
+			"type": "object",
+			"description": "Route registry configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to use the route registry"
+				},
+				"generateDocs": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to generate OpenAPI documentation"
+				},
+				"cacheRoutes": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to cache routers"
+				}
+			}
+		},
+		"actionRegistry": {
+			"type": "object",
+			"description": "Action registry configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to use the action registry"
+				},
+				"loadActionsFromEntities": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to load actions from entity configurations"
+				},
+				"defaultTimeout": {
+					"type": "integer",
+					"default": 30000,
+					"description": "Default timeout for action execution in milliseconds"
+				}
+			}
+		},
+		"controllers": {
+			"type": "object",
+			"description": "Controller configuration",
+			"properties": {
+				"directory": {
+					"type": "string",
+					"description": "Directory containing controller files"
+				},
+				"useEntityControllers": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to use entity controllers"
+				},
+				"controllerGenerator": {
+					"type": "object",
+					"description": "Controller generator configuration",
+					"properties": {
+						"enabled": {
+							"type": "boolean",
+							"default": true,
+							"description": "Whether to use the controller generator"
+						},
+						"templateDir": {
+							"type": "string",
+							"description": "Directory containing controller templates"
+						}
+					}
+				}
+			}
+		},
+		"context": {
+			"type": "object",
+			"description": "API context configuration",
+			"properties": {
+				"defaultData": {
+					"type": "object",
+					"description": "Default data to include in all contexts",
+					"additionalProperties": true
+				},
+				"includeUser": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to include user in context"
+				},
+				"autoWireServices": {
+					"type": "boolean",
+					"default": true,
+					"description": "Whether to automatically wire services"
 				}
 			}
 		}

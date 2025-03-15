@@ -22,6 +22,10 @@
 			"type": "string",
 			"description": "Primary key field name"
 		},
+		"schema": {
+			"type": "string",
+			"description": "Database schema name"
+		},
 		"columns": {
 			"type": "array",
 			"description": "Column definitions",
@@ -66,7 +70,16 @@
 							"timestamp",
 							"text",
 							"json",
-							"blob"
+							"blob",
+							"bigint",
+							"smallint",
+							"tinyint",
+							"decimal",
+							"float",
+							"double",
+							"char",
+							"varchar",
+							"binary"
 						]
 					},
 					"unique": {
@@ -77,9 +90,82 @@
 						"type": "string",
 						"description": "Column comment"
 					},
+					"length": {
+						"type": "number",
+						"description": "Column length (for string types)"
+					},
+					"precision": {
+						"type": "number",
+						"description": "Column precision (for numeric types)"
+					},
+					"scale": {
+						"type": "number",
+						"description": "Column scale (for numeric types)"
+					},
+					"index": {
+						"oneOf": [
+							{
+								"type": "boolean"
+							},
+							{
+								"type": "string"
+							}
+						],
+						"description": "Whether this column should be indexed or index name"
+					},
 					"foreignKey": {
 						"type": "string",
-						"description": "Foreign key reference (e.g. 'table.column')"
+						"description": "Foreign key reference (table.column)"
+					},
+					"managedTimestamp": {
+						"type": "string",
+						"enum": [
+							"create",
+							"update",
+							"delete"
+						],
+						"description": "Whether this column is a timestamp managed by the ORM"
+					},
+					"defaultValue": {
+						"description": "Default value for the column"
+					},
+					"options": {
+						"type": "object",
+						"description": "Custom database-specific options",
+						"additionalProperties": true
+					},
+					"api": {
+						"type": "object",
+						"description": "API-specific settings for this column",
+						"properties": {
+							"readable": {
+								"type": "boolean",
+								"description": "Whether this field is readable through the API"
+							},
+							"writable": {
+								"type": "boolean",
+								"description": "Whether this field is writable through the API"
+							},
+							"roles": {
+								"type": "object",
+								"properties": {
+									"read": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"description": "Roles that can read this field"
+									},
+									"write": {
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"description": "Roles that can write this field"
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -169,6 +255,50 @@
 						}
 					}
 				]
+			}
+		},
+		"indexes": {
+			"type": "array",
+			"description": "Table indexes",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"columns"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Index name"
+					},
+					"columns": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Columns included in the index (logical names)"
+					},
+					"unique": {
+						"type": "boolean",
+						"description": "Whether this is a unique index"
+					},
+					"type": {
+						"type": "string",
+						"description": "Index type (database-specific)"
+					},
+					"fulltext": {
+						"type": "boolean",
+						"description": "Whether this is a fulltext index"
+					},
+					"spatial": {
+						"type": "boolean",
+						"description": "Whether this is a spatial index"
+					},
+					"where": {
+						"type": "string",
+						"description": "Where condition for partial indexes (database-specific)"
+					}
+				}
 			}
 		},
 		"timestamps": {
@@ -303,13 +433,71 @@
 				"recordAccess": {
 					"type": "object",
 					"description": "Record-level access control",
-					"required": [
-						"condition"
-					],
 					"properties": {
+						"ownerField": {
+							"type": "string",
+							"description": "Field that contains the owner ID"
+						},
 						"condition": {
 							"type": "string",
 							"description": "Record-level access control condition"
+						}
+					}
+				},
+				"queryParams": {
+					"type": "object",
+					"description": "Query parameter handling",
+					"properties": {
+						"filters": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Parameters for filtering"
+						},
+						"sort": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Parameters for sorting"
+						},
+						"pagination": {
+							"type": "boolean",
+							"description": "Whether to enable pagination"
+						},
+						"custom": {
+							"type": "object",
+							"additionalProperties": {
+								"type": "string"
+							},
+							"description": "Custom parameters and their handlers"
+						}
+					}
+				},
+				"transformers": {
+					"type": "object",
+					"description": "Custom response transformers",
+					"properties": {
+						"getAll": {
+							"type": "string",
+							"description": "Transform the response after getAll"
+						},
+						"getById": {
+							"type": "string",
+							"description": "Transform the response after getById"
+						},
+						"create": {
+							"type": "string",
+							"description": "Transform the response after create"
+						},
+						"update": {
+							"type": "string",
+							"description": "Transform the response after update"
+						},
+						"delete": {
+							"type": "string",
+							"description": "Transform the response after delete"
 						}
 					}
 				}
@@ -361,6 +549,20 @@
 					},
 					"description": "Hooks executed after deleting an entity"
 				},
+				"beforeFind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before finding entities"
+				},
+				"afterFind": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after finding entities"
+				},
 				"beforeGetById": {
 					"type": "array",
 					"items": {
@@ -388,97 +590,62 @@
 						"$ref": "#/definitions/hook"
 					},
 					"description": "Hooks executed after retrieving multiple entities"
-				}
-			}
-		},
-		"actions": {
-			"type": "array",
-			"description": "Custom entity actions",
-			"items": {
-				"type": "object",
-				"required": [
-					"name",
-					"path",
-					"method",
-					"implementation"
-				],
-				"properties": {
-					"name": {
-						"type": "string",
-						"description": "Action name"
+				},
+				"beforeFindBy": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
 					},
-					"path": {
-						"type": "string",
-						"description": "HTTP path for the action"
+					"description": "Hooks executed before finding entities by conditions"
+				},
+				"afterFindBy": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
 					},
-					"method": {
-						"type": "string",
-						"enum": [
-							"GET",
-							"POST",
-							"PUT",
-							"DELETE",
-							"PATCH"
-						],
-						"description": "HTTP method"
+					"description": "Hooks executed after finding entities by conditions"
+				},
+				"beforeFindRelated": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
 					},
-					"auth": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "Authorized roles"
+					"description": "Hooks executed before finding related entities"
+				},
+				"afterFindRelated": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
 					},
-					"implementation": {
-						"type": "string",
-						"description": "Action implementation"
-					}
-				}
-			}
-		},
-		"validation": {
-			"type": "object",
-			"description": "Validation rules",
-			"properties": {
-				"rules": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"required": [
-								"type",
-								"message"
-							],
-							"properties": {
-								"type": {
-									"type": "string",
-									"enum": [
-										"required",
-										"minLength",
-										"maxLength",
-										"min",
-										"max",
-										"pattern",
-										"email",
-										"custom"
-									],
-									"description": "Rule type"
-								},
-								"value": {
-									"description": "Rule value (if applicable)"
-								},
-								"message": {
-									"type": "string",
-									"description": "Error message"
-								},
-								"implementation": {
-									"type": "string",
-									"description": "Custom implementation (for custom rules)"
-								}
-							}
-						}
-					}
+					"description": "Hooks executed after finding related entities"
+				},
+				"beforeAction": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before performing a custom action"
+				},
+				"afterAction": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after performing a custom action"
+				},
+				"beforeApi": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed before processing an API request"
+				},
+				"afterApi": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/hook"
+					},
+					"description": "Hooks executed after processing an API request"
 				}
 			}
 		},
@@ -505,7 +672,162 @@
 					},
 					"implementation": {
 						"type": "string",
-						"description": "Property implementation"
+						"description": "Property implementation or path to external file"
+					},
+					"cache": {
+						"type": "boolean",
+						"description": "Whether to cache the computed value"
+					},
+					"description": {
+						"type": "string",
+						"description": "Description of the computed property"
+					},
+					"exposeInApi": {
+						"type": "boolean",
+						"description": "Whether to expose in API responses"
+					}
+				}
+			}
+		},
+		"actions": {
+			"type": "array",
+			"description": "Custom entity actions",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"implementation"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Action name"
+					},
+					"description": {
+						"type": "string",
+						"description": "Action description"
+					},
+					"implementation": {
+						"oneOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "object"
+							}
+						],
+						"description": "Action implementation or path to external file"
+					},
+					"httpMethod": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
+						],
+						"description": "HTTP method if exposed via API"
+					},
+					"route": {
+						"type": "string",
+						"description": "API route path (relative to entity base path)"
+					},
+					"roles": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Roles allowed to execute this action"
+					},
+					"parameters": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"required": [
+								"name",
+								"type"
+							],
+							"properties": {
+								"name": {
+									"type": "string",
+									"description": "Parameter name"
+								},
+								"type": {
+									"type": "string",
+									"enum": [
+										"string",
+										"number",
+										"boolean",
+										"object",
+										"array"
+									],
+									"description": "Parameter type"
+								},
+								"required": {
+									"type": "boolean",
+									"description": "Whether the parameter is required"
+								},
+								"description": {
+									"type": "string",
+									"description": "Parameter description"
+								},
+								"validation": {
+									"type": "array",
+									"items": {
+										"$ref": "#/definitions/validationRule"
+									},
+									"description": "Validation rules for this parameter"
+								}
+							}
+						}
+					},
+					"returns": {
+						"type": "object",
+						"properties": {
+							"type": {
+								"type": "string",
+								"enum": [
+									"object",
+									"array",
+									"string",
+									"number",
+									"boolean",
+									"void"
+								],
+								"description": "Return type"
+							},
+							"description": {
+								"type": "string",
+								"description": "Description of the return value"
+							}
+						}
+					},
+					"transactional": {
+						"type": "boolean",
+						"description": "Whether this action requires a transaction"
+					},
+					"middleware": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Middleware to apply to this action when exposed via API"
+					}
+				}
+			}
+		},
+		"validation": {
+			"type": "object",
+			"description": "Validation rules",
+			"properties": {
+				"rules": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"$ref": "#/definitions/validationRule"
+						}
 					}
 				}
 			}
@@ -540,6 +862,15 @@
 								"initial": {
 									"type": "boolean",
 									"description": "Whether this is the initial state"
+								},
+								"description": {
+									"type": "string",
+									"description": "State description"
+								},
+								"metadata": {
+									"type": "object",
+									"additionalProperties": true,
+									"description": "Additional metadata for the state"
 								}
 							}
 						}
@@ -585,12 +916,136 @@
 											"description": "After transition hook"
 										}
 									}
+								},
+								"description": {
+									"type": "string",
+									"description": "Transition description"
+								},
+								"metadata": {
+									"type": "object",
+									"additionalProperties": true,
+									"description": "Additional metadata for the transition"
 								}
 							}
 						}
 					}
 				}
 			}
+		},
+		"middleware": {
+			"type": "object",
+			"description": "API-specific middleware configuration",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Middleware name"
+				},
+				"handler": {
+					"oneOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "object"
+						}
+					],
+					"description": "Middleware handler function or path"
+				},
+				"options": {
+					"type": "object",
+					"description": "Middleware options",
+					"additionalProperties": true
+				},
+				"priority": {
+					"type": "number",
+					"description": "Middleware priority (lower numbers run first)"
+				},
+				"global": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Global middleware (applied to all routes)"
+				},
+				"entity": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"description": "Entity-specific middleware"
+				},
+				"action": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"description": "Action-specific middleware"
+				},
+				"route": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"description": "Route-specific middleware"
+				},
+				"method": {
+					"type": "object",
+					"properties": {
+						"get": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"post": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"put": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"delete": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"patch": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					},
+					"description": "HTTP method-specific middleware"
+				},
+				"all": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Middleware to apply to all routes"
+				}
+			}
+		},
+		"options": {
+			"type": "object",
+			"description": "Custom database-specific options",
+			"additionalProperties": true
 		}
 	},
 	"definitions": {
@@ -612,6 +1067,56 @@
 				"condition": {
 					"type": "string",
 					"description": "Optional condition for hook execution"
+				},
+				"priority": {
+					"type": "number",
+					"description": "Hook priority (lower numbers run first)"
+				},
+				"async": {
+					"type": "boolean",
+					"description": "Whether the hook should be async"
+				},
+				"timeout": {
+					"type": "number",
+					"description": "Maximum execution time in milliseconds"
+				}
+			}
+		},
+		"validationRule": {
+			"type": "object",
+			"required": [
+				"type",
+				"message"
+			],
+			"properties": {
+				"type": {
+					"type": "string",
+					"enum": [
+						"required",
+						"minLength",
+						"maxLength",
+						"min",
+						"max",
+						"pattern",
+						"email",
+						"custom"
+					],
+					"description": "Rule type"
+				},
+				"value": {
+					"description": "Rule value (if applicable)"
+				},
+				"message": {
+					"type": "string",
+					"description": "Error message"
+				},
+				"implementation": {
+					"type": "string",
+					"description": "Custom implementation (for custom rules)"
+				},
+				"applyToApi": {
+					"type": "boolean",
+					"description": "Whether this validation applies to API requests"
 				}
 			}
 		}

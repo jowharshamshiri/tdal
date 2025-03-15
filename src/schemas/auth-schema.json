@@ -13,7 +13,8 @@
 			"enum": [
 				"jwt",
 				"oauth2",
-				"basic"
+				"basic",
+				"custom"
 			]
 		},
 		"secret": {
@@ -21,14 +22,30 @@
 			"description": "Secret key for token signing"
 		},
 		"tokenExpiry": {
-			"type": "string",
-			"description": "Token expiration time (e.g., '1h', '30m', '7d')",
-			"pattern": "^\\d+[smhdwMy]$"
+			"oneOf": [
+				{
+					"type": "string",
+					"description": "Token expiration time (e.g., '1h', '30m', '7d')",
+					"pattern": "^\\d+[smhdwMy]$"
+				},
+				{
+					"type": "number",
+					"description": "Token expiration time in seconds"
+				}
+			]
 		},
 		"refreshTokenExpiry": {
-			"type": "string",
-			"description": "Refresh token expiration time",
-			"pattern": "^\\d+[smhdwMy]$"
+			"oneOf": [
+				{
+					"type": "string",
+					"description": "Refresh token expiration time",
+					"pattern": "^\\d+[smhdwMy]$"
+				},
+				{
+					"type": "number",
+					"description": "Refresh token expiration time in seconds"
+				}
+			]
 		},
 		"userEntity": {
 			"type": "string",
@@ -64,8 +81,19 @@
 						"description": "Role description"
 					},
 					"inherits": {
-						"type": "string",
-						"description": "Parent role that this role inherits permissions from"
+						"oneOf": [
+							{
+								"type": "string",
+								"description": "Parent role that this role inherits permissions from"
+							},
+							{
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "Parent roles that this role inherits permissions from"
+							}
+						]
 					},
 					"permissions": {
 						"type": "array",
@@ -203,6 +231,13 @@
 							"callbackUrl": {
 								"type": "string",
 								"description": "OAuth2 callback URL"
+							},
+							"scopes": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "OAuth2 scopes"
 							},
 							"userMapping": {
 								"type": "object",
@@ -354,6 +389,144 @@
 					"pattern": "^\\d+[smhdwMy]$"
 				}
 			}
+		},
+		"fieldAccessControl": {
+			"type": "object",
+			"description": "Field-level access control configuration",
+			"properties": {
+				"enabled": {
+					"type": "boolean",
+					"description": "Whether field-level access control is enabled"
+				},
+				"defaultReadAccess": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Default roles that can read fields"
+				},
+				"defaultWriteAccess": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Default roles that can write fields"
+				}
+			}
+		},
+		"permissionValidation": {
+			"type": "object",
+			"description": "Permission validation configuration",
+			"properties": {
+				"customConditions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [
+							"entity",
+							"operation",
+							"condition"
+						],
+						"properties": {
+							"entity": {
+								"type": "string",
+								"description": "Entity name"
+							},
+							"operation": {
+								"type": "string",
+								"description": "Operation name"
+							},
+							"condition": {
+								"type": "string",
+								"description": "Condition function (user, entityConfig, context) => boolean"
+							}
+						}
+					},
+					"description": "Custom permission conditions"
+				},
+				"publicOperations": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Operations that are public (no authentication required)"
+				}
+			}
+		},
+		"tokenVerification": {
+			"type": "object",
+			"description": "Token verification configuration",
+			"properties": {
+				"extractHeader": {
+					"type": "string",
+					"enum": [
+						"Authorization",
+						"Bearer",
+						"Custom"
+					],
+					"description": "Header to extract token from"
+				},
+				"customHeader": {
+					"type": "string",
+					"description": "Custom header name (if extractHeader is 'Custom')"
+				},
+				"autoRenew": {
+					"type": "boolean",
+					"description": "Whether to automatically renew tokens close to expiration"
+				},
+				"renewThreshold": {
+					"type": "string",
+					"description": "Time before expiration to renew token",
+					"pattern": "^\\d+[smhdwMy]$"
+				}
+			}
+		},
+		"adapters": {
+			"type": "object",
+			"description": "Authentication adapters configuration",
+			"additionalProperties": {
+				"type": "object",
+				"required": [
+					"type"
+				],
+				"properties": {
+					"type": {
+						"type": "string",
+						"description": "Adapter type"
+					},
+					"options": {
+						"type": "object",
+						"description": "Adapter-specific options",
+						"additionalProperties": true
+					}
+				}
+			}
+		},
+		"customProviders": {
+			"type": "array",
+			"description": "Custom authentication providers",
+			"items": {
+				"type": "object",
+				"required": [
+					"name",
+					"implementation"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Provider name"
+					},
+					"implementation": {
+						"type": "string",
+						"description": "Provider implementation (path to module)"
+					},
+					"options": {
+						"type": "object",
+						"description": "Provider-specific options",
+						"additionalProperties": true
+					}
+				}
+			}
 		}
 	},
 	"allOf": [
@@ -370,10 +543,7 @@
 			"then": {
 				"required": [
 					"secret",
-					"tokenExpiry",
-					"userEntity",
-					"usernameField",
-					"passwordField"
+					"tokenExpiry"
 				]
 			}
 		},
@@ -390,6 +560,22 @@
 			"then": {
 				"required": [
 					"oauth2Options"
+				]
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"provider": {
+						"enum": [
+							"custom"
+						]
+					}
+				}
+			},
+			"then": {
+				"required": [
+					"customProviders"
 				]
 			}
 		}
