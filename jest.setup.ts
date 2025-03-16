@@ -7,7 +7,7 @@ import {
 beforeAll(async () => {
 	try {
 		console.log('Setting up test environment...');
-		await setupTestEnvironment('./tests/test.yaml');
+		await setupTestEnvironment('./tests/test-app.yaml');
 		console.log('Test environment setup complete.');
 	} catch (error) {
 		console.error('Failed to set up test environment:', error);

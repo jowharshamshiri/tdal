@@ -14,7 +14,7 @@ let testFramework: Framework | null = null;
  * @param configPath Path to the configuration file
  * @returns Initialized framework instance
  */
-export async function setupTestEnvironment(configPath: string = './tests/test.yaml'): Promise<Framework> {
+export async function setupTestEnvironment(configPath: string = './tests/test-app.yaml'): Promise<Framework> {
 	// Check if test framework already exists
 	if (testFramework) {
 		return testFramework;
