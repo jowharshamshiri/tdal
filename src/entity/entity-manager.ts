@@ -198,30 +198,44 @@ export class EntityDao<T, IdType = string | number> {
 	private logger?: Logger;
 
 	/**
- * Constructor
- * @param entityConfig Entity mapping configuration
- * @param db Optional database adapter instance (uses singleton if not provided)
- * @param logger Optional logger instance
- * @param configLoader Optional configuration loader for hooks and computed properties
- */
+	 * Constructor
+	 * @param entityConfig Entity mapping configuration
+	 * @param db Optional database adapter instance (uses singleton if not provided)
+	 * @param logger Optional logger instance
+	 * @param configLoader Optional configuration loader for hooks and computed properties
+	 */
 	constructor(
-		entityConfig: EntityConfig,
-		db?: DatabaseAdapter,
-		logger?: Logger,
+		entityConfigOrDb: EntityConfig | DatabaseAdapter,
+		dbOrLogger?: DatabaseAdapter | Logger,
+		loggerOrConfigLoader?: Logger | any,
 		configLoader?: any
 	) {
-		this.entityConfig = entityConfig;
-		this.db = db || DatabaseContext.getDatabase();
-		this.logger = logger;
+		// Check if first parameter is an EntityConfig or DatabaseAdapter
+		if ((entityConfigOrDb as EntityConfig).entity &&
+			(entityConfigOrDb as EntityConfig).table &&
+			(entityConfigOrDb as EntityConfig).columns) {
+			// First parameter is EntityConfig
+			this.entityConfig = entityConfigOrDb as EntityConfig;
+			this.db = dbOrLogger as DatabaseAdapter || DatabaseContext.getDatabase();
+			this.logger = loggerOrConfigLoader as Logger;
 
-		// Default no-op computed properties processor
-		this.computedPropertiesProcessor = (entity) => entity;
+			// Initialize if logger and configLoader are provided
+			if (this.logger && configLoader) {
+				this.initialize(configLoader).catch(error => {
+					this.logger!.error(`Failed to initialize entity dao for ${this.entityConfig.entity}: ${error.message}`);
+				});
+			}
+		} else {
+			// First parameter is DatabaseAdapter
+			// In this case, entityConfig should be provided by the subclass
+			this.db = entityConfigOrDb as DatabaseAdapter;
+			this.logger = dbOrLogger as Logger;
 
-		// Initialize hooks, actions, and computed properties if logger and configLoader are provided
-		if (logger && configLoader) {
-			this.initialize(configLoader).catch(error => {
-				logger.error(`Failed to initialize entity dao for ${entityConfig.entity}: ${error.message}`);
-			});
+			// Default no-op computed properties processor
+			this.computedPropertiesProcessor = (entity) => entity;
+
+			// We don't initialize hooks, actions, and computed properties here
+			// as they should be handled by the subclass
 		}
 	}
 

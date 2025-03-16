@@ -909,7 +909,7 @@ export function getApiReadableColumns(
 }
 
 /**
- * Get all API-writable columns
+ * Get all API-writable columns - FIXED VERSION
  * @param mapping Entity mapping
  * @param role Optional role for role-based filtering
  * @returns Array of logical column names that are writable via API
@@ -920,12 +920,24 @@ export function getApiWritableColumns(
 ): string[] {
 	return mapping.columns
 		.filter(col => {
+			// Skip auto-generated fields
+			if (col.autoIncrement) {
+				return false;
+			}
+
 			// If api property is undefined, default to true
 			if (col.api === undefined) return true;
 
 			// If writable is explicitly set, use that value
 			if (col.api.writable !== undefined) {
-				if (!col.api.writable) return false;
+				if (!col.api.writable) {
+					// If the column is explicitly not writable but role is provided and 
+					// has write permission, allow it (specially handling role-based write access)
+					if (role && col.api.roles?.write && col.api.roles.write.includes(role)) {
+						return true;
+					}
+					return false;
+				}
 			}
 
 			// Check role-based access if role is provided
@@ -1194,7 +1206,7 @@ export function mapToEntity(entityConfig: EntityConfig, record: Record<string, u
 }
 
 /**
- * Convert database values to entity values
+ * Convert database values to entity values - FIXED VERSION
  * @param data Database data
  * @returns Converted data with entity-specific types
  */
@@ -1212,8 +1224,13 @@ export function convertToEntityValues(entityConfig: EntityConfig, data: Record<s
 	for (const col of booleanColumnNames) {
 		if (col in result) {
 			const value = result[col];
-			// Convert 0/1 or string "0"/"1" to boolean
-			result[col] = value === 1 || value === "1" || value === true;
+			// Handle null values properly for booleans
+			if (value === null) {
+				result[col] = null;
+			} else {
+				// Convert 0/1 or string "0"/"1" to boolean
+				result[col] = value === 1 || value === "1" || value === true;
+			}
 		}
 	}
 

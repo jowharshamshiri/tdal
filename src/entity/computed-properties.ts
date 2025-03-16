@@ -116,13 +116,14 @@ export function createComputedPropertyFunction(prop: ComputedProperty): (entity:
 			'entity',
 			'context',
 			`
-      try {
-        return (${prop.implementation})(entity, context);
-      } catch (error: any) {
-        console.error('Error in computed property ${prop.name}:', error);
-        return undefined;
-      }
-      `
+		try {
+		  const fn = ${prop.implementation};
+		  return fn(entity, context);
+		} catch (error) {
+		  console.error('Error in computed property ${prop.name}:', error);
+		  return undefined;
+		}
+		`
 		) as (entity: any, context?: HookContext) => any;
 	} catch (error: any) {
 		throw new Error(`Failed to create function for computed property ${prop.name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -249,8 +250,14 @@ export function extractDependenciesFromImplementation(
 	// Get the function source code
 	const fnStr = implementation.toString();
 
-	// Extract property accesses like entity.propertyName
-	const matches = fnStr.match(/entity\.([a-zA-Z0-9_$]+)/g) || [];
+	// Extract property accesses using a more robust regex
+	const regex = /entity\.([a-zA-Z0-9_$]+)/g;
+	const matches = [];
+	let match;
+
+	while ((match = regex.exec(fnStr)) !== null) {
+		matches.push(match[0]);
+	}
 
 	// Remove the "entity." prefix and deduplicate
 	const properties = [...new Set(matches.map(m => m.replace('entity.', '')))];
