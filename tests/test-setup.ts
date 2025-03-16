@@ -50,6 +50,7 @@ export async function setupTestEnvironment(configPath: string = './tests/test-ap
 		// and synchronize the database schema
 		await testFramework.initialize(absoluteConfigPath);
 
+		testFramework.getContext().getLogger().info('Test environment successfully initialized');
 		return testFramework;
 	} catch (error) {
 		console.error('Failed to initialize test environment:', error);
