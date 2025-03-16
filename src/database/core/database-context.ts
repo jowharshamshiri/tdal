@@ -77,6 +77,8 @@ export class DatabaseContext {
 				debug: config.debug,
 			};
 
+			this.logger?.info(`Configuring SQLite database ${JSON.stringify(sqliteConfig)}`);
+
 			this.config = sqliteConfig;
 		}
 
