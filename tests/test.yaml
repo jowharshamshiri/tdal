@@ -90,3 +90,31 @@ plugins:
   - name: "data-validation"
     enabled: true
     source: "./plugins/data-validation"
+
+# Test entities configuration - directly in the YAML file
+entities:
+  TestEntity:
+    entity: "TestEntity"
+    table: "test_entities"
+    idField: "id"
+    columns:
+      - logical: "id"
+        physical: "id"
+        type: "integer"
+        primaryKey: true
+        autoIncrement: true
+      - logical: "name"
+        physical: "name"
+        type: "string"
+      - logical: "active"
+        physical: "active"
+        type: "boolean"
+    api:
+      exposed: true
+      basePath: "/test-entities"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true

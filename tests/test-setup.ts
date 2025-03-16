@@ -1,6 +1,5 @@
 // test-setup.ts
 import { Framework } from "../src/core/framework";
-import { ConfigLoader } from "../src/core/config-loader";
 import { DatabaseContext } from "../src/database/core/database-context";
 import * as path from "path";
 import * as fs from "fs";
@@ -51,6 +50,7 @@ export async function setupTestEnvironment(configPath: string = './tests/test.ya
 		});
 
 		// Initialize the framework - this will load the entities from the config file
+		// The ConfigLoader will now automatically process inline entities
 		await testFramework.initialize(absoluteConfigPath);
 
 		testLogger.info('Test environment initialized successfully');

@@ -136,10 +136,67 @@ export class ConfigLoader {
 			this.appConfig = config;
 			this.logger.info('Application configuration loaded successfully');
 
+			// Load inline entity definitions if present
+			if ((config as any).entities) {
+				try {
+					await this.loadInlineEntities((config as any).entities);
+				} catch (error: any) {
+					this.logger.error(`Failed to load inline entity configurations: ${error}`);
+				}
+			}
+
 			return config;
 		} catch (error: any) {
 			this.logger.error(`Failed to load application configuration: ${error}`);
 			throw new Error(`Failed to load application configuration: ${error}`);
+		}
+	}
+
+	/**
+	 * Load entity configurations from inline definitions
+	 * @param inlineEntities Object containing entity configurations by name
+	 * @returns Map of entity name to entity configuration
+	 */
+	async loadInlineEntities(inlineEntities: Record<string, any>): Promise<Map<string, EntityConfig>> {
+		this.logger.info('Loading inline entity configurations');
+
+		try {
+			const entries = Object.entries(inlineEntities);
+			this.logger.info(`Found ${entries.length} inline entity configurations`);
+
+			for (const [name, config] of entries) {
+				try {
+					// Validate the entity configuration
+					if (this.options.validateSchemas) {
+						this.validateConfig('entity', config);
+					}
+
+					// Ensure required fields are present
+					if (!config.entity) {
+						config.entity = name;
+					}
+					if (!config.table) {
+						throw new Error(`Table name not specified for entity ${name}`);
+					}
+					if (!config.idField) {
+						throw new Error(`ID field not specified for entity ${name}`);
+					}
+					if (!config.columns || !Array.isArray(config.columns) || config.columns.length === 0) {
+						throw new Error(`No columns defined for entity ${name}`);
+					}
+
+					// Add to entities map
+					this.entities.set(name, config as EntityConfig);
+					this.logger.debug(`Loaded inline entity configuration for ${name}`);
+				} catch (error: any) {
+					this.logger.error(`Failed to load inline entity ${name}: ${error}`);
+				}
+			}
+
+			return this.entities;
+		} catch (error: any) {
+			this.logger.error(`Failed to load inline entity configurations: ${error}`);
+			throw error;
 		}
 	}
 
@@ -168,7 +225,8 @@ export class ConfigLoader {
 
 			if (entityFiles.length === 0) {
 				this.logger.warn(`No entity configuration files found in ${dirPath}`);
-				return new Map();
+				// Return the existing entities map which may contain inline entities
+				return this.entities;
 			}
 
 			this.logger.info(`Found ${entityFiles.length} entity configuration files`);
@@ -182,7 +240,7 @@ export class ConfigLoader {
 			// Process entity relationships
 			this.resolveEntityRelationships();
 
-			this.logger.info(`Loaded ${this.entities.size} entity configurations`);
+			this.logger.info(`Loaded ${this.entities.size} entity configurations in total`);
 
 			return this.entities;
 		} catch (error: any) {
@@ -273,7 +331,7 @@ export class ConfigLoader {
 	}
 
 	/**
-	 * Validate an entity configuration against a JSON schema
+	 * Validate a configuration against a JSON schema
 	 * @param type Schema type ('entity' or 'app')
 	 * @param config Configuration to validate
 	 */

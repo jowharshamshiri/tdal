@@ -1,5 +1,5 @@
 // framework.test.ts
-import { setupTestEnvironment, teardownTestEnvironment, registerTestEntity, getTestFramework } from './test-setup';
+import { setupTestEnvironment, teardownTestEnvironment, getTestFramework } from './test-setup';
 
 // Define the interface for our test entity
 interface TestEntity {
@@ -9,16 +9,6 @@ interface TestEntity {
 }
 
 describe('Framework Tests', () => {
-	// // Setup before all tests
-	// beforeAll(async () => {
-	// 	await setupTestEnvironment('./test.yaml');
-	// });
-
-	// // Teardown after all tests
-	// afterAll(async () => {
-	// 	await teardownTestEnvironment();
-	// });
-
 	it('should initialize framework with configuration', () => {
 		const framework = getTestFramework();
 		const config = framework.getConfig();
