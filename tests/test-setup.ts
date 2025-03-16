@@ -1,6 +1,6 @@
 // tests/tdal/test-setup.ts
-import { DatabaseAdapter, DatabaseContext, SQLiteAdapter, SQLiteConfig } from "../../src/database";
-import { SchemaLoader } from "../../src/database/schema/schema-loader";
+import { DatabaseAdapter, DatabaseContext, SQLiteAdapter, SQLiteConfig } from "../src/database";
+import { SchemaLoader } from "../src/database/schema/schema-loader";
 import * as path from "path";
 import * as fs from "fs";
 

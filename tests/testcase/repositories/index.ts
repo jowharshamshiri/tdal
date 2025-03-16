@@ -23,8 +23,8 @@ export {
 export { ShoppingSessionRepository } from "./shopping-session-repository";
 
 // Factory functions to create repositories
-import { DatabaseAdapter } from "../../src/database/core/types";
-import { DatabaseContext } from "../../src/database/core/database-context";
+import { DatabaseAdapter } from "../../../src/database/core/types";
+import { DatabaseContext } from "../../../src/database/core/database-context";
 import { UserRepository } from "./user-repository";
 import { ProductCategoryRepository } from "./category-repository";
 import { ProductRepository } from "./product-repository";

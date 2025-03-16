@@ -5,10 +5,10 @@ import {
 	createTestSchema,
 	insertTestData,
 	cleanupDatabase,
-} from "./test-setup";
+} from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
-import { UserRepository } from "./repositories/user-repository";
-import { UserResourceAccess } from "./models";
+import { UserRepository } from "../testcase/repositories/user-repository";
+import { UserResourceAccess } from "../testcase/models";
 
 describe("UserRepository", () => {
 	let db: DatabaseAdapter;

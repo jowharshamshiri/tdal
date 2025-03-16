@@ -5,7 +5,7 @@ import {
 	createTestSchema,
 	insertTestData,
 	cleanupDatabase,
-} from "./test-setup";
+} from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
 import { SQLiteQueryBuilder } from "../../src/database/query/sqlite-query-builder";
 import { QueryBuilder } from "../../src/database/query/query-builder";

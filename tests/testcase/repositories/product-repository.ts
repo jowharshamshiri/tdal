@@ -12,7 +12,7 @@ import {
 	ProductMapping,
 	UserProductData,
 	UserProductBookmark,
-} from "../../tests/models";
+} from "../models";
 import { DateExpressions } from "../../../src/database/orm/date-functions";
 import { EntityQueryBuilder } from "../../../src/database/query/entity-query-builder";
 import {

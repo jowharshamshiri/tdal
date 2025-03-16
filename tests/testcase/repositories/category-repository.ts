@@ -3,21 +3,21 @@
  * Data access for category-related operations
  */
 
-import { EntityDao } from "../../src/entity/entity-manager";
+import { EntityDao } from "../../../src/entity/entity-manager";
 import {
 	ProductCategory,
 	ProductCategoryWithMeta,
 	ProductCategoryDetail,
 	ProductCategoryMapping,
-} from "../../tests/models";
-import { Product } from "../../tests/models/product";
-import { EntityQueryBuilder } from "../../src/database/query/entity-query-builder";
+} from "../models";
+import { Product } from "../models/product";
+import { EntityQueryBuilder } from "../../../src/database/query/entity-query-builder";
 import {
 	Relation,
 	ManyToManyRelation,
 	OneToManyRelation,
 	ManyToOneRelation,
-} from "../../src/database/orm/relation-types";
+} from "../../../src/database/orm/relation-types";
 
 /**
  * Convert string type relations to proper Relation objects

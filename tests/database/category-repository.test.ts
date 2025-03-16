@@ -5,9 +5,9 @@ import {
 	createTestSchema,
 	insertTestData,
 	cleanupDatabase,
-} from "./test-setup";
+} from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
-import { ProductCategoryRepository } from "./repositories/category-repository";
+import { ProductCategoryRepository } from "../testcase/repositories/category-repository";
 
 describe("ProductCategoryRepository", () => {
 	let db: DatabaseAdapter;

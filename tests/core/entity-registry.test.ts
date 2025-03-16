@@ -1,9 +1,9 @@
 // entity-registry.test.ts
-import { EntityRegistry, getEntityRegistry } from "../src/entity/EntityRegistry";
-import { EntityConfig } from "../src/entity/entity-config";
-import { DatabaseAdapter } from "../src/database/core/types";
-import { ActionRegistry } from "../src/actions/action-registry";
-import { DatabaseContext } from "../src/database/core/database-context";
+import { EntityRegistry, getEntityRegistry } from "../../src/entity/EntityRegistry";
+import { EntityConfig } from "../../src/entity/entity-config";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { ActionRegistry } from "../../src/actions/action-registry";
+import { DatabaseContext } from "../../src/database/core/database-context";
 
 // Mock the database context
 jest.mock('../src/database/core/database-context', () => ({

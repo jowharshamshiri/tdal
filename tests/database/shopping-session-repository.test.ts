@@ -5,10 +5,10 @@ import {
 	createTestSchema,
 	insertTestData,
 	cleanupDatabase,
-} from "./test-setup";
+} from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
-import { ShoppingSessionRepository } from "./repositories/shopping-session-repository";
-import { ShoppingSessionStatus } from "./models/shopping-session";
+import { ShoppingSessionRepository } from "../testcase/repositories/shopping-session-repository";
+import { ShoppingSessionStatus } from "../testcase/models/shopping-session";
 
 // Define ProductSide enum
 enum ProductSide {

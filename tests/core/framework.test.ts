@@ -1,7 +1,7 @@
 // framework.test.ts
-import { Framework } from "../src/core/framework";
-import { ConfigLoader } from "../src/core/config-loader";
-import { AppContext } from "../src/core/app-context";
+import { Framework } from "../../src/core/framework";
+import { ConfigLoader } from "../../src/core/config-loader";
+import { AppContext } from "../../src/core/app-context";
 import { Request, Response, NextFunction } from "express";
 
 // Mock dependencies

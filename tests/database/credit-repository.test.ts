@@ -5,13 +5,13 @@ import {
 	createTestSchema,
 	insertTestData,
 	cleanupDatabase,
-} from "./test-setup";
+} from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
 import {
 	CreditPackageRepository,
 	UserCreditRepository,
 	PaymentTransactionRepository,
-} from "./repositories/credit-repository";
+} from "../testcase/repositories/credit-repository";
 
 describe("CreditRepository", () => {
 	let db: DatabaseAdapter;

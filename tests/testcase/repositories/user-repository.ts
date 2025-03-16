@@ -3,7 +3,7 @@
  * Data access for user-related operations
  */
 
-import { EntityDao } from "../../src/entity/entity-manager";
+import { EntityDao } from "../../../src/entity/entity-manager";
 import {
 	User,
 	UserProfile,
@@ -11,10 +11,10 @@ import {
 	CreditBalance,
 	UserCredit,
 	UserResourceAccess,
-} from "../../tests/models";
-import { DateExpressions } from "../../src/database/orm/date-functions";
-import { EntityQueryBuilder } from "../../src/database/query/entity-query-builder";
-import { Relation, OneToManyRelation } from "../../src/database/orm/relation-types";
+} from "../models";
+import { DateExpressions } from "../../../src/database/orm/date-functions";
+import { EntityQueryBuilder } from "../../../src/database/query/entity-query-builder";
+import { Relation, OneToManyRelation } from "../../../src/database/orm/relation-types";
 
 /**
  * Convert string type relations to proper Relation objects

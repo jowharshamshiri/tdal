@@ -15,9 +15,9 @@ import {
 	getComputedPropertyOrder,
 	createComputedPropertiesProcessor,
 	createBatchComputedPropertiesProcessor
-} from "../src/entity/computed-properties";
-import { ComputedProperty, EntityConfig } from "../src/entity/entity-config";
-import { HookContext } from "../src/core/types";
+} from "../../src/entity/computed-properties";
+import { ComputedProperty, EntityConfig } from "../../src/entity/entity-config";
+import { HookContext } from "../../src/core/types";
 
 describe("ComputedProperties", () => {
 	let mockLogger: any;

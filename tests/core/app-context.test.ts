@@ -1,11 +1,11 @@
 // app-context.test.ts
-import { AppContext } from "../src/core/app-context";
-import { DatabaseAdapter } from "../src/database/core/types";
-import { EntityConfig } from "../src/entity/entity-config";
-import { EntityDao } from "../src/entity/entity-manager";
-import { DatabaseContext } from "../src/database/core/database-context";
-import { ActionRegistry } from "../src/actions/action-registry";
-import { RouteRegistry } from "../src/api/route-registry";
+import { AppContext } from "../../src/core/app-context";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { EntityConfig } from "../../src/entity/entity-config";
+import { EntityDao } from "../../src/entity/entity-manager";
+import { DatabaseContext } from "../../src/database/core/database-context";
+import { ActionRegistry } from "../../src/actions/action-registry";
+import { RouteRegistry } from "../../src/api/route-registry";
 
 // Mock the database context
 jest.mock('../src/database/core/database-context', () => ({
