@@ -1,0 +1,92 @@
+# Application configuration
+name: "Test API Framework"
+version: "1.0.0"
+port: 3000
+host: "localhost"
+apiBasePath: "/api"
+entitiesDir: "./entities"
+
+# Database configuration
+database:
+  type: "sqlite"
+  filename: "./data/test.db"
+  pool:
+    min: 1
+    max: 10
+  options:
+    enableForeignKeys: true
+
+# Authentication configuration
+auth:
+  provider: "jwt"
+  secret: "test-secret-key-for-development-only"
+  tokenExpiry: "24h"
+  refreshTokenExpiry: "7d"
+  userEntity: "User"
+  usernameField: "email"
+  passwordField: "password"
+  roles:
+    - name: "admin"
+      description: "Administrator with full access"
+    - name: "user"
+      description: "Standard user with limited access"
+      inherits: []
+    - name: "editor"
+      description: "Content editor with specific permissions"
+      inherits: ["user"]
+      permissions: ["edit", "publish"]
+
+# CORS configuration
+cors:
+  origin: "*"
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE"
+  allowedHeaders: "Content-Type,Authorization"
+  credentials: true
+
+# Logging configuration
+logging:
+  level: "debug"
+  pretty: true
+  console: true
+  file: "./logs/app.log"
+
+# Framework-specific options
+framework:
+  enableApi: true
+  syncSchema: true
+  enableMigrations: true
+  migrationsDir: "./migrations"
+
+# API adapters configuration
+adapters:
+  default: "rest"
+  config:
+    rest:
+      enabled: true
+      type: "rest"
+      options:
+        generateDocs: true
+        docTitle: "Test API Documentation"
+      outputDir: "./generated"
+
+# Global middleware configuration
+middleware:
+  global:
+    - "cors"
+    - "bodyParser"
+    - "errorHandler"
+  entity:
+    User:
+      - "rateLimit"
+      - "audit"
+
+# Plugin configuration
+plugins:
+  - name: "audit-log"
+    enabled: true
+    config:
+      storage: "database"
+      table: "audit_logs"
+  - name: "data-validation"
+    enabled: true
+    source: "./plugins/data-validation"

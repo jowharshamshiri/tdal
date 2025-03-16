@@ -8,6 +8,7 @@ import {
 } from "../test-setup";
 import { DatabaseAdapter } from "../../src/database/core/types";
 import { SQLiteAdapter } from "../../src/database/adapters/sqlite-adapter";
+import path from "path";
 
 interface User {
 	user_id: number;
@@ -47,7 +48,10 @@ describe("SQLiteAdapter", () => {
 	test("should connect to database", async () => {
 		const adapter = new SQLiteAdapter({
 			type: "sqlite",
-			connection: { memory: true, filename: ":memory:" },
+			connection: {
+				filename: path.join(process.cwd(), "trash", "test.db"),
+			},
+
 		});
 
 		const connection = await adapter.connect();

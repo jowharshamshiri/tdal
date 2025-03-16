@@ -1,104 +1,116 @@
-// tests/tdal/test-setup.ts
-import { DatabaseAdapter, DatabaseContext, SQLiteAdapter, SQLiteConfig } from "../src/database";
-import { SchemaLoader } from "../src/database/schema/schema-loader";
+// test-setup.ts
+import { Framework } from "../src/core/framework";
+import { ConfigLoader } from "../src/core/config-loader";
+import { DatabaseContext } from "../src/database/core/database-context";
 import * as path from "path";
 import * as fs from "fs";
 
-export async function setupTestDatabase(): Promise<DatabaseAdapter> {
-	// Create an in-memory SQLite database for testing
-	const config = {
-		type: "sqlite",
-		connection: {
-			memory: true,
-			filename: ":memory:",
-		},
-	};
-
-	const db = new SQLiteAdapter(config as SQLiteConfig);
-	await db.connect();
-
-	// Enable foreign keys
-	await db.execute("PRAGMA foreign_keys = ON");
-
-	return db;
-}
-
-export function teardownTestDatabase(): void {
-	// Any cleanup needed
-}
-
-export async function createTestSchema(db: DatabaseAdapter): Promise<void> {
-	const schemaLoader = new SchemaLoader(db, {
-		baseDir: path.join(process.cwd(), "sql"),
-		schemaDir: "schema",
-		seedDir: "test",
-	});
-
-	// Load schema from schema.sql
-	await schemaLoader.loadSchema("../../sql/schema.sql");
-}
-
-export async function insertTestData(db: DatabaseAdapter): Promise<void> {
-	const schemaLoader = new SchemaLoader(db, {
-		baseDir: path.join(process.cwd(), "sql"),
-		schemaDir: "schema",
-		seedDir: "test",
-	});
-	// Load test data
-	await schemaLoader.loadSeedData("../../sql/test-data.sql");
-}
-
-export async function cleanupDatabase(db: DatabaseAdapter): Promise<void> {
-	// Temporarily disable foreign key constraints
-	await db.execute("PRAGMA foreign_keys = OFF");
-
-	// Clear all tables in correct order
-	await db.executeScript(`
-	  DELETE FROM product_view_record;
-	  DELETE FROM product_shopping_session;
-	  DELETE FROM user_product_preferences;
-	  DELETE FROM user_product_data;
-	  DELETE FROM user_product_bookmark;
-	  DELETE FROM user_resource_access;
-	  DELETE FROM payment_transactions;
-	  DELETE FROM user_credits;
-	  DELETE FROM credit_packages;
-	  DELETE FROM category_product;
-	  DELETE FROM products;
-	  DELETE FROM categories;
-	  DELETE FROM users;
-	`);
-
-	// Re-enable foreign key constraints
-	await db.execute("PRAGMA foreign_keys = ON");
-}
-
-// Helper function to calculate expiry date (if needed in your application)
-export function getExpiryDate(dateString: string, days: number): string {
-	const date = new Date(dateString);
-	date.setDate(date.getDate() + days);
-	return date.toISOString();
-}
-
-
+/**
+ * Test framework instance
+ */
+let testFramework: Framework | null = null;
 
 /**
- * Close test database connection
+ * Initialize the test environment
+ * @param configPath Path to the configuration file
+ * @returns Initialized framework instance
  */
-export function closeTestDatabase(): void {
-	DatabaseContext.closeDatabase();
+export async function setupTestEnvironment(configPath: string = './tests/test.yaml'): Promise<Framework> {
+	// Check if test framework already exists
+	if (testFramework) {
+		return testFramework;
+	}
+
+	try {
+		// Resolve the absolute path to the config file
+		const absoluteConfigPath = path.resolve(process.cwd(), configPath);
+
+		// Verify the config file exists
+		if (!fs.existsSync(absoluteConfigPath)) {
+			throw new Error(`Config file not found at: ${absoluteConfigPath}`);
+		}
+
+		// Create a test logger
+		const testLogger = {
+			debug: (message: string, ...args: any[]) => console.debug(`[DEBUG] ${message}`, ...args),
+			info: (message: string, ...args: any[]) => console.info(`[INFO] ${message}`, ...args),
+			warn: (message: string, ...args: any[]) => console.warn(`[WARN] ${message}`, ...args),
+			error: (message: string, ...args: any[]) => console.error(`[ERROR] ${message}`, ...args)
+		};
+
+		// Reset database context before initializing (to avoid stale connections)
+		if (DatabaseContext.hasInstance && DatabaseContext.hasInstance()) {
+			DatabaseContext.closeDatabase();
+		}
+
+		// Initialize framework with the config file
+		testFramework = new Framework({
+			configPath: absoluteConfigPath,
+			logger: testLogger,
+			autoGenerateApi: false // Don't auto-generate API to speed up tests
+		});
+
+		// Initialize the framework - this will load the entities from the config file
+		await testFramework.initialize(absoluteConfigPath);
+
+		testLogger.info('Test environment initialized successfully');
+		return testFramework;
+	} catch (error) {
+		console.error('Failed to initialize test environment:', error);
+		throw error;
+	}
 }
 
 /**
- * Setup for Jest tests - can be used in jest.setup.js
+ * Get the test framework instance
+ * @returns Test framework instance
+ * @throws Error if the test environment hasn't been initialized
  */
-export async function setupJestTestEnvironment(): Promise<void> {
-	await setupTestDatabase();
+export function getTestFramework(): Framework {
+	if (!testFramework) {
+		throw new Error('Test environment not initialized. Call setupTestEnvironment first.');
+	}
+	return testFramework;
 }
 
 /**
- * Teardown for Jest tests - can be used in jest.teardown.js
+ * Clean up the test environment
  */
-export function teardownJestTestEnvironment(): void {
-	closeTestDatabase();
+export async function teardownTestEnvironment(): Promise<void> {
+	if (!testFramework) {
+		return;
+	}
+
+	try {
+		// Stop the framework
+		await testFramework.stop();
+
+		// Close database connections
+		if (DatabaseContext.hasInstance && DatabaseContext.hasInstance()) {
+			DatabaseContext.closeDatabase();
+		}
+
+		// Clear the reference
+		testFramework = null;
+
+		console.info('[INFO] Test environment successfully cleaned up');
+	} catch (error) {
+		console.error('Error during test environment cleanup:', error);
+		throw error;
+	}
+}
+
+/**
+ * Helper function to register a custom test entity if needed
+ * This would only be used for specific test cases that need entities
+ * not defined in the app.yaml config
+ */
+export function registerTestEntity(entityConfig: any): boolean {
+	try {
+		const context = getTestFramework().getContext();
+		return context.registerEntity(entityConfig.entity, entityConfig);
+	} catch (error) {
+		console.error('Failed to register test entity:', error);
+		return false;
+	}
 }
