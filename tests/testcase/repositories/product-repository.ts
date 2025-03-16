@@ -207,11 +207,11 @@ export class ProductRepository extends EntityDao<Product> {
 	}
 
 	/**
- * Bookmark a product for a user
- * @param productId Product ID
- * @param userId User ID
- * @returns Whether the operation succeeded
- */
+	 * Bookmark a product for a user
+	 * @param productId Product ID
+	 * @param userId User ID
+	 * @returns Whether the operation succeeded
+	 */
 	async bookmark(productId: number, userId: number): Promise<boolean> {
 		try {
 			// Check if bookmark exists but is removed
