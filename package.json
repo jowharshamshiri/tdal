@@ -66,6 +66,7 @@
 	},
 	"devDependencies": {
 		"@babel/plugin-transform-optional-chaining": "^7.25.9",
+		"@faker-js/faker": "^9.6.0",
 		"@types/better-sqlite3": "^7.6.4",
 		"@types/chai": "^5.2.0",
 		"@types/chokidar": "^1.7.5",

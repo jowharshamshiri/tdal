@@ -1,5 +1,5 @@
 // framework.test.ts
-import { setupTestEnvironment, teardownTestEnvironment, getTestFramework } from './test-setup';
+import { setupTestEnvironment, teardownTestEnvironment, getTestFramework, generateTestData } from './test-setup';
 
 // Define the interface for our test entity
 interface TestEntity {
@@ -9,6 +9,25 @@ interface TestEntity {
 }
 
 describe('Framework Tests', () => {
+
+	beforeEach(async () => {
+		// Generate test data with relationships
+		await generateTestData({
+			count: 5,  // 5 records per entity
+			withRelations: true,
+			// Customize specific fields if needed
+			customGenerators: {
+				email: () => 'test@example.com'
+			},
+			// Set fixed values for specific entities/fields
+			fixedValues: {
+				User: {
+					role: 'admin'
+				}
+			}
+		});
+	});
+
 	it('should initialize framework with configuration', () => {
 		const framework = getTestFramework();
 		const config = framework.getConfig();
