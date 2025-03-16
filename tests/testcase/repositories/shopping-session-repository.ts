@@ -160,6 +160,15 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 	}
 
 	/**
+	 * Find session by ID
+	 * @param id Session ID
+	 * @returns Session or undefined if not found
+	 */
+	async findById(id: number): Promise<ProductShoppingSession | undefined> {
+		return super.findById(id);
+	}
+
+	/**
 	 * Get session with view records
 	 * @param sessionId Session ID
 	 * @returns Session with records or undefined

@@ -153,12 +153,12 @@ export class ProductRepository extends EntityDao<Product> {
 		// Add product ID filter
 		qb.whereColumn("product_id", "=", productId);
 
-		const result = await qb.getOne<{
+		const result = await qb.getOne() as {
 			is_free: boolean;
 			has_access: boolean;
 			credit_cost: number;
 			balance: number;
-		}>();
+		} | undefined;
 
 		if (!result) {
 			return {

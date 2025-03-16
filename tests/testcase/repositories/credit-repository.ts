@@ -345,7 +345,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 	 * @returns Whether the operation succeeded
 	 */
 	async updateStatus(
-		transactionId: number,
+		transactionId: number | string,
 		status: "pending" | "completed" | "failed" | "refunded",
 		paymentIntentId?: string
 	): Promise<boolean> {
@@ -356,7 +356,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 				updateData.payment_payment_intent = paymentIntentId;
 			}
 
-			await this.update(transactionId, updateData);
+			await this.update(transactionId as any, updateData);
 			return true;
 		} catch (error: any) {
 			console.error("Error updating transaction status:", error);

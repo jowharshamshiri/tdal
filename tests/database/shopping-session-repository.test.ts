@@ -328,7 +328,7 @@ describe("ShoppingSessionRepository", () => {
 	test("should handle transaction failure in updateStatus", async () => {
 		// Mock the update method to return 0 instead of throwing an error
 		jest
-			.spyOn(ShoppingSessionRepository.prototype, "update")
+			.spyOn(ShoppingSessionRepository.prototype as any, "update")
 			.mockImplementationOnce(() => {
 				return Promise.resolve(0); // Return 0 changes instead of throwing error
 			});
