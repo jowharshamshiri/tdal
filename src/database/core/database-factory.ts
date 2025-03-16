@@ -63,14 +63,8 @@ export class DatabaseFactory {
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const { SQLiteAdapter } = require("../adapters/sqlite-adapter");
 
-		// Make sure we're passing the correct filename based on useTestDatabase
-		const connection = { ...config.connection };
-		if (config.useTestDatabase && connection.testFilename) {
-			connection.filename = connection.testFilename;
-		}
-
 		return new SQLiteAdapter(
-			connection,
+			config,
 			config.useTestDatabase ?? false
 		);
 	}

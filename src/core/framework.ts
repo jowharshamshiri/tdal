@@ -238,16 +238,6 @@ export class Framework {
 	 * @param configPath Path to application configuration file
 	 * @returns Initialized framework instance
 	 */
-	/**
- * Initialize the framework
- * @param configPath Path to application configuration file
- * @returns Initialized framework instance
- */
-	/**
- * Initialize the framework
- * @param configPath Path to application configuration file
- * @returns Initialized framework instance
- */
 	async initialize(configPath?: string): Promise<Framework> {
 		try {
 			this.logger.info('Initializing framework');
