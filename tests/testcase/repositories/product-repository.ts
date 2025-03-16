@@ -115,7 +115,7 @@ export class ProductRepository extends EntityDao<Product> {
 		// Order by product ID
 		qb.orderBy("f.product_id");
 
-		return qb.execute<ProductWithMeta>();
+		return qb.execute() as Promise<ProductWithMeta[]>;
 	}
 
 	/**
@@ -317,7 +317,7 @@ export class ProductRepository extends EntityDao<Product> {
 				.whereColumn("cf.category_id", "=", productCategoryId)
 				.orderBy("f.title");
 
-			return qb.execute<Product>();
+			return qb.execute() as Promise<Product[]>;
 		} catch (error: any) {
 			console.error(`Error finding products by category ID: ${error}`);
 			return [];
@@ -360,7 +360,7 @@ export class ProductRepository extends EntityDao<Product> {
 		// Order by bookmark date (most recent first)
 		qb.orderBy("b.created_at", "DESC");
 
-		return qb.execute<ProductWithMeta>();
+		return qb.execute() as Promise<ProductWithMeta[]>;
 	}
 
 	/**
@@ -509,7 +509,7 @@ export class ProductRepository extends EntityDao<Product> {
 		// Add the product ID filter with explicit table reference
 		qb.where(`f.product_id = ?`, productId);
 
-		const product = await qb.getOne<ProductWithMeta>();
+		const product = await qb.getOne() as ProductWithMeta | undefined;
 
 		if (!product) {
 			return undefined;
@@ -525,7 +525,7 @@ export class ProductRepository extends EntityDao<Product> {
 			.orderBy("c.category_name")
 			.selectRaw("p.category_name as parent_name");
 
-		const categories = await categoriesQb.execute<ProductCategoryWithMeta>();
+		const categories = await categoriesQb.execute() as ProductCategoryWithMeta[];
 
 		// Process access information
 		if (product.requires_credits && !product.has_access) {

@@ -97,7 +97,7 @@ export class CreditPackageRepository extends EntityDao<CreditPackage> {
 	 */
 	async createPackage(
 		packageData: Omit<CreditPackage, "package_id" | "created_at" | "updated_at">
-	): Promise<number> {
+	): Promise<string | number> {
 		// Create a clean copy of the data
 		const cleanData = { ...packageData };
 
@@ -186,7 +186,7 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 		source: CreditSource,
 		transactionId: string | null = null,
 		validityDays = 365
-	): Promise<number> {
+	): Promise<string | number> {
 		const now = new Date();
 		const expiryDate = new Date(now);
 		expiryDate.setDate(expiryDate.getDate() + validityDays);
@@ -261,7 +261,7 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 		// Order by expiry date (soonest first)
 		qb.orderBy("expiry_date");
 
-		return qb.execute<UserCredit>();
+		return qb.execute() as Promise<UserCredit[]>;
 	}
 
 	async getExpiringCredits(userId: number, daysThreshold: number): Promise<UserCredit[]> {
@@ -294,9 +294,8 @@ export class UserCreditRepository extends EntityDao<UserCredit> {
 		// Order by expiry date (soonest first)
 		qb.orderBy("expiry_date");
 
-		return qb.execute<UserCredit>();
+		return qb.execute() as Promise<UserCredit[]>;
 	}
-
 
 }
 
@@ -324,7 +323,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		amount: number,
 		creditAmount: number,
 		paymentSessionId: string
-	): Promise<number> {
+	): Promise<string | number> {
 		const transactionData: Partial<PaymentTransaction> = {
 			user_id: userId,
 			package_id: packageId,
@@ -503,8 +502,6 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		}
 	}
 
-	// 1. Fix for CreditPackageRepository.findActive()
-	// Use the ORM's query builder instead of direct SQL
 	async findActive(): Promise<CreditPackage[]> {
 		// Create a query builder
 		const qb = this.createQueryBuilder();
@@ -514,13 +511,13 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 
 		// Add the condition for active packages
 		// This will now use proper boolean conversion (1 instead of true)
-		qb.where({ field: "active", operator: "=", value: true });
+		qb.where("active = ?", 1);
 
 		// Add ordering by price
 		qb.orderBy("price");
 
 		// Execute the query
-		return qb.execute<CreditPackage>();
+		return qb.execute() as Promise<CreditPackage[]>;
 	}
 
 
@@ -555,7 +552,7 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		qb.orderBy("expiry_date");
 
 		// Execute the query
-		return qb.execute<UserCredit>();
+		return qb.execute() as Promise<UserCredit[]>;
 	}
 
 	async findForUser(userId: number): Promise<PaymentTransaction[]> {
@@ -569,6 +566,6 @@ export class PaymentTransactionRepository extends EntityDao<PaymentTransaction> 
 		qb.where("user_id = ?", userId);
 		qb.orderBy("transaction_date", "DESC");
 
-		return qb.execute<PaymentTransaction>();
+		return qb.execute() as Promise<PaymentTransaction[]>;
 	}
 }

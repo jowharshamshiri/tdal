@@ -148,7 +148,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 		qb.orderBy("c.category_name");
 
 		// Execute the query to get the results
-		return qb.execute<ProductCategoryWithMeta>();
+		return qb.execute() as Promise<ProductCategoryWithMeta[]>;
 	}
 
 	/**
@@ -173,7 +173,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 		// Order by name
 		qb.orderBy("c.category_name");
 
-		return qb.execute<ProductCategory>();
+		return qb.execute() as Promise<ProductCategory[]>;
 	}
 
 	/**
@@ -316,7 +316,7 @@ export class ProductCategoryRepository extends EntityDao<ProductCategory> {
 				)
 				.where(`cp.category_id = ?`, productCategoryId);
 
-			const products = await productsQb.execute<Product>();
+			const products = await productsQb.execute() as Product[];
 
 			// Get descendant count
 			const descendants = await this.findByParentId(productCategoryId);

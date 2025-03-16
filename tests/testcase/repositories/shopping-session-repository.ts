@@ -18,6 +18,7 @@ import {
 	ManyToOneRelation,
 	OneToManyRelation,
 } from "../../../src/database/orm/relation-types";
+import { DatabaseAdapter } from "../../../src/database";
 
 /**
  * Convert string type relations to proper Relation objects
@@ -50,6 +51,14 @@ export class ShoppingSessionRepository extends EntityDao<ProductShoppingSession>
 	 * Entity mapping for ProductShoppingSession
 	 */
 	protected readonly entityConfig = typedShoppingSessionMapping;
+
+	/**
+	 * Constructor
+	 * @param db Database adapter
+	 */
+	constructor(db: DatabaseAdapter) {
+		super(typedShoppingSessionMapping, db);
+	}
 
 	/**
 	 * Find active sessions for a user
