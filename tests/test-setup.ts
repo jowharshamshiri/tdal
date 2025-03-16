@@ -35,14 +35,6 @@ export async function setupTestEnvironment(configPath: string = './tests/test-ap
 			fs.mkdirSync(dataDir, { recursive: true });
 		}
 
-		// Create a test logger
-		const testLogger = {
-			debug: (message: string, ...args: any[]) => console.debug(`[DEBUG] ${message}`, ...args),
-			info: (message: string, ...args: any[]) => console.info(`[INFO] ${message}`, ...args),
-			warn: (message: string, ...args: any[]) => console.warn(`[WARN] ${message}`, ...args),
-			error: (message: string, ...args: any[]) => console.error(`[ERROR] ${message}`, ...args)
-		};
-
 		// Reset database context before initializing (to avoid stale connections)
 		if (DatabaseContext.hasInstance && DatabaseContext.hasInstance()) {
 			DatabaseContext.closeDatabase();
@@ -51,7 +43,6 @@ export async function setupTestEnvironment(configPath: string = './tests/test-ap
 		// Initialize framework with the config file
 		testFramework = new Framework({
 			configPath: absoluteConfigPath,
-			logger: testLogger,
 			autoGenerateApi: false // Don't auto-generate API to speed up tests
 		});
 
@@ -59,7 +50,6 @@ export async function setupTestEnvironment(configPath: string = './tests/test-ap
 		// and synchronize the database schema
 		await testFramework.initialize(absoluteConfigPath);
 
-		testLogger.info('Test environment initialized successfully');
 		return testFramework;
 	} catch (error) {
 		console.error('Failed to initialize test environment:', error);
