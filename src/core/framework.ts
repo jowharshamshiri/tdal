@@ -16,7 +16,7 @@ import { RequestProcessor } from '../middleware/request-processor';
 import { ActionRegistry } from '../actions/action-registry';
 import { AuthenticationService } from '../middleware/authentication';
 import { createAdapterRegistry } from '../adapters';
-
+import fs from 'fs';
 /**
  * Framework options
  */
@@ -63,6 +63,88 @@ export interface FrameworkOptions {
 	middleware?: Array<(req: Request, res: Response, next: NextFunction) => void>;
 }
 
+class DefaultLogger implements Logger {
+	logToConsole: boolean = true;
+	logToFile: boolean = true;
+	logFilePath?: string;
+
+	constructor(logToConsole: boolean = true, logToFile: boolean = true, logsDir?: string) {
+		this.logToConsole = logToConsole;
+		this.logToFile = logToFile;
+		if (logToFile) {
+			this.logFilePath = this.init(logsDir);
+		} else {
+			this.logFilePath = undefined;
+		}
+	}
+
+	writeToFile(level: string, message: string) {
+		if (!this.logFilePath) {
+			throw new Error('Log file path not set');
+		}
+		const timestamp = new Date().toISOString();
+		const logEntry = `[${timestamp}] [${level.toUpperCase()}] ${message}\n`;
+		fs.appendFileSync(this.logFilePath, logEntry);
+	}
+
+	init(logsDirPath?: string): string {
+		{
+			// Import required modules for file logging
+			const fs = require('fs');
+			const path = require('path');
+
+			// Ensure logs directory exists
+			const logsDir = logsDirPath ? logsDirPath : path.join(process.cwd(), 'trash', 'logs');
+			if (!fs.existsSync(logsDir)) {
+				fs.mkdirSync(logsDir, { recursive: true });
+			}
+			// Create log file with timestamp
+			const now = new Date();
+			const logFileName = `app-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}.log`;
+			const logFilePath = path.join(logsDir, logFileName);
+
+			// Return logger object that logs to both console and file
+			return logFilePath;
+		}
+	}
+
+	debug(message: string): void {
+		if (this.logToConsole) {
+			console.debug(message);
+		}
+		if (this.logToFile) {
+			this.writeToFile('debug', message);
+		}
+	}
+
+	info(message: string): void {
+		if (this.logToConsole) {
+			console.info(message);
+		}
+		if (this.logToFile) {
+			this.writeToFile('info', message);
+		}
+	}
+
+	warn(message: string): void {
+		if (this.logToConsole) {
+			console.warn(message);
+		}
+		if (this.logToFile) {
+			this.writeToFile('warn', message);
+		}
+	}
+
+	error(message: string): void {
+		if (this.logToConsole) {
+			console.error(message);
+		}
+		if (this.logToFile) {
+			this.writeToFile('error', message);
+		}
+	}
+
+}
 /**
  * Framework class
  * Main entry point for the application framework
@@ -129,12 +211,8 @@ export class Framework {
 	 */
 	constructor(options: FrameworkOptions = {}) {
 		// Set up logger
-		this.logger = options.logger || {
-			debug: console.debug,
-			info: console.info,
-			warn: console.warn,
-			error: console.error
-		};
+		// Set up logger that logs to both console and file
+		this.logger = options.logger || new DefaultLogger();
 
 		// Create Express app if not provided
 		this.app = options.app || express();
