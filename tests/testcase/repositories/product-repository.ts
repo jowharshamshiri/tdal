@@ -205,7 +205,6 @@ export class ProductRepository extends EntityDao<Product> {
 			};
 		}
 	}
-
 	/**
 	 * Bookmark a product for a user
 	 * @param productId Product ID
@@ -257,7 +256,6 @@ export class ProductRepository extends EntityDao<Product> {
 			return false;
 		}
 	}
-
 	/**
 	 * Remove a bookmark for a user
 	 * @param productId Product ID
@@ -362,15 +360,14 @@ export class ProductRepository extends EntityDao<Product> {
 
 		return qb.execute() as Promise<ProductWithMeta[]>;
 	}
-
 	/**
- * Update user data for a product
- * @param productId Product ID
- * @param userId User ID
- * @param viewTime View time in seconds
- * @param notes Optional notes
- * @returns Whether the operation succeeded
- */
+	 * Update user data for a product
+	 * @param productId Product ID
+	 * @param userId User ID
+	 * @param viewTime View time in seconds
+	 * @param notes Optional notes
+	 * @returns Whether the operation succeeded
+	 */
 	async updateUserData(
 		productId: number,
 		userId: number,
@@ -440,7 +437,6 @@ export class ProductRepository extends EntityDao<Product> {
 			return false;
 		}
 	}
-
 	/**
 	 * Fix for getWithMetaForUser method in ProductRepository
 	 * Properly handles column ambiguity by correctly qualifying column names
@@ -547,7 +543,13 @@ export class ProductRepository extends EntityDao<Product> {
 		return product;
 	}
 
-	// Fix for grantAccess method in ProductRepository
+	/**
+ * Grant access to a product for a user
+ * @param productId Product ID
+ * @param userId User ID
+ * @param creditCost Credit cost
+ * @returns Whether the operation succeeded
+ */
 	async grantAccess(
 		productId: number,
 		userId: number,
@@ -573,10 +575,10 @@ export class ProductRepository extends EntityDao<Product> {
 					amount: number;
 				}>(
 					`SELECT credit_id, amount 
-					FROM user_credits 
-					WHERE user_id = ? 
-					AND expiry_date >= datetime('now')
-					ORDER BY expiry_date ASC`,
+                FROM user_credits 
+                WHERE user_id = ? 
+                AND expiry_date >= datetime('now')
+                ORDER BY expiry_date ASC`,
 					userId
 				);
 

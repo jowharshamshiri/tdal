@@ -236,7 +236,6 @@ export function haveDependenciesChanged(
 		return oldValue !== newValue;
 	});
 }
-
 /**
  * Extract dependencies from a computed property implementation
  * @param implementation Implementation function

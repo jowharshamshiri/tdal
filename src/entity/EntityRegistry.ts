@@ -126,7 +126,6 @@ export class EntityRegistry {
 			return false;
 		}
 	}
-
 	/**
 	 * Register multiple entity configurations
 	 * @param entities Map of entity names to configurations
@@ -146,10 +145,10 @@ export class EntityRegistry {
 	}
 
 	/**
-	 * Unregister an entity configuration
-	 * @param name Entity name
-	 * @returns Whether the entity was successfully unregistered
-	 */
+ * Unregister an entity configuration
+ * @param name Entity name
+ * @returns Whether the entity was successfully unregistered
+ */
 	public unregisterEntityConfig(name: string): boolean {
 		// Check if entity exists
 		if (!this.entityConfigs.has(name)) {

@@ -1713,14 +1713,13 @@ export class EntityDao<T, IdType = string | number> {
 			this.computedPropertiesProcessor = (entity: any) => processComputedProperties(entity, implementations);
 		}
 	}
-
 	/**
-	 * Update an entity
-	 * @param id The entity ID
-	 * @param data The data to update
-	 * @param context Optional hook context
-	 * @returns Number of affected rows
-	 */
+ * Update an entity
+ * @param id The entity ID
+ * @param data The data to update
+ * @param context Optional hook context
+ * @returns Number of affected rows
+ */
 	async update(
 		id: IdType,
 		data: Partial<T>,
