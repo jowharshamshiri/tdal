@@ -165,6 +165,11 @@ export class Framework {
  * @param configPath Path to application configuration file
  * @returns Initialized framework instance
  */
+	/**
+ * Initialize the framework
+ * @param configPath Path to application configuration file
+ * @returns Initialized framework instance
+ */
 	async initialize(configPath?: string): Promise<Framework> {
 		try {
 			this.logger.info('Initializing framework');
@@ -183,6 +188,21 @@ export class Framework {
 			// Create and initialize application context
 			this.context = new AppContext(this.config, this.logger, this.app);
 			await this.context.initialize(entities);
+
+			// Synchronize database schema if enabled
+			if (this.config.framework?.syncSchema) {
+				const { createSchemaSynchronizer } = await import('../database/schema/schema-synchronizer');
+				const schemaSynchronizer = createSchemaSynchronizer(
+					this.context.getDatabase(),
+					this.logger
+				);
+
+				await schemaSynchronizer.synchronize(entities, {
+					dropTables: false,        // Don't drop existing tables by default
+					dialect: 'sqlite',        // Default to SQLite for now
+					createForeignKeys: true   // Create foreign keys by default
+				});
+			}
 
 			// Create request processor
 			this.requestProcessor = new RequestProcessor(this.context, this.logger);

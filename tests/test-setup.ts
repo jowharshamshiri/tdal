@@ -29,6 +29,12 @@ export async function setupTestEnvironment(configPath: string = './tests/test.ya
 			throw new Error(`Config file not found at: ${absoluteConfigPath}`);
 		}
 
+		// Create test data directory structure
+		const dataDir = path.join(process.cwd(), 'data');
+		if (!fs.existsSync(dataDir)) {
+			fs.mkdirSync(dataDir, { recursive: true });
+		}
+
 		// Create a test logger
 		const testLogger = {
 			debug: (message: string, ...args: any[]) => console.debug(`[DEBUG] ${message}`, ...args),
@@ -50,7 +56,7 @@ export async function setupTestEnvironment(configPath: string = './tests/test.ya
 		});
 
 		// Initialize the framework - this will load the entities from the config file
-		// The ConfigLoader will now automatically process inline entities
+		// and synchronize the database schema
 		await testFramework.initialize(absoluteConfigPath);
 
 		testLogger.info('Test environment initialized successfully');

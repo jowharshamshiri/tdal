@@ -9,7 +9,8 @@ entitiesDir: "./entities"
 # Database configuration
 database:
   type: "sqlite"
-  filename: "./data/test.db"
+  connection:
+    filename: "./data/test.db"
   pool:
     min: 1
     max: 10
@@ -53,7 +54,7 @@ logging:
 # Framework-specific options
 framework:
   enableApi: true
-  syncSchema: true
+  syncSchema: true # This will trigger schema synchronization
   enableMigrations: true
   migrationsDir: "./migrations"
 
