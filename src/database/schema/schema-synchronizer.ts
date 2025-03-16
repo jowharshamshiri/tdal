@@ -3,9 +3,10 @@
  * Creates database tables based on entity definitions
  */
 
-import { EntityConfig, getSqlColumnType } from '../../entity/entity-config';
+import { EntityConfig } from '../../entity/entity-config';
 import { Logger } from '../../core/types';
 import { DatabaseAdapter } from '../core/types';
+import { getSqlColumnType } from '../../entity/entity-schema';
 
 /**
  * Schema synchronization options
@@ -87,62 +88,87 @@ export class SchemaSynchronizer {
 		const tableName = entity.table;
 
 		try {
-			// Drop table if requested
-			if (dropIfExists) {
-				await this.db.execute(`DROP TABLE IF EXISTS ${tableName}`);
-			}
-
 			// Check if table exists
 			const tableExists = await this.tableExists(tableName);
-			if (tableExists) {
+
+			// Drop table if requested and it exists
+			if (dropIfExists && tableExists) {
+				await this.dropTable(tableName);
+				this.logger.info(`Dropped table ${tableName}`);
+			}
+
+			// Skip creation if table already exists
+			if (tableExists && !dropIfExists) {
 				this.logger.debug(`Table ${tableName} already exists, skipping creation`);
 				return;
 			}
 
-			// Build create table SQL
-			let sql = `CREATE TABLE ${tableName} (\n`;
+			// Generate CREATE TABLE SQL using column definitions
+			const createTableSQL = this.generateCreateTableSQL(entity, dialect);
 
-			// Add columns
-			const columnDefinitions = entity.columns.map(column => {
-				const columnType = getSqlColumnType(column, dialect);
-				let definition = `${column.physical} ${columnType}`;
+			// Execute the statement through the database adapter
+			await this.db.execute(createTableSQL);
 
-				// Add constraints
-				if (column.primaryKey) {
-					definition += ' PRIMARY KEY';
-				}
-				if (column.autoIncrement) {
-					definition += dialect === 'postgres' ? ' SERIAL' : ' AUTOINCREMENT';
-				}
-				if (!column.nullable && !column.primaryKey) {
-					definition += ' NOT NULL';
-				}
-				if (column.unique) {
-					definition += ' UNIQUE';
-				}
-				if (column.defaultValue !== undefined) {
-					if (typeof column.defaultValue === 'string') {
-						definition += ` DEFAULT '${column.defaultValue}'`;
-					} else if (column.defaultValue === null) {
-						definition += ' DEFAULT NULL';
-					} else {
-						definition += ` DEFAULT ${column.defaultValue}`;
-					}
-				}
-
-				return definition;
-			});
-
-			sql += columnDefinitions.join(',\n');
-			sql += '\n)';
-
-			// Execute CREATE TABLE
-			await this.db.execute(sql);
 			this.logger.info(`Created table ${tableName}`);
 		} catch (error: any) {
 			this.logger.error(`Error creating table ${tableName}: ${error.message}`);
 			throw error;
 		}
+	}
+
+	/**
+	 * Generate CREATE TABLE SQL statement
+	 * @param entity Entity configuration
+	 * @param dialect SQL dialect
+	 * @returns CREATE TABLE SQL statement
+	 */
+	private generateCreateTableSQL(entity: EntityConfig, dialect: 'sqlite' | 'mysql' | 'postgres'): string {
+		const tableName = entity.table;
+		let sql = `CREATE TABLE ${tableName} (\n`;
+
+		// Add columns
+		const columnDefinitions = entity.columns.map(column => {
+			const columnType = getSqlColumnType(column, dialect);
+			let definition = `${column.physical} ${columnType}`;
+
+			// Add constraints
+			if (column.primaryKey) {
+				definition += ' PRIMARY KEY';
+			}
+			if (column.autoIncrement) {
+				definition += dialect === 'postgres' ? ' SERIAL' : ' AUTOINCREMENT';
+			}
+			if (!column.nullable && !column.primaryKey) {
+				definition += ' NOT NULL';
+			}
+			if (column.unique) {
+				definition += ' UNIQUE';
+			}
+			if (column.defaultValue !== undefined) {
+				if (typeof column.defaultValue === 'string') {
+					definition += ` DEFAULT '${column.defaultValue}'`;
+				} else if (column.defaultValue === null) {
+					definition += ' DEFAULT NULL';
+				} else {
+					definition += ` DEFAULT ${column.defaultValue}`;
+				}
+			}
+
+			return definition;
+		});
+
+		sql += columnDefinitions.join(',\n');
+		sql += '\n)';
+
+		return sql;
+	}
+
+	/**
+	 * Drop a table if it exists
+	 * @param tableName Table name
+	 */
+	private async dropTable(tableName: string): Promise<void> {
+		await this.db.execute(`DROP TABLE IF EXISTS ${tableName}`);
 	}
 
 	/**
@@ -178,21 +204,49 @@ export class SchemaSynchronizer {
 				// Create constraint name
 				const constraintName = `fk_${tableName}_${column.physical}_${referencedTable}_${referencedColumn}`;
 
-				// Build ALTER TABLE SQL
-				let sql = `ALTER TABLE ${tableName} ADD CONSTRAINT ${constraintName} `;
-				sql += `FOREIGN KEY (${column.physical}) REFERENCES ${referencedTable}(${referencedColumn})`;
+				try {
+					// Generate and execute ALTER TABLE SQL
+					const alterTableSQL = this.generateForeignKeySQL(
+						tableName,
+						column.physical,
+						referencedTable,
+						referencedColumn,
+						constraintName
+					);
 
-				// Add ON DELETE and ON UPDATE actions
-				sql += ' ON DELETE CASCADE ON UPDATE CASCADE';
-
-				// Execute ALTER TABLE
-				await this.db.execute(sql);
-				this.logger.info(`Added foreign key constraint ${constraintName} to table ${tableName}`);
+					await this.db.execute(alterTableSQL);
+					this.logger.info(`Added foreign key constraint ${constraintName} to table ${tableName}`);
+				} catch (error: any) {
+					this.logger.error(`Error adding foreign key for column ${column.logical}: ${error.message}`);
+					// Continue with other foreign keys even if one fails
+				}
 			}
 		} catch (error: any) {
 			this.logger.error(`Error adding foreign keys to table ${tableName}: ${error.message}`);
 			// Don't throw here - continue with other tables even if foreign keys fail
 		}
+	}
+
+	/**
+	 * Generate ALTER TABLE SQL for foreign key
+	 * @param tableName Table name
+	 * @param columnName Column name
+	 * @param referencedTable Referenced table name
+	 * @param referencedColumn Referenced column name
+	 * @param constraintName Constraint name
+	 * @returns ALTER TABLE SQL statement
+	 */
+	private generateForeignKeySQL(
+		tableName: string,
+		columnName: string,
+		referencedTable: string,
+		referencedColumn: string,
+		constraintName: string
+	): string {
+		let sql = `ALTER TABLE ${tableName} ADD CONSTRAINT ${constraintName} `;
+		sql += `FOREIGN KEY (${columnName}) REFERENCES ${referencedTable}(${referencedColumn})`;
+		sql += ' ON DELETE CASCADE ON UPDATE CASCADE';
+		return sql;
 	}
 
 	/**
@@ -202,7 +256,7 @@ export class SchemaSynchronizer {
 	 */
 	async tableExists(tableName: string): Promise<boolean> {
 		try {
-			// SQLite-specific query to check if table exists
+			// This query is SQLite-specific; would need to adjust for other databases
 			const result = await this.db.query(
 				`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
 				tableName
