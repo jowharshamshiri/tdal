@@ -5,8 +5,8 @@ import { AppContext } from "../../src/core/app-context";
 import { Request, Response, NextFunction } from "express";
 
 // Mock dependencies
-jest.mock('../src/core/config-loader');
-jest.mock('../src/core/app-context');
+jest.mock('../../src/core/config-loader');
+jest.mock('../../src/core/app-context');
 jest.mock('express', () => {
 	const mockRouter = {
 		get: jest.fn(),
@@ -30,7 +30,7 @@ jest.mock('express', () => {
 		delete: jest.fn()
 	}));
 
-	mockExpress.Router = jest.fn(() => mockRouter);
+	(mockExpress as any).Router = jest.fn(() => mockRouter);
 
 	return mockExpress;
 });

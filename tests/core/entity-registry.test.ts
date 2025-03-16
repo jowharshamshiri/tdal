@@ -6,7 +6,7 @@ import { ActionRegistry } from "../../src/actions/action-registry";
 import { DatabaseContext } from "../../src/database/core/database-context";
 
 // Mock the database context
-jest.mock('../src/database/core/database-context', () => ({
+jest.mock('../../src/database/core/database-context', () => ({
 	DatabaseContext: {
 		hasInstance: jest.fn().mockReturnValue(true),
 		getDatabase: jest.fn()
@@ -14,7 +14,7 @@ jest.mock('../src/database/core/database-context', () => ({
 }));
 
 // Mock the EntityDao
-jest.mock('../src/entity/entity-manager', () => ({
+jest.mock('../../src/entity/entity-manager', () => ({
 	EntityDao: jest.fn().mockImplementation(() => ({
 		initialize: jest.fn().mockResolvedValue(undefined),
 		findById: jest.fn().mockResolvedValue({}),

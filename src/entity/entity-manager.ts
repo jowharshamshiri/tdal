@@ -170,7 +170,12 @@ export class EntityDao<T, IdType = string | number> {
 	/**
 	 * Entity mapping for the DAO
 	 */
-	protected readonly entityConfig: EntityConfig;
+	protected readonly entityConfig: EntityConfig = {} as EntityConfig;
+
+	/**
+	 * Computed properties processor function
+	 */
+	private computedPropertiesProcessor: (entity: any) => any = (entity) => entity;
 
 	/**
 	 * Hook handler for entity lifecycle events
@@ -186,11 +191,6 @@ export class EntityDao<T, IdType = string | number> {
 	 * Action handler for entity actions
 	 */
 	private actionHandler?: EntityActionHandler;
-
-	/**
-	 * Computed properties processor function
-	 */
-	private computedPropertiesProcessor: (entity: any) => any;
 
 	/**
 	 * Logger instance
@@ -1668,6 +1668,14 @@ export class EntityDao<T, IdType = string | number> {
 			timeout: hook.timeout,
 			condition
 		};
+	}
+
+	/**
+	 * Create a query builder for this entity
+	 * @returns Query builder instance
+	 */
+	protected createQueryBuilder(): any {
+		return this.db.createQueryBuilder();
 	}
 
 	/**

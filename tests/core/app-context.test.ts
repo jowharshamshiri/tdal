@@ -8,7 +8,7 @@ import { ActionRegistry } from "../../src/actions/action-registry";
 import { RouteRegistry } from "../../src/api/route-registry";
 
 // Mock the database context
-jest.mock('../src/database/core/database-context', () => ({
+jest.mock('../../src/database/core/database-context', () => ({
 	DatabaseContext: {
 		setLogger: jest.fn(),
 		configure: jest.fn(),
@@ -20,7 +20,7 @@ jest.mock('../src/database/core/database-context', () => ({
 }));
 
 // Mock entity registry
-jest.mock('../src/entity/EntityRegistry', () => ({
+jest.mock('../../src/entity/EntityRegistry', () => ({
 	getEntityRegistry: jest.fn().mockImplementation(() => ({
 		registerEntityConfigs: jest.fn(),
 		getEntityConfig: jest.fn(),
@@ -32,7 +32,7 @@ jest.mock('../src/entity/EntityRegistry', () => ({
 }));
 
 // Mock action registry
-jest.mock('../src/actions/action-registry', () => ({
+jest.mock('../../src/actions/action-registry', () => ({
 	ActionRegistry: jest.fn().mockImplementation(() => ({
 		registerAction: jest.fn(),
 		getAction: jest.fn(),
@@ -41,7 +41,7 @@ jest.mock('../src/actions/action-registry', () => ({
 }));
 
 // Mock route registry
-jest.mock('../src/api/route-registry', () => ({
+jest.mock('../../src/api/route-registry', () => ({
 	RouteRegistry: jest.fn().mockImplementation(() => ({
 		registerRoute: jest.fn(),
 		getRoutes: jest.fn()
@@ -49,7 +49,7 @@ jest.mock('../src/api/route-registry', () => ({
 }));
 
 // Mock ApiGenerator
-jest.mock('../src/api/api-generator', () => ({
+jest.mock('../../src/api/api-generator', () => ({
 	ApiGenerator: jest.fn().mockImplementation(() => ({
 		generateEntityApi: jest.fn(),
 		generateApiWithAdapter: jest.fn()
@@ -170,7 +170,7 @@ describe("AppContext", () => {
 		});
 
 		// Get the service
-		const service = appContext.getService("factoryService");
+		const service = appContext.getService("factoryService") as { getValue: () => string, context: any };
 
 		expect(service.getValue()).toBe("factoryValue");
 		expect(service.context).toBe(appContext);
