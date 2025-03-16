@@ -261,7 +261,7 @@ export class EntityRegistry {
 	public reset(): void {
 		this.entityConfigs.clear();
 		this.entityManagers.clear();
-		this.logger.debug('Entity Registry reset');
+		this.logger.debug("Entity Registry reset");
 	}
 }
 

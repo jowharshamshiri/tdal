@@ -256,11 +256,11 @@ export function extractDependenciesFromImplementation(
 	let match;
 
 	while ((match = regex.exec(fnStr)) !== null) {
-		matches.push(match[0]);
+		matches.push(match[1]); // This is the change - extract capture group instead of whole match
 	}
 
-	// Remove the "entity." prefix and deduplicate
-	const properties = [...new Set(matches.map(m => m.replace('entity.', '')))];
+	// Remove duplicates
+	const properties = [...new Set(matches)];
 
 	return properties;
 }

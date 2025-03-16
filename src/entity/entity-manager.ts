@@ -1744,7 +1744,7 @@ export class EntityDao<T, IdType = string | number> {
 
 			const result = await this.db.update<Record<string, unknown>>(
 				this.tableName,
-				this.physicalIdField,
+				this.physicalIdField, // Use physicalIdField instead of assuming 'id'
 				id as unknown as number | string,
 				physicalData
 			);

@@ -207,11 +207,11 @@ export class ProductRepository extends EntityDao<Product> {
 	}
 
 	/**
-	 * Bookmark a product for a user
-	 * @param productId Product ID
-	 * @param userId User ID
-	 * @returns Whether the operation succeeded
-	 */
+ * Bookmark a product for a user
+ * @param productId Product ID
+ * @param userId User ID
+ * @returns Whether the operation succeeded
+ */
 	async bookmark(productId: number, userId: number): Promise<boolean> {
 		try {
 			// Check if bookmark exists but is removed
@@ -241,7 +241,7 @@ export class ProductRepository extends EntityDao<Product> {
 				});
 			}
 
-			// Update product bookmark count
+			// Update product bookmark count - use count query with explicit conditions
 			const bookmarkCount = await this.db.count("user_product_bookmark", {
 				product_id: productId,
 				removed: 0
@@ -364,13 +364,13 @@ export class ProductRepository extends EntityDao<Product> {
 	}
 
 	/**
-	 * Update user data for a product
-	 * @param productId Product ID
-	 * @param userId User ID
-	 * @param viewTime View time in seconds
-	 * @param notes Optional notes
-	 * @returns Whether the operation succeeded
-	 */
+ * Update user data for a product
+ * @param productId Product ID
+ * @param userId User ID
+ * @param viewTime View time in seconds
+ * @param notes Optional notes
+ * @returns Whether the operation succeeded
+ */
 	async updateUserData(
 		productId: number,
 		userId: number,
@@ -422,7 +422,7 @@ export class ProductRepository extends EntityDao<Product> {
 				});
 			}
 
-			// Update product stats
+			// Update product stats - ensure proper calculation of avg_view_time
 			const totalViewCount = (product.total_view_count || 0) + 1;
 			const avgViewTime = product.avg_view_time || 0;
 
