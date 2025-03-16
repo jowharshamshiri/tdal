@@ -28,6 +28,7 @@
     {
       "name": "Debug Jest Tests",
       "type": "node",
+      "runtimeVersion": "20.19.0",
       "request": "launch",
       "program": "${workspaceFolder}/node_modules/jest/bin/jest",
       "args": [
