@@ -19,6 +19,19 @@ import {
 import { ComputedProperty, EntityConfig } from "../../src/entity/entity-config";
 import { HookContext } from "../../src/core/types";
 
+// Define interfaces for our test entities with computed properties
+interface UserWithComputed {
+	firstName: string;
+	lastName: string;
+	age?: number;
+	fullName?: string;
+	nameLength?: number;
+	isAdult?: boolean;
+	formattedName?: string;
+	nameInfo?: string;
+	error?: any;
+}
+
 describe("ComputedProperties", () => {
 	let mockLogger: any;
 	let mockConfigLoader: any;
@@ -124,7 +137,7 @@ describe("ComputedProperties", () => {
 
 		const user = { firstName: "John", lastName: "Doe", age: 25 };
 
-		const processed = processComputedProperties(user, implementations);
+		const processed = processComputedProperties(user, implementations) as UserWithComputed;
 
 		expect(processed.fullName).toBe("John Doe");
 		expect(processed.nameLength).toBe(8);
@@ -140,7 +153,7 @@ describe("ComputedProperties", () => {
 
 		const user = { firstName: "John", lastName: "Doe" };
 
-		const processed = processComputedProperties(user, implementations);
+		const processed = processComputedProperties(user, implementations) as UserWithComputed;
 
 		expect(processed.fullName).toBe("John Doe");
 		expect(processed.nameLength).toBe(8);
@@ -159,7 +172,7 @@ describe("ComputedProperties", () => {
 			skipProperties: ["nameLength"]
 		};
 
-		const processed = processComputedProperties(user, implementations, options);
+		const processed = processComputedProperties(user, implementations, options) as UserWithComputed;
 
 		expect(processed.fullName).toBe("John Doe");
 		expect(processed.nameLength).toBeUndefined();
@@ -176,7 +189,7 @@ describe("ComputedProperties", () => {
 			{ firstName: "Jane", lastName: "Smith", age: 16 }
 		];
 
-		const processed = processComputedPropertiesForArray(users, implementations);
+		const processed = processComputedPropertiesForArray(users, implementations) as UserWithComputed[];
 
 		expect(processed[0].fullName).toBe("John Doe");
 		expect(processed[0].isAdult).toBe(true);
@@ -303,7 +316,7 @@ describe("ComputedProperties", () => {
 		expect(typeof processor).toBe("function");
 
 		const user = { firstName: "John", lastName: "Doe", age: 25 };
-		const processed = processor(user);
+		const processed = processor(user) as UserWithComputed;
 
 		expect(processed.fullName).toBe("John Doe");
 		expect(processed.isAdult).toBe(true);
@@ -324,7 +337,7 @@ describe("ComputedProperties", () => {
 			{ firstName: "Jane", lastName: "Smith", age: 16 }
 		];
 
-		const processed = batchProcessor(users);
+		const processed = batchProcessor(users) as UserWithComputed[];
 
 		expect(processed.length).toBe(2);
 		expect(processed[0].fullName).toBe("John Doe");
@@ -344,7 +357,7 @@ describe("ComputedProperties", () => {
 		};
 
 		const entity = { firstName: "John", lastName: "Doe" };
-		const processed = processComputedProperties(entity, implementations, { context: mockContext });
+		const processed = processComputedProperties(entity, implementations, { context: mockContext }) as UserWithComputed;
 
 		expect(processed.error).toBeUndefined();
 		expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("Error calculating computed property"));
@@ -358,7 +371,7 @@ describe("ComputedProperties", () => {
 		};
 
 		const entity = { firstName: "John", lastName: "Doe" };
-		const processed = processComputedProperties(entity, implementations);
+		const processed = processComputedProperties(entity, implementations) as UserWithComputed;
 
 		expect(processed.fullName).toBe("John Doe");
 		expect(processed.nameLength).toBe(8);
