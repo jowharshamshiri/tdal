@@ -103,6 +103,20 @@ export class DatabaseContext {
 	 */
 	static getDatabase(): DatabaseAdapter {
 		if (!this.instance) {
+			// Add this verbose logging to debug the issue
+			if (this.config.type === "sqlite") {
+				const sqliteConfig = this.config as SQLiteConfig;
+				const filename = sqliteConfig.useTestDatabase && sqliteConfig.connection.testFilename
+					? sqliteConfig.connection.testFilename
+					: sqliteConfig.connection.filename;
+
+				if (this.logger) {
+					this.logger.info(`Creating SQLite database with path: ${filename}`);
+					this.logger.info(`Absolute path: ${path.resolve(filename)}`);
+					this.logger.info(`File directory exists: ${require('fs').existsSync(path.dirname(path.resolve(filename)))}`);
+				}
+			}
+
 			// Use factory to create adapter with proper configuration
 			this.instance = DatabaseFactory.createAdapter(this.config);
 
