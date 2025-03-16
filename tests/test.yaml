@@ -92,7 +92,7 @@ plugins:
     enabled: true
     source: "./plugins/data-validation"
 
-# Test entities configuration - directly in the YAML file
+# Entities configuration
 entities:
   TestEntity:
     entity: "TestEntity"
@@ -119,3 +119,749 @@ entities:
         create: true
         update: true
         delete: true
+
+  # User entity
+  User:
+    entity: "User"
+    table: "users"
+    idField: "user_id"
+    columns:
+      - logical: "user_id"
+        physical: "user_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "name"
+        physical: "name"
+        type: "string"
+      - logical: "email"
+        physical: "email"
+        unique: true
+        type: "string"
+      - logical: "password"
+        physical: "password"
+        type: "string"
+      - logical: "role"
+        physical: "role"
+        type: "string"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "last_login"
+        physical: "last_login"
+        nullable: true
+        type: "datetime"
+    relations:
+      - name: "credits"
+        type: "oneToMany"
+        sourceEntity: "User"
+        targetEntity: "UserCredit"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "resourceAccess"
+        type: "oneToMany"
+        sourceEntity: "User"
+        targetEntity: "UserResourceAccess"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "shoppingSessions"
+        type: "oneToMany"
+        sourceEntity: "User"
+        targetEntity: "ProductShoppingSession"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/users"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+  # Product entity
+  Product:
+    entity: "Product"
+    table: "products"
+    idField: "product_id"
+    columns:
+      - logical: "product_id"
+        physical: "product_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "title"
+        physical: "title"
+        type: "string"
+      - logical: "pricing"
+        physical: "pricing"
+        type: "string"
+      - logical: "hint"
+        physical: "hint"
+        nullable: true
+        type: "string"
+      - logical: "teaser"
+        physical: "teaser"
+        nullable: true
+        type: "string"
+      - logical: "credit_cost"
+        physical: "credit_cost"
+        nullable: true
+        type: "integer"
+      - logical: "is_free"
+        physical: "is_free"
+        type: "boolean"
+      - logical: "total_view_count"
+        physical: "total_view_count"
+        nullable: true
+        type: "integer"
+      - logical: "bookmark_count"
+        physical: "bookmark_count"
+        nullable: true
+        type: "integer"
+      - logical: "avg_view_time"
+        physical: "avg_view_time"
+        nullable: true
+        type: "number"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "updated_at"
+        physical: "updated_at"
+        type: "datetime"
+    relations:
+      - name: "categories"
+        type: "manyToMany"
+        sourceEntity: "Product"
+        targetEntity: "ProductCategory"
+        sourceColumn: "product_id"
+        targetColumn: "category_id"
+        junctionTable: "category_product"
+        junctionSourceColumn: "product_id"
+        junctionTargetColumn: "category_id"
+      - name: "userBookmarks"
+        type: "oneToMany"
+        sourceEntity: "Product"
+        targetEntity: "UserProductBookmark"
+        sourceColumn: "product_id"
+        targetColumn: "product_id"
+      - name: "userData"
+        type: "oneToMany"
+        sourceEntity: "Product"
+        targetEntity: "UserProductData"
+        sourceColumn: "product_id"
+        targetColumn: "product_id"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/products"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+  # ProductCategory entity
+  ProductCategory:
+    entity: "ProductCategory"
+    table: "categories"
+    idField: "category_id"
+    columns:
+      - logical: "category_id"
+        physical: "category_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "category_name"
+        physical: "category_name"
+        type: "string"
+      - logical: "description"
+        physical: "description"
+        nullable: true
+        type: "string"
+      - logical: "parent_id"
+        physical: "parent_id"
+        nullable: true
+        type: "integer"
+      - logical: "image_url"
+        physical: "image_url"
+        nullable: true
+        type: "string"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "updated_at"
+        physical: "updated_at"
+        type: "datetime"
+    relations:
+      - name: "parent"
+        type: "manyToOne"
+        sourceEntity: "ProductCategory"
+        targetEntity: "ProductCategory"
+        sourceColumn: "parent_id"
+        targetColumn: "category_id"
+      - name: "children"
+        type: "oneToMany"
+        sourceEntity: "ProductCategory"
+        targetEntity: "ProductCategory"
+        sourceColumn: "category_id"
+        targetColumn: "parent_id"
+      - name: "products"
+        type: "manyToMany"
+        sourceEntity: "ProductCategory"
+        targetEntity: "Product"
+        sourceColumn: "category_id"
+        targetColumn: "product_id"
+        junctionTable: "category_product"
+        junctionSourceColumn: "category_id"
+        junctionTargetColumn: "product_id"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/categories"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+  # ProductCategoryProduct entity (junction table)
+  ProductCategoryProduct:
+    entity: "ProductCategoryProduct"
+    table: "category_product"
+    idField: ""
+    columns:
+      - logical: "category_id"
+        physical: "category_id"
+        type: "integer"
+      - logical: "product_id"
+        physical: "product_id"
+        type: "integer"
+    api:
+      exposed: false
+
+  # CreditPackage entity
+  CreditPackage:
+    entity: "CreditPackage"
+    table: "credit_packages"
+    idField: "package_id"
+    columns:
+      - logical: "package_id"
+        physical: "package_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "name"
+        physical: "name"
+        type: "string"
+      - logical: "description"
+        physical: "description"
+        nullable: true
+        type: "string"
+      - logical: "credit_amount"
+        physical: "credit_amount"
+        type: "number"
+      - logical: "price"
+        physical: "price"
+        type: "number"
+      - logical: "validity_days"
+        physical: "validity_days"
+        type: "integer"
+      - logical: "active"
+        physical: "active"
+        type: "boolean"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "updated_at"
+        physical: "updated_at"
+        type: "datetime"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/credit-packages"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+  # PaymentTransaction entity
+  PaymentTransaction:
+    entity: "PaymentTransaction"
+    table: "payment_transactions"
+    idField: "transaction_id"
+    columns:
+      - logical: "transaction_id"
+        physical: "transaction_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "package_id"
+        physical: "package_id"
+        nullable: true
+        type: "integer"
+      - logical: "amount"
+        physical: "amount"
+        type: "number"
+      - logical: "credit_amount"
+        physical: "credit_amount"
+        type: "number"
+      - logical: "payment_session_id"
+        physical: "payment_session_id"
+        nullable: true
+        type: "string"
+      - logical: "payment_payment_intent"
+        physical: "payment_payment_intent"
+        nullable: true
+        type: "string"
+      - logical: "status"
+        physical: "status"
+        type: "string"
+      - logical: "transaction_date"
+        physical: "transaction_date"
+        type: "datetime"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "updated_at"
+        physical: "updated_at"
+        type: "datetime"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "PaymentTransaction"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "package"
+        type: "manyToOne"
+        sourceEntity: "PaymentTransaction"
+        targetEntity: "CreditPackage"
+        sourceColumn: "package_id"
+        targetColumn: "package_id"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/payment-transactions"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: false
+        delete: false
+
+  # ProductShoppingSession entity
+  ProductShoppingSession:
+    entity: "ProductShoppingSession"
+    table: "product_shopping_session"
+    idField: "session_id"
+    columns:
+      - logical: "session_id"
+        physical: "session_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "category_id"
+        physical: "category_id"
+        nullable: true
+        type: "integer"
+      - logical: "start_time"
+        physical: "start_time"
+        type: "datetime"
+      - logical: "last_activity_time"
+        physical: "last_activity_time"
+        type: "datetime"
+      - logical: "end_time"
+        physical: "end_time"
+        nullable: true
+        type: "datetime"
+      - logical: "status"
+        physical: "status"
+        type: "string"
+      - logical: "cards_studied"
+        physical: "cards_studied"
+        type: "integer"
+      - logical: "current_card_index"
+        physical: "current_card_index"
+        type: "integer"
+      - logical: "total_shopping_time"
+        physical: "total_shopping_time"
+        type: "number"
+      - logical: "cards_order"
+        physical: "cards_order"
+        nullable: true
+        type: "string"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "updated_at"
+        physical: "updated_at"
+        type: "datetime"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "ProductShoppingSession"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "category"
+        type: "manyToOne"
+        sourceEntity: "ProductShoppingSession"
+        targetEntity: "ProductCategory"
+        sourceColumn: "category_id"
+        targetColumn: "category_id"
+      - name: "viewRecords"
+        type: "oneToMany"
+        sourceEntity: "ProductShoppingSession"
+        targetEntity: "ProductViewRecord"
+        sourceColumn: "session_id"
+        targetColumn: "session_id"
+    timestamps:
+      createdAt: "created_at"
+      updatedAt: "updated_at"
+    api:
+      exposed: true
+      basePath: "/shopping-sessions"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: false
+
+  # ProductViewRecord entity
+  ProductViewRecord:
+    entity: "ProductViewRecord"
+    table: "product_view_record"
+    idField: "record_id"
+    columns:
+      - logical: "record_id"
+        physical: "record_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "session_id"
+        physical: "session_id"
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "product_id"
+        physical: "product_id"
+        type: "integer"
+      - logical: "view_start"
+        physical: "view_start"
+        type: "datetime"
+      - logical: "view_end"
+        physical: "view_end"
+        nullable: true
+        type: "datetime"
+      - logical: "view_time"
+        physical: "view_time"
+        nullable: true
+        type: "number"
+      - logical: "page_shown"
+        physical: "page_shown"
+        type: "string"
+      - logical: "hint_viewed"
+        physical: "hint_viewed"
+        type: "boolean"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+    relations:
+      - name: "session"
+        type: "manyToOne"
+        sourceEntity: "ProductViewRecord"
+        targetEntity: "ProductShoppingSession"
+        sourceColumn: "session_id"
+        targetColumn: "session_id"
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "ProductViewRecord"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "product"
+        type: "manyToOne"
+        sourceEntity: "ProductViewRecord"
+        targetEntity: "Product"
+        sourceColumn: "product_id"
+        targetColumn: "product_id"
+    timestamps:
+      createdAt: "created_at"
+    api:
+      exposed: true
+      basePath: "/view-records"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: false
+
+  # UserCredit entity
+  UserCredit:
+    entity: "UserCredit"
+    table: "user_credits"
+    idField: "credit_id"
+    columns:
+      - logical: "credit_id"
+        physical: "credit_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "amount"
+        physical: "amount"
+        type: "number"
+      - logical: "source"
+        physical: "source"
+        type: "string"
+      - logical: "transaction_id"
+        physical: "transaction_id"
+        nullable: true
+        type: "string"
+      - logical: "purchase_date"
+        physical: "purchase_date"
+        type: "datetime"
+      - logical: "expiry_date"
+        physical: "expiry_date"
+        type: "datetime"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "UserCredit"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+    api:
+      exposed: true
+      basePath: "/user-credits"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: false
+        delete: false
+
+  # UserProductBookmark entity
+  UserProductBookmark:
+    entity: "UserProductBookmark"
+    table: "user_product_bookmark"
+    idField: "bookmark_id"
+    columns:
+      - logical: "bookmark_id"
+        physical: "bookmark_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "product_id"
+        physical: "product_id"
+        type: "integer"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+      - logical: "removed"
+        physical: "removed"
+        type: "boolean"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "UserProductBookmark"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "product"
+        type: "manyToOne"
+        sourceEntity: "UserProductBookmark"
+        targetEntity: "Product"
+        sourceColumn: "product_id"
+        targetColumn: "product_id"
+    api:
+      exposed: true
+      basePath: "/bookmarks"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
+  # UserProductData entity
+  UserProductData:
+    entity: "UserProductData"
+    table: "user_product_data"
+    idField: "data_id"
+    columns:
+      - logical: "data_id"
+        physical: "data_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "product_id"
+        physical: "product_id"
+        type: "integer"
+      - logical: "view_count"
+        physical: "view_count"
+        type: "integer"
+      - logical: "last_viewed"
+        physical: "last_viewed"
+        type: "datetime"
+      - logical: "total_view_time"
+        physical: "total_view_time"
+        type: "number"
+      - logical: "notes"
+        physical: "notes"
+        nullable: true
+        type: "string"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "UserProductData"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+      - name: "product"
+        type: "manyToOne"
+        sourceEntity: "UserProductData"
+        targetEntity: "Product"
+        sourceColumn: "product_id"
+        targetColumn: "product_id"
+    api:
+      exposed: true
+      basePath: "/user-product-data"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: false
+
+  # UserProductPreferences entity
+  UserProductPreferences:
+    entity: "UserProductPreferences"
+    table: "user_product_preferences"
+    idField: "preference_id"
+    columns:
+      - logical: "preference_id"
+        physical: "preference_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "default_view"
+        physical: "default_view"
+        type: "string"
+      - logical: "auto_shuffle"
+        physical: "auto_shuffle"
+        nullable: true
+        type: "boolean"
+      - logical: "show_hints"
+        physical: "show_hints"
+        nullable: true
+        type: "boolean"
+      - logical: "inactivity_timeout"
+        physical: "inactivity_timeout"
+        nullable: true
+        type: "integer"
+      - logical: "cards_per_session"
+        physical: "cards_per_session"
+        nullable: true
+        type: "integer"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "UserProductPreferences"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+    api:
+      exposed: true
+      basePath: "/preferences"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: false
+
+  # UserResourceAccess entity
+  UserResourceAccess:
+    entity: "UserResourceAccess"
+    table: "user_resource_access"
+    idField: "access_id"
+    columns:
+      - logical: "access_id"
+        physical: "access_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "user_id"
+        physical: "user_id"
+        type: "integer"
+      - logical: "resource_type"
+        physical: "resource_type"
+        type: "string"
+      - logical: "resource_id"
+        physical: "resource_id"
+        type: "integer"
+      - logical: "credit_cost"
+        physical: "credit_cost"
+        type: "number"
+      - logical: "access_date"
+        physical: "access_date"
+        type: "datetime"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+    relations:
+      - name: "user"
+        type: "manyToOne"
+        sourceEntity: "UserResourceAccess"
+        targetEntity: "User"
+        sourceColumn: "user_id"
+        targetColumn: "user_id"
+    timestamps:
+      createdAt: "created_at"
+    api:
+      exposed: true
+      basePath: "/resource-access"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: false
+        delete: false
