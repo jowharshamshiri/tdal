@@ -405,12 +405,12 @@ export class SchemaSynchronizer {
 					await this.db.execute(alterTableSQL);
 					this.logger.info(`Added foreign key constraint ${constraintName} to table ${tableName}`);
 				} catch (error: any) {
-					this.logger.error(`Error adding foreign key for column ${column.logical}: ${error.message}`);
+					this.logger.error(`Error adding foreign key for column ${column.logical}: ${error.message}`, { cause: error });
 					// Continue with other foreign keys even if one fails
 				}
 			}
 		} catch (error: any) {
-			this.logger.error(`Error adding foreign keys to table ${tableName}: ${error.message}`);
+			this.logger.error(`Error adding foreign keys to table ${tableName}: ${error.message}`, { cause: error });
 			// Don't throw here - continue with other tables even if foreign keys fail
 		}
 	}
