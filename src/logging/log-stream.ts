@@ -38,12 +38,13 @@ export class LogStream {
 		'warn': '\x1b[33m',  // Yellow
 		'error': '\x1b[31m'  // Red
 	};
+	private sessionStartTime: Date = new Date();
+	private currentLogDate: string = this.formatDateForFilename(new Date());
 
 	constructor(options: LogStreamOptions) {
 		this.id = options.id;
 		this.level = options.level || 'info';
 		this.destination = options.destination;
-		this.filePath = options.filePath;
 
 		// Set default options
 		this.fileOptions = {
@@ -60,7 +61,52 @@ export class LogStream {
 			pretty: options.formatOptions?.pretty || false
 		};
 
+		// Initialize the file path if it's for file destination
+		if (options.destination === 'file' && options.filePath) {
+			this.filePath = this.getProcessedFilePath(options.filePath);
+		} else {
+			this.filePath = options.filePath;
+		}
+
 		this.initializeDestination();
+	}
+
+	private formatDateForFilename(date: Date): string {
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+	}
+
+	private formatTimeForFilename(date: Date): string {
+		return `${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}`;
+	}
+
+	private getProcessedFilePath(filePath: string): string {
+		if (!filePath) return filePath;
+
+		const dir = path.dirname(filePath);
+		const ext = path.extname(filePath);
+		const basename = path.basename(filePath, ext);
+
+		// Replace date placeholder in the filename
+		let processedBasename = basename;
+		if (processedBasename.includes('%DATE%')) {
+			const dateStr = this.formatDateForFilename(new Date());
+
+			if (this.fileOptions.dailyLogs) {
+				// Just use the date for daily logs
+				processedBasename = processedBasename.replace('%DATE%', dateStr);
+			} else {
+				// Use date and time for session logs
+				const timeStr = this.formatTimeForFilename(this.sessionStartTime);
+				processedBasename = processedBasename.replace('%DATE%', `${dateStr}-${timeStr}`);
+			}
+		}
+
+		// Replace PID placeholder
+		if (processedBasename.includes('%PID%')) {
+			processedBasename = processedBasename.replace('%PID%', process.pid.toString());
+		}
+
+		return path.join(dir, processedBasename + ext);
 	}
 
 	get streamId(): string {
@@ -105,7 +151,7 @@ export class LogStream {
 		this.destination = destination;
 
 		if (destination === 'file') {
-			this.filePath = filePath;
+			this.filePath = this.getProcessedFilePath(filePath || '');
 			this.initializeDestination();
 		}
 	}
@@ -193,6 +239,36 @@ export class LogStream {
 		}
 	}
 
+	// Check if we need to rotate to a new daily log file
+	private checkDailyRotation(): void {
+		if (this.fileOptions.dailyLogs && this.filePath) {
+			const currentDate = this.formatDateForFilename(new Date());
+
+			if (currentDate !== this.currentLogDate) {
+				// Close current file stream
+				if (this.fileStream) {
+					this.fileStream.end();
+					this.fileStream = undefined;
+				}
+
+				// Update current date
+				this.currentLogDate = currentDate;
+
+				// Generate new file path with updated date
+				const dir = path.dirname(this.filePath);
+				const ext = path.extname(this.filePath);
+				const basename = path.basename(this.filePath, ext).replace(/\d{4}-\d{2}-\d{2}/, currentDate);
+				this.filePath = path.join(dir, basename + ext);
+
+				// Reset file size
+				this.currentFileSize = 0;
+
+				// Initialize the new file
+				this.initializeDestination();
+			}
+		}
+	}
+
 	private formatLogEntry(level: string, message: string, metadata?: Record<string, any>): string {
 		const timestamp = this.formatTimestamp(new Date());
 		const pidInfo = this.formatOptions.includePid ? ` [PID:${process.pid}]` : '';
@@ -213,6 +289,11 @@ export class LogStream {
 
 	log(level: 'trace' | 'debug' | 'info' | 'warn' | 'error', message: string, metadata?: Record<string, any>): void {
 		if (!this.shouldLog(level)) return;
+
+		// Check if we need to rotate to a new daily log file
+		if (this.destination === 'file' && this.fileOptions.dailyLogs) {
+			this.checkDailyRotation();
+		}
 
 		const logEntry = this.formatLogEntry(level, message, metadata);
 

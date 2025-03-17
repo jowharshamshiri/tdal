@@ -1,36 +1,39 @@
 import { LogStream, LogStreamOptions } from './log-stream';
-import { Logger } from './types';
+import { Logger } from '../types';
+import * as path from 'path';
 
 /**
  * Logger implementation that writes to a LogStream
  */
 class StreamLogger implements Logger {
+	private metadata: Record<string, any> = {};
+
 	constructor(private stream: LogStream) { }
 
 	trace(message: string, ...args: any[]): void {
 		const formattedMessage = this.formatMessage(message, args);
-		this.stream.log('trace', formattedMessage);
+		this.stream.log('trace', formattedMessage, this.metadata);
 	}
 
 	debug(message: string, ...args: any[]): void {
 		const formattedMessage = this.formatMessage(message, args);
-		this.stream.log('debug', formattedMessage);
+		this.stream.log('debug', formattedMessage, this.metadata);
 	}
 
 	info(message: string, ...args: any[]): void {
 		const formattedMessage = this.formatMessage(message, args);
-		this.stream.log('info', formattedMessage);
+		this.stream.log('info', formattedMessage, this.metadata);
 	}
 
 	warn(message: string, ...args: any[]): void {
 		const formattedMessage = this.formatMessage(message, args);
-		this.stream.log('warn', formattedMessage);
+		this.stream.log('warn', formattedMessage, this.metadata);
 	}
 
 	error(messageOrError: string | Error, ...args: any[]): void {
 		const message = messageOrError instanceof Error ? messageOrError.message : messageOrError;
 		const formattedMessage = this.formatMessage(message, args);
-		this.stream.log('error', formattedMessage);
+		this.stream.log('error', formattedMessage, this.metadata);
 
 		// Log stack trace if provided
 		if (messageOrError instanceof Error && messageOrError.stack) {
@@ -47,8 +50,7 @@ class StreamLogger implements Logger {
 	}
 
 	addMetadata(metadata: Record<string, any>): void {
-		// In this implementation, we'll log this metadata with the next message
-		// A more sophisticated implementation could store this metadata
+		this.metadata = { ...this.metadata, ...metadata };
 	}
 
 	private formatMessage(message: string, args: any[]): string {

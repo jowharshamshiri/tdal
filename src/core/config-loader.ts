@@ -178,22 +178,31 @@ export class ConfigLoader {
 							fs.mkdirSync(logsDir, { recursive: true });
 						}
 
-						const fileName = config.logging.fileNamePattern || 'app.log';
+						// Create filename with date formatting
+						let fileName = config.logging.fileNamePattern || 'app-%DATE%.log';
+
+						// If filename doesn't include %DATE% placeholder, add it
+						if (!fileName.includes('%DATE%')) {
+							const baseName = path.basename(fileName, path.extname(fileName));
+							const ext = path.extname(fileName);
+							fileName = `${baseName}-%DATE%${ext}`;
+						}
+
 						const filePath = path.join(logsDir, fileName);
 
 						loggingService.createStream({
 							id: 'file',
 							destination: 'file',
-							level: config.logging.level || 'info',
 							filePath: filePath,
+							level: config.logging.level || 'info',
 							fileOptions: {
-								maxFileSize: config.logging.maxFileSize,
-								maxFiles: config.logging.maxFiles,
-								dailyLogs: config.logging.dailyLogs,
-								fileNamePattern: config.logging.fileNamePattern
+								maxFileSize: config.logging.maxFileSize || 10 * 1024 * 1024,
+								maxFiles: config.logging.maxFiles || 5,
+								dailyLogs: config.logging.dailyLogs || false,
+								fileNamePattern: fileName
 							},
 							formatOptions: {
-								timestampFormat: config.logging.timestampFormat,
+								timestampFormat: config.logging.timestampFormat || 'YYYY-MM-DD HH:mm:ss.SSS',
 								useColors: false,
 								includePid: config.logging.includePid || false,
 								pretty: config.logging.pretty || false
