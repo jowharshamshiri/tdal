@@ -13,8 +13,8 @@
         "--no-cache",
         "${fileBasename}"
       ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
       "disableOptimisticBPs": true,
       "cwd": "${workspaceFolder}",
       "env": {
@@ -38,7 +38,8 @@
         "--testTimeout=999999",
         "tests/framework.test.ts"
       ],
-      "console": "integratedTerminal",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
       "disableOptimisticBPs": true,
       "windows": {
         "program": "${workspaceFolder}/node_modules/jest/bin/jest"
@@ -55,8 +56,8 @@
         "ts-node/register",
         "${workspaceFolder}/tests/test-setup.ts"
       ],
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart",
       "cwd": "${workspaceFolder}",
       "env": {
         "NODE_ENV": "test",

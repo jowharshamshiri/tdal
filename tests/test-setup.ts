@@ -427,7 +427,6 @@ export class TestDataFactory {
 		const entityConfig = context.getEntityConfig(entityName);
 		const targetConfig = context.getEntityConfig(relation.targetEntity);
 		const entityIdField = entityConfig.idField; // Use the actual ID field from entity config
-		const targetIdField = targetConfig.idField; // Use the actual ID field from target config
 		const targetIds = this.generatedIds.get(relation.targetEntity) || [];
 
 		if (targetIds.length === 0) return;
@@ -466,9 +465,12 @@ export class TestDataFactory {
 
 						// Only update if we have a valid ID value
 						if (idValue !== undefined) {
+							// Create update data without any ID fields
+							const updateData = { [relation.sourceColumn]: randomTargetId };
+
 							await context.getEntityManager(entityName).update(
 								idValue,
-								{ [relation.sourceColumn]: randomTargetId }
+								updateData
 							);
 						} else {
 							this.logger?.warn(`Missing ID value for entity ${entityName}`);
@@ -486,32 +488,25 @@ export class TestDataFactory {
 				if (hasJunctionEntity) {
 					// Junction table exists as an entity, use entity manager
 					const junctionTableManager = context.getEntityManager(relation.junctionTable);
+					const junctionConfig = context.getEntityConfig(relation.junctionTable);
 
 					for (const item of entityData) {
 						// Get the correct ID value
 						let sourceIdValue;
 
 						if (Array.isArray(entityIdField)) {
-							// For composite keys, validate and map
-							const idObj: Record<string, unknown> = {};
-							let isValidId = true;
+							// For composite keys, validate all parts exist
+							const hasAllKeys = entityIdField.every(field => item[field] !== undefined);
+							if (!hasAllKeys) continue;
 
-							for (const field of entityIdField) {
-								if (item[field] === undefined) {
-									isValidId = false;
-									break;
-								}
-								idObj[field] = item[field];
-							}
-
-							if (isValidId) {
-								sourceIdValue = idObj;
-							}
+							// For junction tables, we often need just the value of the first part
+							// But this might vary based on your specific schema
+							sourceIdValue = item[entityIdField[0]];
 						} else {
 							sourceIdValue = item[entityIdField];
 						}
 
-						if (!sourceIdValue) {
+						if (sourceIdValue === undefined) {
 							continue; // Skip if no valid ID
 						}
 
@@ -530,9 +525,9 @@ export class TestDataFactory {
 							usedTargets.add(randomTargetId);
 
 							try {
+								// Create a junction record with proper column names
 								await junctionTableManager.create({
-									[relation.junctionSourceColumn]: sourceIdValue instanceof Object ?
-										sourceIdValue[entityIdField] : sourceIdValue,
+									[relation.junctionSourceColumn]: sourceIdValue,
 									[relation.junctionTargetColumn]: randomTargetId
 								});
 							} catch (error: any) {
@@ -543,7 +538,6 @@ export class TestDataFactory {
 				} else {
 					// Junction table doesn't exist as a full entity - use direct database operations
 					console.log(`Skipping many-to-many relationship setup for ${entityName} -> ${relation.targetEntity} (junction: ${relation.junctionTable})`);
-					// We're skipping this relationship for now, but could use raw SQL here if needed
 				}
 				break;
 
@@ -587,9 +581,13 @@ export class TestDataFactory {
 							}
 
 							if (idValue !== undefined) {
+								// Create update data without including ID field
+								const updateData = { [relation.sourceColumn]: randomTargetId };
+
+								// Now update with the correct data
 								await context.getEntityManager(entityName).update(
 									idValue,
-									{ [relation.sourceColumn]: randomTargetId }
+									updateData
 								);
 							}
 						} catch (error: any) {

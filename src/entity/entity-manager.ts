@@ -627,6 +627,10 @@ export class EntityDao<T, IdType = string | number> {
 			const updateData = { ...data };
 			// Remove ID from update data to avoid attempting to update the ID
 			delete (updateData as any)[this.idField];
+			// Also remove generic 'id' field if it exists and differs from entity ID field
+			if (this.idField !== 'id' && 'id' in updateData) {
+				delete (updateData as any)['id'];
+			}
 
 			await this.update(idValue as IdType, updateData, ctx);
 			return idValue as IdType;
@@ -1797,12 +1801,32 @@ export class EntityDao<T, IdType = string | number> {
 	): Promise<number> {
 		const ctx = context || this.createDefaultContext();
 
-		// Execute before hooks
-		let processedData = await this.executeHooks('beforeUpdate', { id, ...data }, ctx);
+		// Create a properly structured object for the hooks that doesn't use a generic 'id' property
+		let hookData: Record<string, any> = { ...data };
+
+		// Store ID in a separate property for internal use only
+		ctx.data = ctx.data || {};
+		ctx.data._entityId = id;
+
+		// Execute before hooks with just the data, not mixing in the ID
+		let processedData = await this.executeHooks('beforeUpdate', hookData, ctx);
 
 		this.applyTimestamps(processedData, "update");
 
 		try {
+			// Remove any ID fields from the update data
+			if (typeof this.entityConfig.idField === 'string') {
+				delete processedData[this.entityConfig.idField];
+				// Also remove the generic 'id' field if it exists
+				delete processedData['id'];
+			} else if (Array.isArray(this.entityConfig.idField)) {
+				for (const field of this.entityConfig.idField) {
+					delete processedData[field];
+				}
+				// Also remove the generic 'id' field if it exists
+				delete processedData['id'];
+			}
+
 			// Convert booleans to database-specific format
 			const convertedData = this.convertToDbValues(processedData);
 
