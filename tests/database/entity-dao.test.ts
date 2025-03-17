@@ -21,6 +21,13 @@ interface User {
 	last_login?: string;
 }
 
+// Helper function to generate a unique email
+function uniqueEmail(prefix: string = ''): string {
+	const timestamp = Date.now();
+	const random = Math.floor(Math.random() * 10000);
+	return `${prefix}${timestamp}-${random}@example.com`;
+}
+
 describe("Entity Manager Operations", () => {
 	beforeAll(async () => {
 		// Initialize test framework with test-app.yaml configuration
@@ -36,15 +43,21 @@ describe("Entity Manager Operations", () => {
 		await cleanupTestData();
 	});
 
+	afterEach(async () => {
+		// Clean up any test data created during the test
+		await cleanupTestData();
+	});
+
 	test("should find entity by ID", async () => {
-		// Generate test data first
+		// Generate test data first with a unique email
+		const uniqueOwnerEmail = uniqueEmail('owner');
 		await generateTestData({
 			count: 1,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Pet Store Owner',
-					email: 'owner@dogfoodstore.com',
+					email: uniqueOwnerEmail,
 					role: 'admin',
 					password: 'hashedpwd123'
 				}
@@ -57,7 +70,7 @@ describe("Entity Manager Operations", () => {
 		const userManager = context.getEntityManager<User>('User');
 
 		// First find a user to get their ID
-		const users = await userManager.findBy({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueOwnerEmail });
 		expect(users.length).toBeGreaterThan(0);
 		const userId = users[0].user_id;
 
@@ -65,7 +78,7 @@ describe("Entity Manager Operations", () => {
 
 		expect(user).toBeDefined();
 		expect(user?.name).toBe("Pet Store Owner");
-		expect(user?.email).toBe("owner@dogfoodstore.com");
+		expect(user?.email).toBe(uniqueOwnerEmail);
 	});
 
 	test("should return undefined when entity not found by ID", async () => {
@@ -79,20 +92,23 @@ describe("Entity Manager Operations", () => {
 	});
 
 	test("should find all entities", async () => {
-		// Generate test data first
+		// Generate test data first with unique emails
+		const uniqueOwnerEmail = uniqueEmail('owner2');
+		const uniqueDoggyEmail = uniqueEmail('doggy2');
+
 		await generateTestData({
 			count: 2,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Pet Store Owner',
-					email: 'owner2@dogfoodstore.com',
+					email: uniqueOwnerEmail,
 					role: 'admin',
 					password: 'hashedpwd123'
 				}
 			},
 			customGenerators: {
-				email: (entity) => entity === 'User' ? 'doggy2@example.com' : faker.internet.email()
+				email: (entity) => entity === 'User' ? uniqueDoggyEmail : faker.internet.email()
 			}
 		});
 
@@ -105,20 +121,21 @@ describe("Entity Manager Operations", () => {
 		// We should have at least our fixed user plus any faker-generated ones
 		expect(users.length).toBeGreaterThan(0);
 		// Find our fixed test user
-		const testUser = users.find(u => u.email === "owner2@dogfoodstore.com");
+		const testUser = users.find(u => u.email === uniqueOwnerEmail);
 		expect(testUser).toBeDefined();
 		expect(testUser?.name).toBe("Pet Store Owner");
 	});
 
 	test("should find entities with query options", async () => {
-		// Generate test data first
+		// Generate test data first with unique email
+		const uniqueOwnerEmail = uniqueEmail('owner3');
 		await generateTestData({
 			count: 2,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Pet Store Owner',
-					email: 'owner3@dogfoodstore.com',
+					email: uniqueOwnerEmail,
 					role: 'admin',
 					password: 'hashedpwd123'
 				}
@@ -152,14 +169,15 @@ describe("Entity Manager Operations", () => {
 	});
 
 	test("should find entities by conditions", async () => {
-		// Generate test data first
+		// Generate test data first with unique email
+		const uniqueOwnerEmail = uniqueEmail('owner4');
 		await generateTestData({
 			count: 2,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Pet Store Owner',
-					email: 'owner4@dogfoodstore.com',
+					email: uniqueOwnerEmail,
 					role: 'admin',
 					password: 'hashedpwd123'
 				}
@@ -174,20 +192,21 @@ describe("Entity Manager Operations", () => {
 
 		expect(users.length).toBeGreaterThan(0);
 		// Find our test admin user
-		const adminUser = users.find(u => u.email === "owner4@dogfoodstore.com");
+		const adminUser = users.find(u => u.email === uniqueOwnerEmail);
 		expect(adminUser).toBeDefined();
 		expect(adminUser?.name).toBe("Pet Store Owner");
 	});
 
 	test("should find one entity by specific conditions", async () => {
 		// Generate test data with a specific email
+		const uniqueDoggyEmail = uniqueEmail('doggy');
 		await generateTestData({
 			count: 1,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Dog Lover',
-					email: 'doggy@example.com',
+					email: uniqueDoggyEmail,
 					role: 'user',
 					password: 'woof123'
 				}
@@ -198,18 +217,21 @@ describe("Entity Manager Operations", () => {
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		const users = await userManager.findBy({ email: "doggy@example.com" });
+		const users = await userManager.findBy({ email: uniqueDoggyEmail });
 
 		// Should find exactly one user with this email
 		expect(users.length).toBe(1);
-		expect(users[0].email).toBe("doggy@example.com");
+		expect(users[0].email).toBe(uniqueDoggyEmail);
 	});
 
 	test("should count entities", async () => {
 		// Generate test data first
 		await generateTestData({
 			count: 2,
-			withRelations: false
+			withRelations: false,
+			customGenerators: {
+				email: () => uniqueEmail('count')
+			}
 		});
 
 		const framework = getTestFramework();
@@ -223,14 +245,15 @@ describe("Entity Manager Operations", () => {
 	});
 
 	test("should count entities with conditions", async () => {
-		// Generate test data first
+		// Generate test data first with unique email
+		const uniqueAdminEmail = uniqueEmail('admin');
 		await generateTestData({
 			count: 1,
 			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Admin User',
-					email: 'admin@example.com',
+					email: uniqueAdminEmail,
 					role: 'admin',
 					password: 'admin123'
 				}
@@ -254,7 +277,7 @@ describe("Entity Manager Operations", () => {
 
 		const newUser: Partial<User> = {
 			name: "New User",
-			email: "new-user-test@example.com", // Unique email for this test
+			email: uniqueEmail('new-user-test'),
 			password: "hashedpwd555",
 			role: "user",
 		};
@@ -267,18 +290,18 @@ describe("Entity Manager Operations", () => {
 		const user = await userManager.findById(id);
 		expect(user).toBeDefined();
 		expect(user?.name).toBe("New User");
-		// Don't test for created_at since it might not be implemented in all entities
 	});
 
 	test("should update an entity", async () => {
-		// Create a user first
+		// Create a user first with unique email
+		const uniqueUpdateEmail = uniqueEmail('update-test');
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
 		const id = await userManager.create({
 			name: "User To Update",
-			email: "update-test@example.com",
+			email: uniqueUpdateEmail,
 			password: "hashedpwd123",
 			role: "user"
 		});
@@ -294,7 +317,6 @@ describe("Entity Manager Operations", () => {
 		const user = await userManager.findById(id);
 		expect(user).toBeDefined();
 		expect(user?.name).toBe("Updated Admin");
-		// Don't test for updated_at as it might not be implemented in all entities
 	});
 
 	test("should delete an entity", async () => {
@@ -302,10 +324,11 @@ describe("Entity Manager Operations", () => {
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Create a user specifically for deletion
+		// Create a user specifically for deletion with unique email
+		const uniqueDeleteEmail = uniqueEmail('delete-test');
 		const id = await userManager.create({
 			name: "User To Delete",
-			email: "delete-test@example.com",
+			email: uniqueDeleteEmail,
 			password: "hashedpwd777",
 			role: "user"
 		});
@@ -325,10 +348,11 @@ describe("Entity Manager Operations", () => {
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Create a user first
+		// Create a user first with unique email
+		const uniqueExistsEmail = uniqueEmail('exists-test');
 		const id = await userManager.create({
 			name: "Exists Test User",
-			email: "exists-test@example.com",
+			email: uniqueExistsEmail,
 			password: "hashedpwd456",
 			role: "user"
 		});
@@ -347,6 +371,8 @@ describe("Entity Manager Operations", () => {
 		const context = framework.getContext();
 		const db = context.getDatabase();
 
+		const uniqueTxEmail = uniqueEmail('transaction-test');
+
 		// Start a transaction
 		await db.transaction(async (tx) => {
 			// Get the entity manager for the transaction context
@@ -354,7 +380,7 @@ describe("Entity Manager Operations", () => {
 
 			await txUserManager.create({
 				name: "Transaction User",
-				email: "transaction-test@example.com", // Unique email
+				email: uniqueTxEmail,
 				password: "hashedpwd999",
 				role: "user"
 			});
@@ -362,7 +388,7 @@ describe("Entity Manager Operations", () => {
 
 		// Verify transaction was committed
 		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: "transaction-test@example.com" });
+		const users = await userManager.findBy({ email: uniqueTxEmail });
 		expect(users.length).toBe(1);
 		expect(users[0].name).toBe("Transaction User");
 	});
@@ -372,6 +398,8 @@ describe("Entity Manager Operations", () => {
 		const context = framework.getContext();
 		const db = context.getDatabase();
 
+		const uniqueRollbackEmail = uniqueEmail('rollback-test');
+
 		try {
 			// Start a transaction that will fail
 			await db.transaction(async (tx) => {
@@ -380,7 +408,7 @@ describe("Entity Manager Operations", () => {
 
 				await txUserManager.create({
 					name: "Transaction User",
-					email: "rollback-test@example.com",
+					email: uniqueRollbackEmail,
 					password: "hashedpwd999",
 					role: "user"
 				});
@@ -388,7 +416,7 @@ describe("Entity Manager Operations", () => {
 				// This should cause a constraint violation
 				await txUserManager.create({
 					name: "Duplicate User",
-					email: "rollback-test@example.com", // Same email
+					email: uniqueRollbackEmail, // Same email
 					password: "hashedpwd888",
 					role: "user"
 				});
@@ -402,7 +430,7 @@ describe("Entity Manager Operations", () => {
 
 		// Verify transaction was rolled back
 		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: "rollback-test@example.com" });
+		const users = await userManager.findBy({ email: uniqueRollbackEmail });
 		expect(users.length).toBe(0);
 	});
 });
