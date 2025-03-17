@@ -10,6 +10,8 @@ import {
 	PostgresConfig,
 	MySQLConfig,
 } from "./connection-types";
+import { AppContext } from "@/core/types";
+import { Logger } from "@/logging";
 
 /**
  * Factory class for creating database adapters based on configuration
@@ -21,7 +23,7 @@ export class DatabaseFactory {
 	 * @param config Database configuration
 	 * @returns An implementation of DatabaseAdapter
 	 */
-	static createAdapter(config: DbConfig): DatabaseAdapter {
+	static createAdapter(config: DbConfig, logger: Logger): DatabaseAdapter {
 		// Validate the configuration
 		if (!config || typeof config !== "object") {
 			throw new Error(
@@ -37,11 +39,11 @@ export class DatabaseFactory {
 		switch (config.type) {
 			case "sqlite":
 				// Dynamic import to avoid circular dependencies
-				return this.createSQLiteAdapter(config as SQLiteConfig);
+				return this.createSQLiteAdapter(config as SQLiteConfig, logger);
 
 			case "postgres":
 				// Dynamic import to avoid circular dependencies
-				return this.createPostgresAdapter(config as PostgresConfig);
+				return this.createPostgresAdapter(config as PostgresConfig, logger);
 
 			//   case "mysql":
 			//     // Dynamic import to avoid circular dependencies
@@ -58,14 +60,15 @@ export class DatabaseFactory {
    * @param config SQLite configuration
    * @returns SQLite adapter instance
    */
-	private static createSQLiteAdapter(config: SQLiteConfig): DatabaseAdapter {
+	private static createSQLiteAdapter(config: SQLiteConfig, logger: Logger): DatabaseAdapter {
 		// Dynamically import the SQLiteAdapter to avoid circular dependencies
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const { SQLiteAdapter } = require("../adapters/sqlite-adapter");
 
 		return new SQLiteAdapter(
 			config,
-			config.useTestDatabase ?? false
+			config.useTestDatabase ?? false,
+			logger
 		);
 	}
 
@@ -76,12 +79,12 @@ export class DatabaseFactory {
 	 * @returns PostgreSQL adapter instance
 	 */
 	private static createPostgresAdapter(
-		config: PostgresConfig
+		config: PostgresConfig, logger: Logger
 	): DatabaseAdapter {
 		// Dynamically import the PostgresAdapter to avoid circular dependencies
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const { PostgresAdapter } = require("../adapters/postgres-adapter");
-		return new PostgresAdapter(config.connection);
+		return new PostgresAdapter(config.connection, logger);
 	}
 
 	/**

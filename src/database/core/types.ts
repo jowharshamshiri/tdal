@@ -3,6 +3,7 @@
  * Defines the interfaces and types for database operations
  */
 
+import { EntityConfig, JunctionTableConfig } from '../../entity';
 import { Logger, HookContext } from '../../core/types';
 import { QueryBuilder } from '../query';
 import { DbConnection } from './connection-types';
@@ -597,6 +598,41 @@ export interface DatabaseAdapter {
 	 * Get diagnostic information about the database
 	 */
 	getDatabaseInfo(): Promise<Record<string, unknown>>;
+
+
+	/**
+	 * Create a table from an entity configuration
+	 */
+	createTable(entity: EntityConfig, dropIfExists?: boolean): Promise<void>;
+
+	/**
+	 * Create a foreign key constraint
+	 */
+	createForeignKeyConstraint(
+		tableName: string,
+		columnName: string,
+		referencedTable: string,
+		referencedColumn: string,
+		constraintName?: string
+	): Promise<void>;
+
+	/**
+	 * Create a junction table for many-to-many relationships
+	 */
+	createJunctionTable(
+		junctionConfig: JunctionTableConfig,
+		dropIfExists?: boolean
+	): Promise<void>;
+
+	/**
+	 * Check if a table exists
+	 */
+	tableExists(tableName: string): Promise<boolean>;
+
+	/**
+	 * Drop a table if it exists
+	 */
+	dropTableIfExists(tableName: string): Promise<void>;
 }
 
 /**

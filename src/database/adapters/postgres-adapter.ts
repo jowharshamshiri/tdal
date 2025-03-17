@@ -14,6 +14,7 @@ import {
 import { DbConnection, PostgresConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
 import { QueryBuilder } from "../query";
+import { EntityConfig, JunctionTableConfig } from "@/entity";
 // Remove import for PostgresQueryBuilder since it doesn't exist yet
 
 /**
@@ -109,6 +110,21 @@ export class PostgresConnection implements DbConnection {
 export class PostgresAdapter
 	extends DatabaseAdapterBase
 	implements DatabaseAdapter {
+	createTable(entity: EntityConfig, dropIfExists: boolean): Promise<void> {
+		throw new Error("Method not implemented.");
+	}
+	createForeignKeyConstraint(tableName: string, columnName: string, referencedTable: string, referencedColumn: string, constraintName?: string): Promise<void> {
+		throw new Error("Method not implemented.");
+	}
+	createJunctionTable(junctionConfig: JunctionTableConfig, dropIfExists: boolean): Promise<void> {
+		throw new Error("Method not implemented.");
+	}
+	tableExists(tableName: string): Promise<boolean> {
+		throw new Error("Method not implemented.");
+	}
+	dropTableIfExists(tableName: string): Promise<void> {
+		throw new Error("Method not implemented.");
+	}
 	/**
 	 * PostgreSQL connection pool
 	 */

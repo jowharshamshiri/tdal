@@ -25,6 +25,8 @@ import { DbConnection, SQLiteConfig } from "../core/connection-types";
 import { DatabaseAdapterBase } from "./adapter-base";
 import { SQLiteQueryBuilder } from "../query/sqlite-query-builder";
 import { QueryBuilder } from "../query";
+import { EntityConfig, JunctionTableConfig } from "@/entity";
+import { Logger } from "@/logging";
 
 /**
  * SQLite date functions implementation
@@ -138,12 +140,14 @@ export class SQLiteAdapter
 	 */
 	private dateFunctions: SQLiteDateFunctions;
 
+	private logger?: Logger;
+
 	/**
 	 * Constructor
 	 * @param config SQLite configuration
 	 * @param isTestMode Whether to use the test database
 	 */
-	constructor(config: SQLiteConfig, isTestMode = false) {
+	constructor(config: SQLiteConfig, isTestMode = false, logger?: Logger) {
 		super();
 
 		// Create a properly merged config to avoid property overwrites
@@ -168,6 +172,7 @@ export class SQLiteAdapter
 			};
 		}
 
+		this.logger = logger;
 		this.isTestMode = isTestMode;
 		this.dateFunctions = new SQLiteDateFunctions();
 
@@ -916,5 +921,232 @@ export class SQLiteAdapter
 			this.logDebug(`[SQLite Error] ${error}`);
 			throw error;
 		}
+	}
+
+	async createTable(entity: EntityConfig, dropIfExists: boolean = false): Promise<void> {
+		const tableName = entity.table;
+
+		// Check if table exists
+		if (await this.tableExists(tableName)) {
+			if (dropIfExists) {
+				await this.dropTableIfExists(tableName);
+			} else {
+				return; // Table exists and we're not dropping it
+			}
+		}
+
+		// Generate CREATE TABLE statement
+		let sql = `CREATE TABLE ${tableName} (\n`;
+
+		// Add columns
+		const columnDefs = [];
+		for (const column of entity.columns) {
+			let columnDef = `${column.physical} ${this.getSqliteType(column.type)}`;
+
+			// Add constraints
+			if (column.primaryKey) {
+				if (!Array.isArray(entity.idField) || entity.idField.length === 1) {
+					columnDef += ' PRIMARY KEY';
+				}
+			}
+			if (column.autoIncrement) {
+				columnDef += ' AUTOINCREMENT';
+			}
+			if (!column.nullable && !column.primaryKey) {
+				columnDef += ' NOT NULL';
+			}
+			if (column.unique) {
+				columnDef += ' UNIQUE';
+			}
+
+			// Default value
+			if (column.defaultValue !== undefined) {
+				if (typeof column.defaultValue === 'string') {
+					columnDef += ` DEFAULT '${column.defaultValue}'`;
+				} else if (column.defaultValue === null) {
+					columnDef += ' DEFAULT NULL';
+				} else {
+					columnDef += ` DEFAULT ${column.defaultValue}`;
+				}
+			}
+
+			columnDefs.push(columnDef);
+		}
+
+		sql += columnDefs.join(',\n');
+
+		// Add composite primary key if needed
+		if (Array.isArray(entity.idField) && entity.idField.length > 1) {
+			const pkColumns = entity.idField.map(fieldName => {
+				const column = entity.columns.find(col => col.logical === fieldName);
+				return column ? column.physical : fieldName;
+			});
+
+			sql += ',\n';
+			sql += `PRIMARY KEY (${pkColumns.join(', ')})`;
+		}
+
+		// Add foreign keys (SQLite requires them in the CREATE TABLE)
+		const foreignKeyDefs = [];
+		for (const column of entity.columns) {
+			if (column.foreignKey) {
+				let referencedTable: string;
+				let referencedColumn: string;
+
+				if (typeof column.foreignKey === 'string') {
+					const parts = column.foreignKey.split('.');
+					if (parts.length !== 2) continue;
+					[referencedTable, referencedColumn] = parts;
+				} else if (column.foreignKey && typeof column.foreignKey === 'object') {
+					referencedTable = column.foreignKey.table;
+					referencedColumn = Array.isArray(column.foreignKey.columns)
+						? column.foreignKey.columns[0]
+						: column.foreignKey.columns;
+				} else {
+					continue;
+				}
+
+				foreignKeyDefs.push(
+					`FOREIGN KEY (${column.physical}) REFERENCES ${referencedTable}(${referencedColumn})`
+				);
+			}
+		}
+
+		if (foreignKeyDefs.length > 0) {
+			sql += ',\n';
+			sql += foreignKeyDefs.join(',\n');
+		}
+
+		sql += '\n)';
+
+		// Execute the statement
+		await this.execute(sql);
+	}
+
+	async createForeignKeyConstraint(
+		tableName: string,
+		columnName: string,
+		referencedTable: string,
+		referencedColumn: string,
+		constraintName?: string
+	): Promise<void> {
+		// SQLite doesn't support adding foreign keys after table creation
+		// This is a no-op for SQLite, but log a warning
+		this.logger?.warn(
+			`SQLite doesn't support adding foreign key constraints after table creation for ${tableName}.${columnName}`
+		);
+	}
+
+	async createJunctionTable(
+		junctionConfig: JunctionTableConfig,
+		dropIfExists: boolean = false
+	): Promise<void> {
+		const tableName = junctionConfig.table;
+
+		// Check if table exists
+		if (await this.tableExists(tableName)) {
+			if (dropIfExists) {
+				await this.dropTableIfExists(tableName);
+			} else {
+				return; // Table exists and we're not dropping it
+			}
+		}
+
+		// Generate SQL for junction table
+		let sql = `CREATE TABLE ${tableName} (\n`;
+
+		// Add source columns
+		const sourceColumns = Array.isArray(junctionConfig.sourceColumn)
+			? junctionConfig.sourceColumn
+			: [junctionConfig.sourceColumn];
+
+		for (const column of sourceColumns) {
+			sql += `  ${column} INTEGER NOT NULL,\n`;
+		}
+
+		// Add target columns
+		const targetColumns = Array.isArray(junctionConfig.targetColumn)
+			? junctionConfig.targetColumn
+			: [junctionConfig.targetColumn];
+
+		for (const column of targetColumns) {
+			sql += `  ${column} INTEGER NOT NULL,\n`;
+		}
+
+		// Add extra columns if defined
+		if (junctionConfig.extraColumns) {
+			for (const col of junctionConfig.extraColumns) {
+				const columnType = this.getSqliteType(col.type);
+				const nullableStr = col.nullable === false ? ' NOT NULL' : '';
+				let defaultStr = '';
+
+				if (col.defaultValue !== undefined) {
+					if (typeof col.defaultValue === 'string') {
+						defaultStr = ` DEFAULT '${col.defaultValue}'`;
+					} else if (col.defaultValue === null) {
+						defaultStr = ' DEFAULT NULL';
+					} else {
+						defaultStr = ` DEFAULT ${col.defaultValue}`;
+					}
+				}
+
+				sql += `  ${col.name} ${columnType}${nullableStr}${defaultStr},\n`;
+			}
+		}
+
+		// Add primary key constraint
+		const pkColumns = [...sourceColumns, ...targetColumns];
+		sql += `  PRIMARY KEY (${pkColumns.join(', ')})`;
+
+		// Add foreign key constraints
+		if (junctionConfig.sourceEntity) {
+			sql += `,\n  FOREIGN KEY (${sourceColumns.join(', ')}) REFERENCES ${junctionConfig.sourceEntity.toLowerCase()}(id)`;
+		}
+
+		if (junctionConfig.targetEntity) {
+			sql += `,\n  FOREIGN KEY (${targetColumns.join(', ')}) REFERENCES ${junctionConfig.targetEntity.toLowerCase()}(id)`;
+		}
+
+		sql += '\n)';
+
+		// Execute the SQL
+		await this.execute(sql);
+	}
+
+	async tableExists(tableName: string): Promise<boolean> {
+		const result = await this.query(
+			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+			tableName
+		);
+
+		return result.length > 0;
+	}
+
+	async dropTableIfExists(tableName: string): Promise<void> {
+		await this.execute(`DROP TABLE IF EXISTS ${tableName}`);
+	}
+
+	// Helper method for SQLite type mapping
+	private getSqliteType(type?: string): string {
+		if (!type) return 'TEXT';
+
+		type = type.toLowerCase();
+
+		if (type === 'integer' || type === 'int' ||
+			type === 'bigint' || type === 'smallint' ||
+			type === 'tinyint' || type === 'boolean' || type === 'bool') {
+			return 'INTEGER';
+		}
+
+		if (type === 'real' || type === 'float' ||
+			type === 'double' || type === 'decimal' || type === 'number') {
+			return 'REAL';
+		}
+
+		if (type === 'blob' || type === 'binary') {
+			return 'BLOB';
+		}
+
+		return 'TEXT';
 	}
 }

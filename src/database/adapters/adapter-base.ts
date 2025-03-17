@@ -19,7 +19,7 @@ import {
 	AggregateFunction,
 } from "../core/types";
 import { DbConnection } from "../core/connection-types";
-import { EntityConfig } from "../../entity/entity-config";
+import { EntityConfig, JunctionTableConfig } from "../../entity/entity-config";
 import { QueryBuilder } from "../query";
 
 /**
@@ -875,4 +875,24 @@ export abstract class DatabaseAdapterBase implements DatabaseAdapter {
 			}
 		}
 	}
+
+	abstract createTable(entity: EntityConfig, dropIfExists: boolean): Promise<void>;
+
+	abstract createForeignKeyConstraint(
+		tableName: string,
+		columnName: string,
+		referencedTable: string,
+		referencedColumn: string,
+		constraintName?: string
+	): Promise<void>;
+
+	abstract createJunctionTable(
+		junctionConfig: JunctionTableConfig,
+		dropIfExists: boolean
+	): Promise<void>;
+
+	abstract tableExists(tableName: string): Promise<boolean>;
+
+	abstract dropTableIfExists(tableName: string): Promise<void>;
+
 }

@@ -7,7 +7,7 @@ import * as path from "path";
 import { DatabaseAdapter } from "./types";
 import { DbConfig, SQLiteConfig, PostgresConfig } from "./connection-types";
 import { DatabaseFactory } from "./database-factory";
-import { Logger } from "../../core/types";
+import { Logger } from "../../logging";
 import { AppContext } from "../../core/app-context";
 
 /**
@@ -103,6 +103,9 @@ export class DatabaseContext {
 	 */
 	static getDatabase(): DatabaseAdapter {
 		if (!this.instance) {
+			if (!this.logger) {
+				throw new Error("Logger is required to create database instance");
+			}
 			// Add this verbose logging to debug the issue
 			if (this.config.type === "sqlite") {
 				const sqliteConfig = this.config as SQLiteConfig;
@@ -118,7 +121,7 @@ export class DatabaseContext {
 			}
 
 			// Use factory to create adapter with proper configuration
-			this.instance = DatabaseFactory.createAdapter(this.config);
+			this.instance = DatabaseFactory.createAdapter(this.config, this.logger);
 
 			// Initialize connection
 			this.instance.connect().catch((err: Error) => {
