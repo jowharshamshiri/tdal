@@ -131,6 +131,42 @@ entities:
         update: true
         delete: true
 
+  # New entity with a composite primary key
+  CompositeKeyEntity:
+    entity: "CompositeKeyEntity"
+    table: "composite_key_entities"
+    idField: ["part1_id", "part2_id"] # Composite primary key
+    columns:
+      - logical: "part1_id"
+        physical: "part1_id"
+        type: "integer"
+        primaryKey: true
+        nullable: false
+      - logical: "part2_id"
+        physical: "part2_id"
+        type: "string"
+        primaryKey: true
+        nullable: false
+      - logical: "name"
+        physical: "name"
+        type: "string"
+      - logical: "description"
+        physical: "description"
+        nullable: true
+        type: "string"
+      - logical: "created_at"
+        physical: "created_at"
+        type: "datetime"
+    api:
+      exposed: true
+      basePath: "/composite-entities"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+
   # User entity
   User:
     entity: "User"
@@ -187,6 +223,49 @@ entities:
     api:
       exposed: true
       basePath: "/users"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true
+    # Junction tables configuration
+    junctionTables:
+      - table: "user_groups"
+        sourceEntity: "User"
+        targetEntity: "Group"
+        sourceColumn: "user_id"
+        targetColumn: "group_id"
+        extraColumns:
+          - name: "joined_at"
+            type: "datetime"
+            nullable: false
+          - name: "role"
+            type: "string"
+            nullable: true
+            defaultValue: "member"
+
+  # Group entity (for user groups)
+  Group:
+    entity: "Group"
+    table: "groups"
+    idField: "group_id"
+    columns:
+      - logical: "group_id"
+        physical: "group_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "name"
+        physical: "name"
+        type: "string"
+      - logical: "description"
+        physical: "description"
+        nullable: true
+        type: "string"
+    api:
+      exposed: true
+      basePath: "/groups"
       operations:
         getAll: true
         getById: true
@@ -254,6 +333,14 @@ entities:
         junctionTable: "category_product"
         junctionSourceColumn: "product_id"
         junctionTargetColumn: "category_id"
+        implicitJunction: true # Mark as implicit junction
+        junctionExtraColumns:
+          - name: "position"
+            type: "integer"
+            nullable: true
+          - name: "added_at"
+            type: "datetime"
+            nullable: false
       - name: "userBookmarks"
         type: "oneToMany"
         sourceEntity: "Product"
@@ -333,6 +420,7 @@ entities:
         junctionTable: "category_product"
         junctionSourceColumn: "category_id"
         junctionTargetColumn: "product_id"
+        implicitJunction: true
     timestamps:
       createdAt: "created_at"
       updatedAt: "updated_at"
@@ -345,21 +433,6 @@ entities:
         create: true
         update: true
         delete: true
-
-  # ProductCategoryProduct entity (junction table)
-  ProductCategoryProduct:
-    entity: "ProductCategoryProduct"
-    table: "category_product"
-    idField: ""
-    columns:
-      - logical: "category_id"
-        physical: "category_id"
-        type: "integer"
-      - logical: "product_id"
-        physical: "product_id"
-        type: "integer"
-    api:
-      exposed: false
 
   # CreditPackage entity
   CreditPackage:
@@ -876,3 +949,39 @@ entities:
         create: true
         update: false
         delete: false
+
+  # Composite Foreign Key entity example
+  OrderItem:
+    entity: "OrderItem"
+    table: "order_items"
+    idField: "item_id"
+    columns:
+      - logical: "item_id"
+        physical: "item_id"
+        primaryKey: true
+        autoIncrement: true
+        type: "integer"
+      - logical: "order_id"
+        physical: "order_id"
+        type: "integer"
+        foreignKey:
+          table: "orders"
+          columns: ["order_id"]
+      - logical: "product_id"
+        physical: "product_id"
+        type: "integer"
+      - logical: "quantity"
+        physical: "quantity"
+        type: "integer"
+      - logical: "price"
+        physical: "price"
+        type: "number"
+    api:
+      exposed: true
+      basePath: "/order-items"
+      operations:
+        getAll: true
+        getById: true
+        create: true
+        update: true
+        delete: true

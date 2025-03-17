@@ -22,8 +22,15 @@ export const entityJsonSchema = {
 			description: 'Database table name'
 		},
 		idField: {
-			type: 'string',
-			description: 'Primary key field name'
+			oneOf: [
+				{ type: 'string' },
+				{
+					type: 'array',
+					items: { type: 'string' },
+					description: 'Composite primary key field names'
+				}
+			],
+			description: 'Primary key field name(s)'
 		},
 		schema: {
 			type: 'string',
@@ -84,8 +91,24 @@ export const entityJsonSchema = {
 						description: 'Column scale (for numeric types)'
 					},
 					foreignKey: {
-						type: 'string',
-						description: 'Foreign key reference'
+						oneOf: [
+							{
+								type: 'string',
+								description: 'Foreign key reference (table.column)'
+							},
+							{
+								type: 'object',
+								required: ['table', 'columns'],
+								properties: {
+									table: { type: 'string' },
+									columns: {
+										type: 'array',
+										items: { type: 'string' }
+									}
+								},
+								description: 'Composite foreign key reference'
+							}
+						]
 					},
 					api: {
 						type: 'object',
@@ -181,6 +204,56 @@ export const entityJsonSchema = {
 					}
 				]
 			}
+		},
+		junctionTables: {
+			type: 'array',
+			items: {
+				type: 'object',
+				required: ['table', 'sourceEntity', 'targetEntity', 'sourceColumn', 'targetColumn'],
+				properties: {
+					table: {
+						type: 'string',
+						description: 'Junction table name'
+					},
+					sourceEntity: {
+						type: 'string',
+						description: 'Source entity name'
+					},
+					targetEntity: {
+						type: 'string',
+						description: 'Target entity name'
+					},
+					sourceColumn: {
+						oneOf: [
+							{ type: 'string' },
+							{ type: 'array', items: { type: 'string' } }
+						],
+						description: 'Source column(s) in junction table'
+					},
+					targetColumn: {
+						oneOf: [
+							{ type: 'string' },
+							{ type: 'array', items: { type: 'string' } }
+						],
+						description: 'Target column(s) in junction table'
+					},
+					extraColumns: {
+						type: 'array',
+						items: {
+							type: 'object',
+							required: ['name', 'type'],
+							properties: {
+								name: { type: 'string' },
+								type: { type: 'string' },
+								nullable: { type: 'boolean' },
+								defaultValue: {}
+							}
+						},
+						description: 'Additional columns for the junction table'
+					}
+				}
+			},
+			description: 'Junction tables for many-to-many relationships'
 		},
 		timestamps: {
 			type: 'object',

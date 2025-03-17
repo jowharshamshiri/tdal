@@ -457,15 +457,6 @@ export interface DatabaseAdapter {
 	 */
 	executeScript(sql: string): Promise<void>;
 
-	/**
-	 * Find a record by ID
-	 */
-	findById<T>(
-		tableName: string,
-		idField: string,
-		id: number | string,
-		options?: FindOptions
-	): Promise<T | undefined>;
 
 	/**
 	 * Find all records in a table
@@ -480,6 +471,36 @@ export interface DatabaseAdapter {
 		conditions: Record<string, unknown>,
 		options?: QueryOptions
 	): Promise<T[]>;
+
+	/**
+ * Enhanced findById to support composite keys
+ */
+	findById<T>(
+		tableName: string,
+		idField: string | string[],
+		id: number | string | Record<string, unknown>,
+		options?: FindOptions
+	): Promise<T | undefined>;
+
+	/**
+	 * Enhanced update to support composite keys
+	 */
+	update<T>(
+		tableName: string,
+		idField: string | string[],
+		id: number | string | Record<string, unknown>,
+		data: Partial<T>,
+		options?: UpdateOptions
+	): Promise<number>;
+
+	/**
+	 * Enhanced delete to support composite keys
+	 */
+	delete(
+		tableName: string,
+		idField: string | string[],
+		id: number | string | Record<string, unknown>
+	): Promise<number>;
 
 	/**
 	 * Find a single record by conditions
@@ -509,17 +530,6 @@ export interface DatabaseAdapter {
 	bulkInsert<T>(tableName: string, data: Partial<T>[]): Promise<number>;
 
 	/**
-	 * Update a record by ID
-	 */
-	update<T>(
-		tableName: string,
-		idField: string,
-		id: number | string,
-		data: Partial<T>,
-		options?: UpdateOptions
-	): Promise<number>;
-
-	/**
 	 * Update records by conditions
 	 */
 	updateBy<T>(
@@ -527,15 +537,6 @@ export interface DatabaseAdapter {
 		conditions: Record<string, unknown>,
 		data: Partial<T>,
 		options?: UpdateOptions
-	): Promise<number>;
-
-	/**
-	 * Delete a record by ID
-	 */
-	delete(
-		tableName: string,
-		idField: string,
-		id: number | string
 	): Promise<number>;
 
 	/**

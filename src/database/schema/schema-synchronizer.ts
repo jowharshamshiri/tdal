@@ -4,7 +4,7 @@
  */
 
 import { EntityConfig } from '../../entity/entity-config';
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { DatabaseAdapter } from '../core/types';
 import { getSqlColumnType } from '../../entity/entity-schema';
 
@@ -41,11 +41,11 @@ export class SchemaSynchronizer {
 	constructor(private db: DatabaseAdapter, private logger: Logger) { }
 
 	/**
-	 * Synchronize database schema with entity definitions
-	 * @param entities Map of entity configurations
-	 * @param options Synchronization options
-	 * @returns Whether the synchronization was successful
-	 */
+ * Synchronize database schema with entity definitions
+ * @param entities Map of entity configurations
+ * @param options Synchronization options
+ * @returns Whether the synchronization was successful
+ */
 	async synchronize(
 		entities: Map<string, EntityConfig>,
 		options: SchemaSyncOptions = {}
@@ -59,6 +59,9 @@ export class SchemaSynchronizer {
 			for (const [entityName, config] of entities.entries()) {
 				await this.createTable(config, { dropIfExists: dropTables, dialect });
 			}
+
+			// Create junction tables for many-to-many relationships
+			await this.createJunctionTables(entities, { dropIfExists: dropTables, dialect });
 
 			// Create foreign keys if enabled
 			if (createForeignKeys) {
@@ -117,11 +120,11 @@ export class SchemaSynchronizer {
 	}
 
 	/**
-	 * Generate CREATE TABLE SQL statement
-	 * @param entity Entity configuration
-	 * @param dialect SQL dialect
-	 * @returns CREATE TABLE SQL statement
-	 */
+ * Generate CREATE TABLE SQL statement
+ * @param entity Entity configuration
+ * @param dialect SQL dialect
+ * @returns CREATE TABLE SQL statement
+ */
 	private generateCreateTableSQL(entity: EntityConfig, dialect: 'sqlite' | 'mysql' | 'postgres'): string {
 		const tableName = entity.table;
 		let sql = `CREATE TABLE ${tableName} (\n`;
@@ -133,7 +136,9 @@ export class SchemaSynchronizer {
 
 			// Add constraints
 			if (column.primaryKey) {
-				definition += ' PRIMARY KEY';
+				if (!Array.isArray(entity.idField) || entity.idField.length === 1) {
+					definition += ' PRIMARY KEY';
+				}
 			}
 			if (column.autoIncrement) {
 				definition += dialect === 'postgres' ? ' SERIAL' : ' AUTOINCREMENT';
@@ -158,9 +163,192 @@ export class SchemaSynchronizer {
 		});
 
 		sql += columnDefinitions.join(',\n');
+
+		// Add composite primary key if needed
+		if (Array.isArray(entity.idField) && entity.idField.length > 1) {
+			const pkColumns = entity.idField.map(fieldName => {
+				const column = entity.columns.find(col => col.logical === fieldName);
+				return column ? column.physical : fieldName;
+			});
+
+			sql += ',\n';
+			sql += `PRIMARY KEY (${pkColumns.join(', ')})`;
+		}
+
 		sql += '\n)';
 
 		return sql;
+	}
+
+	/**
+ * Create junction tables for many-to-many relationships
+ * @param entities Entity configurations
+ * @param options Table creation options
+ */
+	async createJunctionTables(
+		entities: Map<string, EntityConfig>,
+		options: { dropIfExists?: boolean; dialect?: 'sqlite' | 'mysql' | 'postgres' } = {}
+	): Promise<void> {
+		this.logger.info('Creating junction tables for many-to-many relationships');
+
+		for (const [entityName, config] of entities.entries()) {
+			// Check explicit junction table configurations
+			if (config.junctionTables && config.junctionTables.length > 0) {
+				for (const junction of config.junctionTables) {
+					await this.createJunctionTable(junction, options);
+				}
+			}
+
+			// Check for implicit junction tables in many-to-many relationships
+			if (config.relations) {
+				for (const relation of config.relations) {
+					if (relation.type === 'manyToMany' && relation.implicitJunction) {
+						// Create junction table configuration from relation
+						const junctionConfig = {
+							table: relation.junctionTable,
+							sourceEntity: relation.sourceEntity,
+							targetEntity: relation.targetEntity,
+							sourceColumn: relation.junctionSourceColumn,
+							targetColumn: relation.junctionTargetColumn,
+							extraColumns: relation.junctionExtraColumns
+						};
+
+						await this.createJunctionTable(junctionConfig, options);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Create a single junction table
+	 * @param junction Junction table configuration
+	 * @param options Table creation options
+	 */
+	private async createJunctionTable(
+		junction: any,
+		options: { dropIfExists?: boolean; dialect?: 'sqlite' | 'mysql' | 'postgres' } = {}
+	): Promise<void> {
+		const { dropIfExists = false, dialect = 'sqlite' } = options;
+		const tableName = junction.table;
+
+		try {
+			// Check if table exists
+			const tableExists = await this.tableExists(tableName);
+
+			// Drop table if requested and it exists
+			if (dropIfExists && tableExists) {
+				await this.dropTable(tableName);
+				this.logger.info(`Dropped junction table ${tableName}`);
+			}
+
+			// Skip creation if table already exists
+			if (tableExists && !dropIfExists) {
+				this.logger.debug(`Junction table ${tableName} already exists, skipping creation`);
+				return;
+			}
+
+			// Generate SQL for junction table
+			let sql = `CREATE TABLE ${tableName} (\n`;
+
+			// Add source columns
+			const sourceColumns = Array.isArray(junction.sourceColumn)
+				? junction.sourceColumn
+				: [junction.sourceColumn];
+
+			sourceColumns.forEach(column => {
+				sql += `  ${column} INTEGER NOT NULL,\n`;
+			});
+
+			// Add target columns
+			const targetColumns = Array.isArray(junction.targetColumn)
+				? junction.targetColumn
+				: [junction.targetColumn];
+
+			targetColumns.forEach(column => {
+				sql += `  ${column} INTEGER NOT NULL,\n`;
+			});
+
+			// Add extra columns if defined
+			if (junction.extraColumns) {
+				for (const col of junction.extraColumns) {
+					const columnType = this.getColumnType(col.type, dialect);
+					const nullableStr = col.nullable === false ? ' NOT NULL' : '';
+					let defaultStr = '';
+
+					if (col.defaultValue !== undefined) {
+						if (typeof col.defaultValue === 'string') {
+							defaultStr = ` DEFAULT '${col.defaultValue}'`;
+						} else if (col.defaultValue === null) {
+							defaultStr = ' DEFAULT NULL';
+						} else {
+							defaultStr = ` DEFAULT ${col.defaultValue}`;
+						}
+					}
+
+					sql += `  ${col.name} ${columnType}${nullableStr}${defaultStr},\n`;
+				}
+			}
+
+			// Add primary key constraint
+			const pkColumns = [...sourceColumns, ...targetColumns];
+			sql += `  PRIMARY KEY (${pkColumns.join(', ')})\n`;
+
+			sql += ')';
+
+			// Execute the SQL
+			await this.db.execute(sql);
+			this.logger.info(`Created junction table ${tableName}`);
+		} catch (error: any) {
+			this.logger.error(`Error creating junction table ${tableName}: ${error.message}`);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get SQL column type based on type name
+	 * Simple utility function for junction table creation
+	 */
+	private getColumnType(type: string, dialect: 'sqlite' | 'mysql' | 'postgres'): string {
+		type = type.toLowerCase();
+
+		switch (dialect) {
+			case 'sqlite':
+				if (type === 'string' || type === 'text') return 'TEXT';
+				if (type === 'integer' || type === 'int') return 'INTEGER';
+				if (type === 'number' || type === 'float' || type === 'decimal') return 'REAL';
+				if (type === 'boolean') return 'INTEGER';
+				if (type === 'date' || type === 'datetime') return 'TEXT';
+				if (type === 'json') return 'TEXT';
+				return 'TEXT';
+
+			case 'mysql':
+				if (type === 'string') return 'VARCHAR(255)';
+				if (type === 'text') return 'TEXT';
+				if (type === 'integer' || type === 'int') return 'INT';
+				if (type === 'number' || type === 'float') return 'FLOAT';
+				if (type === 'decimal') return 'DECIMAL(10,2)';
+				if (type === 'boolean') return 'TINYINT(1)';
+				if (type === 'date') return 'DATE';
+				if (type === 'datetime') return 'DATETIME';
+				if (type === 'json') return 'JSON';
+				return 'VARCHAR(255)';
+
+			case 'postgres':
+				if (type === 'string') return 'VARCHAR(255)';
+				if (type === 'text') return 'TEXT';
+				if (type === 'integer' || type === 'int') return 'INTEGER';
+				if (type === 'number' || type === 'float') return 'REAL';
+				if (type === 'decimal') return 'DECIMAL(10,2)';
+				if (type === 'boolean') return 'BOOLEAN';
+				if (type === 'date') return 'DATE';
+				if (type === 'datetime') return 'TIMESTAMP';
+				if (type === 'json') return 'JSONB';
+				return 'VARCHAR(255)';
+
+			default:
+				return 'TEXT';
+		}
 	}
 
 	/**

@@ -169,7 +169,6 @@ export function pascalCase(input: string): string {
 	return input
 		.replace(/(^\w|[_-]\w)/g, match => match.replace(/[_-]/, '').toUpperCase());
 }
-
 /**
  * Create a basic entity configuration scaffold
  * @param entityName Entity name in PascalCase
@@ -212,6 +211,34 @@ export function createEntityScaffold(
 				nullable: true
 			}
 		],
+		// Example of many-to-many relation with implicit junction
+		relations: [{
+			name: 'tags',
+			type: 'manyToMany',
+			sourceEntity: entityName,
+			targetEntity: 'Tag',
+			sourceColumn: 'id',
+			targetColumn: 'id',
+			junctionTable: `${tableName}_tags`,
+			junctionSourceColumn: `${tableName.replace(/s$/, '')}_id`,
+			junctionTargetColumn: 'tag_id',
+			implicitJunction: true
+		}],
+		// Example of junction table configuration
+		junctionTables: [{
+			table: `${tableName}_categories`,
+			sourceEntity: entityName,
+			targetEntity: 'Category',
+			sourceColumn: 'id',
+			targetColumn: 'id',
+			extraColumns: [
+				{
+					name: 'created_at',
+					type: 'datetime',
+					nullable: false
+				}
+			]
+		}],
 		api: {
 			exposed: true,
 			operations: {

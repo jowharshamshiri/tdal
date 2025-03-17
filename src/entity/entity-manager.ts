@@ -404,12 +404,12 @@ export class EntityDao<T, IdType = string | number> {
 	}
 
 	/**
-	 * Delete an entity
-	 * @param id The entity ID
-	 * @param context Optional hook context
-	 * @returns Number of affected rows
-	 */
-	async delete(id: IdType, context?: HookContext): Promise<number> {
+ * Delete an entity
+ * @param id The entity ID or object with composite key values
+ * @param context Optional hook context
+ * @returns Number of affected rows
+ */
+	async delete(id: IdType | Record<string, any>, context?: HookContext): Promise<number> {
 		const ctx = context || this.createDefaultContext();
 
 		try {
@@ -431,11 +431,32 @@ export class EntityDao<T, IdType = string | number> {
 				} as unknown as Partial<T>, ctx);
 			}
 
-			const result = await this.db.delete(
-				this.tableName,
-				this.physicalIdField,
-				id as unknown as number | string
-			);
+			let result: number;
+
+			if (Array.isArray(this.entityConfig.idField)) {
+				// Handle composite primary key
+				if (typeof id !== 'object') {
+					throw new Error(`Composite primary key requires an object with key-value pairs`);
+				}
+
+				// Build conditions object for composite key
+				const conditions: Record<string, unknown> = {};
+				for (const field of this.entityConfig.idField) {
+					if ((id as Record<string, unknown>)[field] === undefined) {
+						throw new Error(`Missing value for primary key field "${field}"`);
+					}
+					conditions[mapColumnToPhysical(this.entityConfig, field)] = (id as Record<string, unknown>)[field];
+				}
+
+				result = await this.db.deleteBy(this.tableName, conditions);
+			} else {
+				// Handle single primary key
+				result = await this.db.delete(
+					this.tableName,
+					this.physicalIdField,
+					id as unknown as number | string
+				);
+			}
 
 			// Execute after hooks
 			if (this.hookHandler) {
@@ -1171,31 +1192,52 @@ export class EntityDao<T, IdType = string | number> {
 	}
 
 	/**
-	 * Find related entities through a many-to-many relationship
-	 * @param id ID of the source entity
-	 * @param relation Many-to-many relationship
-	 * @param options Query options
-	 * @returns Array of related entities
-	 */
+ * Find related entities through a many-to-many relationship
+ * @param sourceId Source entity ID or composite key object
+ * @param relation Many-to-many relationship definition
+ * @param options Query options
+ * @returns Array of related entities
+ */
 	private async findManyToManyRelated<R>(
-		id: IdType,
+		sourceId: any,
 		relation: ManyToManyRelation,
 		options?: QueryOptions
 	): Promise<R[]> {
 		const targetTable = relation.targetEntity.toLowerCase();
 
+		// Build where conditions for junction table
+		const conditions: Record<string, unknown> = {};
+
+		// Handle composite keys
+		if (Array.isArray(relation.sourceColumn)) {
+			if (typeof sourceId !== 'object') {
+				throw new Error('Composite key requires an object with key-value pairs');
+			}
+
+			for (let i = 0; i < relation.sourceColumn.length; i++) {
+				const sourceCol = relation.sourceColumn[i];
+				const junctionSourceCol = Array.isArray(relation.junctionSourceColumn)
+					? relation.junctionSourceColumn[i]
+					: relation.junctionSourceColumn;
+
+				conditions[`j.${junctionSourceCol}`] = sourceId[sourceCol];
+			}
+		} else {
+			// Handle single column key
+			conditions[`j.${relation.junctionSourceColumn}`] = typeof sourceId === 'object'
+				? sourceId[relation.sourceColumn]
+				: sourceId;
+		}
+
+		// Build join options
 		const joins: JoinOptions[] = [
 			{
 				type: "INNER",
 				table: relation.junctionTable,
 				alias: "j",
-				on: `${targetTable}.${relation.targetColumn} = j.${relation.junctionTargetColumn}`,
+				on: this.buildJunctionJoinCondition(relation, targetTable)
 			},
 		];
-
-		const conditions = {
-			[`j.${relation.junctionSourceColumn}`]: id,
-		};
 
 		const results = await this.db.findWithJoin<Record<string, unknown>>(
 			targetTable,
@@ -1206,6 +1248,34 @@ export class EntityDao<T, IdType = string | number> {
 
 		// Return results as is - they should be properly mapped by the target entity's repository
 		return results as unknown as R[];
+	}
+
+	/**
+	 * Build join condition for many-to-many junction table
+	 * @param relation Many-to-many relationship definition
+	 * @param targetTable Target table name
+	 * @returns Join condition SQL
+	 */
+	private buildJunctionJoinCondition(relation: ManyToManyRelation, targetTable: string): string {
+		// Handle composite keys
+		if (Array.isArray(relation.targetColumn)) {
+			// Build composite key join condition
+			const conditions: string[] = [];
+
+			for (let i = 0; i < relation.targetColumn.length; i++) {
+				const targetCol = relation.targetColumn[i];
+				const junctionTargetCol = Array.isArray(relation.junctionTargetColumn)
+					? relation.junctionTargetColumn[i]
+					: relation.junctionTargetColumn;
+
+				conditions.push(`j.${junctionTargetCol} = ${targetTable}.${targetCol}`);
+			}
+
+			return conditions.join(' AND ');
+		} else {
+			// Simple single column join
+			return `j.${relation.junctionTargetColumn} = ${targetTable}.${relation.targetColumn}`;
+		}
 	}
 
 	/**
@@ -1715,13 +1785,13 @@ export class EntityDao<T, IdType = string | number> {
 	}
 	/**
  * Update an entity
- * @param id The entity ID
+ * @param id The entity ID or object with composite key values
  * @param data The data to update
  * @param context Optional hook context
  * @returns Number of affected rows
  */
 	async update(
-		id: IdType,
+		id: IdType | Record<string, any>,
 		data: Partial<T>,
 		context?: HookContext
 	): Promise<number> {
@@ -1741,12 +1811,37 @@ export class EntityDao<T, IdType = string | number> {
 				convertedData
 			);
 
-			const result = await this.db.update<Record<string, unknown>>(
-				this.tableName,
-				this.physicalIdField, // Use physicalIdField instead of assuming 'id'
-				id as unknown as number | string,
-				physicalData
-			);
+			let result: number;
+
+			if (Array.isArray(this.entityConfig.idField)) {
+				// Handle composite primary key
+				if (typeof id !== 'object') {
+					throw new Error(`Composite primary key requires an object with key-value pairs`);
+				}
+
+				// Build conditions object for composite key
+				const conditions: Record<string, unknown> = {};
+				for (const field of this.entityConfig.idField) {
+					if ((id as Record<string, unknown>)[field] === undefined) {
+						throw new Error(`Missing value for primary key field "${field}"`);
+					}
+					conditions[mapColumnToPhysical(this.entityConfig, field)] = (id as Record<string, unknown>)[field];
+				}
+
+				result = await this.db.updateBy<Record<string, unknown>>(
+					this.tableName,
+					conditions,
+					physicalData
+				);
+			} else {
+				// Handle single primary key
+				result = await this.db.update<Record<string, unknown>>(
+					this.tableName,
+					this.physicalIdField,
+					id as unknown as number | string,
+					physicalData
+				);
+			}
 
 			// Execute after hooks
 			await this.executeHooks('afterUpdate', processedData, ctx);
@@ -1758,6 +1853,231 @@ export class EntityDao<T, IdType = string | number> {
 			}
 			throw error;
 		}
+	}
+
+	/**
+ * Manage a many-to-many relationship with implicit junction table
+ * @param sourceId Source entity ID or object with composite key values
+ * @param relationName Name of the many-to-many relationship
+ * @param targetIds Target entity IDs to add or remove
+ * @param operation 'add', 'remove', or 'set'
+ * @returns Number of affected records
+ */
+	async manageManyToMany(
+		sourceId: IdType | Record<string, any>,
+		relationName: string,
+		targetIds: (IdType | Record<string, any>)[],
+		operation: 'add' | 'remove' | 'set' = 'add'
+	): Promise<number> {
+		if (!this.entityConfig.relations) {
+			throw new Error(
+				`No relationships defined for entity ${this.entityConfig.entity}`
+			);
+		}
+
+		const relation = this.entityConfig.relations.find(r => r.name === relationName);
+		if (!relation) {
+			throw new Error(
+				`Relationship ${relationName} not found on entity ${this.entityConfig.entity}`
+			);
+		}
+
+		if (relation.type !== 'manyToMany') {
+			throw new Error(
+				`Relationship ${relationName} is not a many-to-many relationship`
+			);
+		}
+
+		try {
+			const junctionTable = relation.junctionTable;
+
+			// Handle operation types
+			if (operation === 'set') {
+				// For 'set', clear existing relations first
+				await this.clearManyToManyRelations(sourceId, relation);
+
+				// Then add new relations
+				return this.addManyToManyRelations(sourceId, relation, targetIds);
+			} else if (operation === 'add') {
+				return this.addManyToManyRelations(sourceId, relation, targetIds);
+			} else if (operation === 'remove') {
+				return this.removeManyToManyRelations(sourceId, relation, targetIds);
+			}
+
+			return 0;
+		} catch (error: any) {
+			if (this.logger) {
+				this.logger.error(`Error managing many-to-many relationship: ${error.message}`);
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Clear all many-to-many relations for a source entity
+	 * @param sourceId Source entity ID or object with composite key values
+	 * @param relation Many-to-many relation
+	 * @returns Number of affected records
+	 */
+	private async clearManyToManyRelations(
+		sourceId: IdType | Record<string, any>,
+		relation: any
+	): Promise<number> {
+		const conditions: Record<string, unknown> = {};
+
+		// Handle source ID which can be composite
+		if (Array.isArray(relation.sourceColumn)) {
+			if (typeof sourceId !== 'object') {
+				throw new Error('Composite key requires an object with key-value pairs');
+			}
+
+			relation.sourceColumn.forEach((col: string, index: number) => {
+				const sourceField = Array.isArray(relation.junctionSourceColumn)
+					? relation.junctionSourceColumn[index]
+					: relation.junctionSourceColumn;
+
+				conditions[sourceField] = (sourceId as Record<string, unknown>)[col];
+			});
+		} else {
+			const sourceField = relation.junctionSourceColumn;
+			conditions[sourceField] = typeof sourceId === 'object'
+				? (sourceId as Record<string, unknown>)[relation.sourceColumn]
+				: sourceId;
+		}
+
+		return this.db.deleteBy(relation.junctionTable, conditions);
+	}
+
+	/**
+	 * Add many-to-many relations
+	 * @param sourceId Source entity ID or object with composite key values
+	 * @param relation Many-to-many relation
+	 * @param targetIds Target entity IDs to add
+	 * @returns Number of affected records
+	 */
+	private async addManyToManyRelations(
+		sourceId: IdType | Record<string, any>,
+		relation: any,
+		targetIds: (IdType | Record<string, any>)[]
+	): Promise<number> {
+		if (targetIds.length === 0) return 0;
+
+		// Create records to insert
+		const records: Record<string, unknown>[] = [];
+
+		for (const targetId of targetIds) {
+			const record: Record<string, unknown> = {};
+
+			// Handle source ID which can be composite
+			if (Array.isArray(relation.sourceColumn)) {
+				if (typeof sourceId !== 'object') {
+					throw new Error('Composite key requires an object with key-value pairs');
+				}
+
+				relation.sourceColumn.forEach((col: string, index: number) => {
+					const sourceField = Array.isArray(relation.junctionSourceColumn)
+						? relation.junctionSourceColumn[index]
+						: relation.junctionSourceColumn;
+
+					record[sourceField] = (sourceId as Record<string, unknown>)[col];
+				});
+			} else {
+				const sourceField = relation.junctionSourceColumn;
+				record[sourceField] = typeof sourceId === 'object'
+					? (sourceId as Record<string, unknown>)[relation.sourceColumn]
+					: sourceId;
+			}
+
+			// Handle target ID which can be composite
+			if (Array.isArray(relation.targetColumn)) {
+				if (typeof targetId !== 'object') {
+					throw new Error('Composite key requires an object with key-value pairs');
+				}
+
+				relation.targetColumn.forEach((col: string, index: number) => {
+					const targetField = Array.isArray(relation.junctionTargetColumn)
+						? relation.junctionTargetColumn[index]
+						: relation.junctionTargetColumn;
+
+					record[targetField] = (targetId as Record<string, unknown>)[col];
+				});
+			} else {
+				const targetField = relation.junctionTargetColumn;
+				record[targetField] = typeof targetId === 'object'
+					? (targetId as Record<string, unknown>)[relation.targetColumn]
+					: targetId;
+			}
+
+			records.push(record);
+		}
+
+		return this.db.bulkInsert(relation.junctionTable, records);
+	}
+
+	/**
+	 * Remove many-to-many relations
+	 * @param sourceId Source entity ID or object with composite key values
+	 * @param relation Many-to-many relation
+	 * @param targetIds Target entity IDs to remove
+	 * @returns Number of affected records
+	 */
+	private async removeManyToManyRelations(
+		sourceId: IdType | Record<string, any>,
+		relation: any,
+		targetIds: (IdType | Record<string, any>)[]
+	): Promise<number> {
+		if (targetIds.length === 0) return 0;
+
+		let affectedRows = 0;
+
+		for (const targetId of targetIds) {
+			const conditions: Record<string, unknown> = {};
+
+			// Handle source ID which can be composite
+			if (Array.isArray(relation.sourceColumn)) {
+				if (typeof sourceId !== 'object') {
+					throw new Error('Composite key requires an object with key-value pairs');
+				}
+
+				relation.sourceColumn.forEach((col: string, index: number) => {
+					const sourceField = Array.isArray(relation.junctionSourceColumn)
+						? relation.junctionSourceColumn[index]
+						: relation.junctionSourceColumn;
+
+					conditions[sourceField] = (sourceId as Record<string, unknown>)[col];
+				});
+			} else {
+				const sourceField = relation.junctionSourceColumn;
+				conditions[sourceField] = typeof sourceId === 'object'
+					? (sourceId as Record<string, unknown>)[relation.sourceColumn]
+					: sourceId;
+			}
+
+			// Handle target ID which can be composite
+			if (Array.isArray(relation.targetColumn)) {
+				if (typeof targetId !== 'object') {
+					throw new Error('Composite key requires an object with key-value pairs');
+				}
+
+				relation.targetColumn.forEach((col: string, index: number) => {
+					const targetField = Array.isArray(relation.junctionTargetColumn)
+						? relation.junctionTargetColumn[index]
+						: relation.junctionTargetColumn;
+
+					conditions[targetField] = (targetId as Record<string, unknown>)[col];
+				});
+			} else {
+				const targetField = relation.junctionTargetColumn;
+				conditions[targetField] = typeof targetId === 'object'
+					? (targetId as Record<string, unknown>)[relation.targetColumn]
+					: targetId;
+			}
+
+			const result = await this.db.deleteBy(relation.junctionTable, conditions);
+			affectedRows += result;
+		}
+
+		return affectedRows;
 	}
 
 	/**
@@ -1787,13 +2107,17 @@ export class EntityDao<T, IdType = string | number> {
 	}
 
 	/**
-	 * Find entity by ID
-	 * @param id The entity ID
-	 * @param options Optional find options
-	 * @param context Optional hook context
-	 * @returns The entity or undefined if not found
-	 */
-	async findById(id: IdType, options?: FindOptions, context?: HookContext): Promise<T | undefined> {
+ * Find entity by ID
+ * @param id The entity ID or object with composite key values
+ * @param options Optional find options
+ * @param context Optional hook context
+ * @returns The entity or undefined if not found
+ */
+	async findById(
+		id: IdType | Record<string, any>,
+		options?: FindOptions,
+		context?: HookContext
+	): Promise<T | undefined> {
 		const ctx = context || this.createDefaultContext();
 
 		// Execute before hooks
@@ -1802,12 +2126,37 @@ export class EntityDao<T, IdType = string | number> {
 		const findOptions = this.enhanceFindOptions(options);
 
 		try {
-			const result = await this.db.findById<Record<string, unknown>>(
-				this.tableName,
-				this.physicalIdField,
-				processedId as unknown as number | string,
-				findOptions
-			);
+			let result: Record<string, unknown> | undefined;
+
+			if (Array.isArray(this.entityConfig.idField)) {
+				// Handle composite primary key
+				if (typeof processedId !== 'object') {
+					throw new Error(`Composite primary key requires an object with key-value pairs`);
+				}
+
+				// Build conditions object for composite key
+				const conditions: Record<string, unknown> = {};
+				for (const field of this.entityConfig.idField) {
+					if (processedId[field] === undefined) {
+						throw new Error(`Missing value for primary key field "${field}"`);
+					}
+					conditions[mapColumnToPhysical(this.entityConfig, field)] = processedId[field];
+				}
+
+				result = await this.db.findOneBy<Record<string, unknown>>(
+					this.tableName,
+					conditions,
+					findOptions
+				);
+			} else {
+				// Handle single primary key
+				result = await this.db.findById<Record<string, unknown>>(
+					this.tableName,
+					this.physicalIdField,
+					processedId as unknown as number | string,
+					findOptions
+				);
+			}
 
 			if (!result) {
 				return undefined;

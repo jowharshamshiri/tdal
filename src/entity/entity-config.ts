@@ -77,9 +77,13 @@ export interface ColumnMapping {
 	index?: boolean | string;
 
 	/**
-	 * Foreign key reference (table.column)
+	 * Foreign key reference
+	 * Can be a string (table.column) or an object for composite foreign keys
 	 */
-	foreignKey?: string;
+	foreignKey?: string | {
+		table: string;
+		columns: string[];
+	};
 
 	/**
 	 * Whether this column is a timestamp managed by the ORM
@@ -532,7 +536,45 @@ export interface EntityRouteConfig {
 		custom?: Record<string, string>;
 	};
 }
+/**
+ * Junction table configuration for many-to-many relationships
+ */
+export interface JunctionTableConfig {
+	/**
+	 * Junction table name
+	 */
+	table: string;
 
+	/**
+	 * Source entity name
+	 */
+	sourceEntity: string;
+
+	/**
+	 * Target entity name
+	 */
+	targetEntity: string;
+
+	/**
+	 * Source column(s) in junction table
+	 */
+	sourceColumn: string | string[];
+
+	/**
+	 * Target column(s) in junction table
+	 */
+	targetColumn: string | string[];
+
+	/**
+	 * Additional columns for the junction table
+	 */
+	extraColumns?: {
+		name: string;
+		type: string;
+		nullable?: boolean;
+		defaultValue?: any;
+	}[];
+}
 /**
  * Entity mapping interface
  * Maps an entity to its database representation
@@ -549,9 +591,10 @@ export interface EntityConfig {
 	table: string;
 
 	/**
-	 * Primary key field name (logical)
+	 * Primary key field name(s) (logical)
+	 * Can be a string for single primary key or string[] for composite primary key
 	 */
-	idField: string;
+	idField: string | string[];
 
 	/**
 	 * Optional schema name
@@ -567,6 +610,12 @@ export interface EntityConfig {
 	 * Entity relationships
 	 */
 	relations?: Relation[];
+
+	/**
+	 * Junction tables configuration 
+	 * For implicit many-to-many relationships
+	 */
+	junctionTables?: JunctionTableConfig[];
 
 	/**
 	 * Table indexes
@@ -728,11 +777,22 @@ export function findColumnMapping(
  * @returns Primary key column mapping
  * @throws Error if no primary key column is found
  */
-export function getPrimaryKeyMapping(mapping: EntityConfig): ColumnMapping {
-	const pkColumn = mapping.columns.find((col) => col.primaryKey);
+/**
+ * Get the primary key column mapping(s)
+ * @param mapping Entity mapping
+ * @returns Primary key column mapping or array of mappings for composite keys
+ * @throws Error if no primary key column is found
+ */
+export function getPrimaryKeyMapping(mapping: EntityConfig): ColumnMapping | ColumnMapping[] {
+	// Check for columns explicitly marked as primary key
+	const pkColumns = mapping.columns.filter((col) => col.primaryKey);
 
-	if (!pkColumn) {
-		// Default to idField if no column is explicitly marked as primary key
+	if (pkColumns.length > 0) {
+		return pkColumns.length === 1 ? pkColumns[0] : pkColumns;
+	}
+
+	// If no columns are explicitly marked, use idField
+	if (typeof mapping.idField === 'string') {
 		const idColumn = mapping.columns.find(
 			(col) => col.logical === mapping.idField
 		);
@@ -744,9 +804,30 @@ export function getPrimaryKeyMapping(mapping: EntityConfig): ColumnMapping {
 		}
 
 		return idColumn;
+	} else if (Array.isArray(mapping.idField)) {
+		// For composite primary keys
+		const idColumns = mapping.idField.map(field => {
+			const col = mapping.columns.find(c => c.logical === field);
+			if (!col) {
+				throw new Error(
+					`Primary key column ${field} not found for entity ${mapping.entity}`
+				);
+			}
+			return col;
+		});
+
+		if (idColumns.length === 0) {
+			throw new Error(
+				`No primary key columns found for entity ${mapping.entity}`
+			);
+		}
+
+		return idColumns;
 	}
 
-	return pkColumn;
+	throw new Error(
+		`No primary key columns found for entity ${mapping.entity}`
+	);
 }
 
 /**
