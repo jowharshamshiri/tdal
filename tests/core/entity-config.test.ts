@@ -109,8 +109,8 @@ describe("EntityConfig", () => {
 		const pkColumn = getPrimaryKeyMapping(testEntityConfig);
 
 		expect(pkColumn).toBeDefined();
-		expect(pkColumn.logical).toBe("id");
-		expect(pkColumn.primaryKey).toBe(true);
+		expect((pkColumn as ColumnMapping).logical).toBe("id");
+		expect((pkColumn as ColumnMapping).primaryKey).toBe(true);
 	});
 
 	test("should throw error if no primary key column", () => {

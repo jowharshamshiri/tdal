@@ -84,6 +84,10 @@ describe("ComputedProperties", () => {
 		};
 	});
 
+	afterEach(() => {
+		jest.clearAllMocks();
+	});
+
 	test("should load computed property implementations", async () => {
 		const implementations = await loadComputedPropertyImplementations(
 			testEntityConfig,

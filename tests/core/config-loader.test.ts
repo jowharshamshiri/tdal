@@ -10,23 +10,14 @@ describe("ConfigLoader", () => {
 	let tempDir: string;
 	let mockLogger: any;
 
-	beforeAll(() => {
+	beforeEach(() => {
 		// Create a temporary directory for test configs
 		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdal-config-test-'));
 
 		// Create necessary directories
 		fs.mkdirSync(path.join(tempDir, 'entities'), { recursive: true });
 		fs.mkdirSync(path.join(tempDir, 'config'), { recursive: true });
-	});
 
-	afterAll(() => {
-		// Clean up temporary directory
-		if (fs.existsSync(tempDir)) {
-			fs.rmSync(tempDir, { recursive: true, force: true });
-		}
-	});
-
-	beforeEach(() => {
 		// Create a mock logger for each test
 		mockLogger = {
 			debug: jest.fn(),
@@ -41,6 +32,13 @@ describe("ConfigLoader", () => {
 			entitiesDir: path.join(tempDir, 'entities'),
 			logger: mockLogger
 		});
+	});
+
+	afterEach(() => {
+		// Clean up temporary directory
+		if (fs.existsSync(tempDir)) {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
 	});
 
 	test("should load application configuration", async () => {
@@ -60,7 +58,8 @@ port: ${appConfig.port}
 host: ${appConfig.host}`
 		);
 
-		const loadedConfig = await configLoader.loadAppConfig();
+		const result = await configLoader.loadAppConfig(path.join(tempDir, 'config', 'app.yaml'));
+		const loadedConfig = result.config;
 
 		expect(loadedConfig).toBeDefined();
 		expect(loadedConfig.name).toBe(appConfig.name);
@@ -99,7 +98,7 @@ columns:
 			entityConfig
 		);
 
-		const entities = await configLoader.loadEntities();
+		const entities = await configLoader.loadEntities(path.join(tempDir, 'entities'));
 
 		expect(entities.size).toBe(1);
 		expect(entities.has('User')).toBe(true);
@@ -158,7 +157,7 @@ relations:
 			postConfig
 		);
 
-		const entities = await configLoader.loadEntities();
+		const entities = await configLoader.loadEntities(path.join(tempDir, 'entities'));
 
 		expect(entities.size).toBe(2);
 		expect(entities.has('User')).toBe(true);
@@ -186,7 +185,7 @@ columns: []
 			invalidConfig
 		);
 
-		await expect(configLoader.loadEntities()).rejects.toThrow();
+		await expect(configLoader.loadEntities(path.join(tempDir, 'entities'))).rejects.toThrow();
 		expect(mockLogger.error).toHaveBeenCalled();
 	});
 
@@ -244,7 +243,7 @@ relations:
 			postConfig
 		);
 
-		const entities = await configLoader.loadEntities();
+		const entities = await configLoader.loadEntities(path.join(tempDir, 'entities'));
 
 		// No validation errors should be thrown
 		expect(entities.size).toBe(2);
@@ -306,7 +305,7 @@ relations:
 			postConfig
 		);
 
-		await configLoader.loadEntities();
+		await configLoader.loadEntities(path.join(tempDir, 'entities'));
 
 		// Should warn about inverse relation issues
 		expect(mockLogger.warn).toHaveBeenCalledWith(
@@ -342,8 +341,8 @@ module.exports = function(entity) {
 			]
 		};
 
-		// @ts-ignore - add entity directly to private map
-		configLoader.entities.set('User', userEntity);
+		// Add entity directly to private map
+		(configLoader as any).entities.set('User', userEntity);
 
 		const entity = configLoader.getEntity('User');
 

@@ -6,6 +6,9 @@ import { EntityDao } from "../../src/entity/entity-manager";
 import { DatabaseContext } from "../../src/database/core/database-context";
 import { ActionRegistry } from "../../src/actions/action-registry";
 import { RouteRegistry } from "../../src/api/route-registry";
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
 // Mock the database context
 jest.mock('../../src/database/core/database-context', () => ({
@@ -63,8 +66,12 @@ describe("AppContext", () => {
 	let mockDb: any;
 	let mockRouter: any;
 	let mockEntities: Map<string, EntityConfig>;
+	let tempDir: string;
 
 	beforeEach(() => {
+		// Create a temp directory for each test
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'app-context-test-'));
+
 		// Set up mocks
 		mockLogger = {
 			debug: jest.fn(),
@@ -110,6 +117,16 @@ describe("AppContext", () => {
 
 		// Create app context
 		appContext = new AppContext(mockConfig, mockLogger);
+	});
+
+	afterEach(() => {
+		// Clean up the temp directory
+		if (tempDir && fs.existsSync(tempDir)) {
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		}
+
+		// Reset mocks
+		jest.clearAllMocks();
 	});
 
 	test("should initialize with config and logger", () => {
@@ -182,8 +199,8 @@ describe("AppContext", () => {
 			use: jest.fn()
 		};
 
-		// @ts-ignore - Set the app directly
-		appContext.app = mockApp;
+		// Set the app directly
+		(appContext as any).app = mockApp;
 
 		// Mock entity configs with API exposed
 		const entities = new Map<string, EntityConfig>();
@@ -205,11 +222,11 @@ describe("AppContext", () => {
 		});
 
 		// Mock EntityRegistry.getAllEntityConfigs to return our mock entities
-		const mockEntityRegistry = require('../src/entity/EntityRegistry').getEntityRegistry();
+		const mockEntityRegistry = require('../../src/entity/EntityRegistry').getEntityRegistry();
 		mockEntityRegistry.getAllEntityConfigs.mockReturnValue(entities);
 
 		// Mock ApiGenerator.generateEntityApi
-		const mockApiGenerator = require('../src/api/api-generator').ApiGenerator.mock.instances[0];
+		const mockApiGenerator = require('../../src/api/api-generator').ApiGenerator.mock.instances[0];
 		mockApiGenerator.generateEntityApi.mockResolvedValue({});
 
 		const routes = await appContext.initializeApiRoutes('/api');
