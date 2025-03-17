@@ -218,7 +218,7 @@ export class TestDataFactory {
 	 * @param options Generation options
 	 * @returns Array of generated data
 	 */
-	async generate(entityName: string, options: TestDataOptions = {}): Promise<any[]> {
+	public async generate(entityName: string, options: TestDataOptions = {}): Promise<any[]> {
 		const count = options.count || 10;
 		const context = this.framework.getContext();
 		const entityConfig = context.getEntityConfig(entityName);
@@ -239,7 +239,28 @@ export class TestDataFactory {
 				this.generatedIds.get(entityName)?.push(Number(id));
 
 				// Add ID to the data and collect
-				results.push({ ...data, [entityConfig.idField]: id });
+				if (Array.isArray(entityConfig.idField)) {
+					// For composite keys, we need to handle each part
+					const resultItem = { ...data };
+
+					// For composite keys, the original ID fields may already be set in the data
+					// We'll only update the parts that match the returned ID if needed
+					if (typeof id === 'object') {
+						// If the ID is returned as an object with the key parts
+						for (const field in id) {
+							resultItem[field] = id[field];
+						}
+					} else {
+						// If single ID is returned even for composite keys (simplified case)
+						// Assume first field is the main ID
+						resultItem[entityConfig.idField[0]] = id;
+					}
+
+					results.push(resultItem);
+				} else {
+					// For simple keys, add the ID using the entity's ID field name
+					results.push({ ...data, [entityConfig.idField]: id });
+				}
 			} catch (error) {
 				console.error(`Error creating test data for ${entityName}:`, error);
 			}
@@ -423,11 +444,36 @@ export class TestDataFactory {
 					item[relation.sourceColumn] = randomTargetId;
 
 					try {
-						await context.getEntityManager(entityName).update(
-							item[entityIdField], // Use the entity's ID field
-							{ [relation.sourceColumn]: randomTargetId }
-						);
-					} catch (error) {
+						// Get the correct ID value based on the entity's ID field configuration
+						let idValue;
+
+						// Handle composite primary keys
+						if (Array.isArray(entityIdField)) {
+							// For composite keys, create an object with all key parts
+							const idObj: Record<string, unknown> = {};
+							for (const field of entityIdField) {
+								if (item[field] === undefined) {
+									this.logger?.warn(`Entity ${entityName} missing composite key part: ${field}`);
+									continue;
+								}
+								idObj[field] = item[field];
+							}
+							idValue = idObj;
+						} else {
+							// For simple keys, use the value directly
+							idValue = item[entityIdField];
+						}
+
+						// Only update if we have a valid ID value
+						if (idValue !== undefined) {
+							await context.getEntityManager(entityName).update(
+								idValue,
+								{ [relation.sourceColumn]: randomTargetId }
+							);
+						} else {
+							this.logger?.warn(`Missing ID value for entity ${entityName}`);
+						}
+					} catch (error: any) {
 						console.error(`Error updating ${entityName} relationship:`, error);
 					}
 				}
@@ -442,6 +488,33 @@ export class TestDataFactory {
 					const junctionTableManager = context.getEntityManager(relation.junctionTable);
 
 					for (const item of entityData) {
+						// Get the correct ID value
+						let sourceIdValue;
+
+						if (Array.isArray(entityIdField)) {
+							// For composite keys, validate and map
+							const idObj: Record<string, unknown> = {};
+							let isValidId = true;
+
+							for (const field of entityIdField) {
+								if (item[field] === undefined) {
+									isValidId = false;
+									break;
+								}
+								idObj[field] = item[field];
+							}
+
+							if (isValidId) {
+								sourceIdValue = idObj;
+							}
+						} else {
+							sourceIdValue = item[entityIdField];
+						}
+
+						if (!sourceIdValue) {
+							continue; // Skip if no valid ID
+						}
+
 						// Link to 1-3 random targets
 						const numTargets = Math.floor(Math.random() * 3) + 1;
 						const usedTargets = new Set<number>();
@@ -458,10 +531,11 @@ export class TestDataFactory {
 
 							try {
 								await junctionTableManager.create({
-									[relation.junctionSourceColumn]: item[entityIdField], // Use the entity's ID field
+									[relation.junctionSourceColumn]: sourceIdValue instanceof Object ?
+										sourceIdValue[entityIdField] : sourceIdValue,
 									[relation.junctionTargetColumn]: randomTargetId
 								});
-							} catch (error) {
+							} catch (error: any) {
 								console.error(`Error creating junction table entry:`, error);
 							}
 						}
@@ -489,11 +563,36 @@ export class TestDataFactory {
 						usedTargetIds.add(randomTargetId);
 
 						try {
-							await context.getEntityManager(entityName).update(
-								item[entityIdField], // Use the entity's ID field
-								{ [relation.sourceColumn]: randomTargetId }
-							);
-						} catch (error) {
+							// Get the correct ID value
+							let idValue;
+
+							if (Array.isArray(entityIdField)) {
+								// For composite keys
+								const idObj: Record<string, unknown> = {};
+								let hasAllKeys = true;
+
+								for (const field of entityIdField) {
+									if (item[field] === undefined) {
+										hasAllKeys = false;
+										break;
+									}
+									idObj[field] = item[field];
+								}
+
+								if (hasAllKeys) {
+									idValue = idObj;
+								}
+							} else {
+								idValue = item[entityIdField];
+							}
+
+							if (idValue !== undefined) {
+								await context.getEntityManager(entityName).update(
+									idValue,
+									{ [relation.sourceColumn]: randomTargetId }
+								);
+							}
+						} catch (error: any) {
 							console.error(`Error updating one-to-one relationship:`, error);
 						}
 					}
