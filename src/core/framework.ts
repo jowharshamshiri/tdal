@@ -164,6 +164,15 @@ export class Framework {
 			// Load application configuration
 			this.config = await this.configLoader.loadAppConfig(configPath);
 
+			// Recreate logger with loaded configuration
+			if (this.config.logging) {
+				this.logger = new DefaultLogger(this.config.logging);
+
+				// Just update the logger in the existing ConfigLoader
+				// This assumes the ConfigLoader class allows direct access to its logger property
+				(this.configLoader as any).logger = this.logger;
+			}
+
 			this.logger.info(`Loaded configuration for ${this.config.name} v${this.config.version}`);
 
 			// Load entity configurations
