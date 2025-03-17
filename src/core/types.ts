@@ -375,7 +375,7 @@ export interface LoggingConfig {
 
 	/**
 	 * Directory to store log files
-	 * @default process.cwd()/trash/logs
+	 * @default process.cwd()/logs
 	 */
 	logsDir?: string;
 

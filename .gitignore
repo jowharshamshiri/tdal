@@ -5,3 +5,4 @@ dist/
 build/
 trash/
 src/generated/
+logs/

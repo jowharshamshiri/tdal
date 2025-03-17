@@ -176,7 +176,7 @@ export class DefaultLogger implements Logger {
 
 	private init(logsDirPath?: string): string {
 		// Ensure logs directory exists
-		const logsDir = logsDirPath ? logsDirPath : path.join(process.cwd(), 'trash', 'logs');
+		const logsDir = logsDirPath ? logsDirPath : path.join(process.cwd(), 'logs');
 		if (!fs.existsSync(logsDir)) {
 			fs.mkdirSync(logsDir, { recursive: true });
 		}
