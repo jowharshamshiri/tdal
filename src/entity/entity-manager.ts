@@ -1754,7 +1754,7 @@ export class EntityDao<T, IdType = string | number> {
 			return result;
 		} catch (error: any) {
 			if (this.logger) {
-				this.logger.error(`Error updating entity: ${error}`);
+				this.logger.error(new Error(`Error updating entity: ${error.message}`, { cause: error }));
 			}
 			throw error;
 		}

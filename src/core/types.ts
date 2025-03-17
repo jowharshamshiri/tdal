@@ -342,7 +342,6 @@ export interface CorsConfig {
 	 */
 	maxAge?: number;
 }
-
 /**
  * Logging configuration
  */
@@ -350,7 +349,7 @@ export interface LoggingConfig {
 	/**
 	 * Log level
 	 */
-	level?: 'debug' | 'info' | 'warn' | 'error';
+	level?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 	/**
 	 * Whether to pretty print logs
@@ -358,25 +357,109 @@ export interface LoggingConfig {
 	pretty?: boolean;
 
 	/**
-	 * Log file path
+	 * Custom log formatters
 	 */
-	file?: string;
+	formatters?: Record<string, (data: any) => string>;
 
 	/**
 	 * Whether to log to console
+	 * @default true
 	 */
 	console?: boolean;
 
 	/**
-	 * Custom log formatters
+	 * Whether to log to file
+	 * @default true
 	 */
-	formatters?: Record<string, (data: any) => string>;
+	logToFile?: boolean;
+
+	/**
+	 * Directory to store log files
+	 * @default process.cwd()/trash/logs
+	 */
+	logsDir?: string;
+
+	/**
+	 * Whether to use daily consolidated log files (true) or create new file per session (false)
+	 * @default true
+	 */
+	useDailyLogs?: boolean;
+
+	/**
+	 * Whether to log stack traces for errors
+	 * @default true
+	 */
+	logStackTraces?: boolean;
+
+	/**
+	 * Maximum size of log file in bytes before rotation
+	 * @default 10485760 (10MB)
+	 */
+	maxFileSize?: number;
+
+	/**
+	 * Maximum number of log files to retain
+	 * @default 10
+	 */
+	maxFiles?: number;
+
+	/**
+	 * Custom log file name pattern
+	 * Available placeholders: %DATE%, %LEVEL%, %PID%
+	 * @default "app-%DATE%.log"
+	 */
+	fileNamePattern?: string;
+
+	/**
+	 * Format for log timestamps
+	 * @default "YYYY-MM-DD HH:mm:ss.SSS"
+	 */
+	timestampFormat?: string;
+
+	/**
+	 * Whether to use colors in console output
+	 * @default true
+	 */
+	useColors?: boolean;
+
+	/**
+	 * Custom color map for different log levels
+	 */
+	colors?: Record<string, string>;
+
+	/**
+	 * Custom metadata to include with every log entry
+	 */
+	metadata?: Record<string, any>;
+
+	/**
+	 * Whether to include process ID in logs
+	 * @default false
+	 */
+	includePid?: boolean;
+
+	/**
+	 * Whether to serialize complex objects in logs
+	 * @default true
+	 */
+	serializeObjects?: boolean;
+
+	/**
+	 * Maximum depth for object serialization
+	 * @default 2
+	 */
+	maxObjectDepth?: number;
 }
 
 /**
  * Logger interface
  */
 export interface Logger {
+	/**
+	 * Log trace message (most detailed level)
+	 */
+	trace(message: string, ...args: any[]): void;
+
 	/**
 	 * Log debug message
 	 */
@@ -393,9 +476,19 @@ export interface Logger {
 	warn(message: string, ...args: any[]): void;
 
 	/**
-	 * Log error message
+	 * Log error message or object
 	 */
-	error(message: string, ...args: any[]): void;
+	error(messageOrError: string | Error, ...args: any[]): void;
+
+	/**
+	 * Set logger level dynamically
+	 */
+	setLevel(level: 'trace' | 'debug' | 'info' | 'warn' | 'error'): void;
+
+	/**
+	 * Add custom metadata to logger
+	 */
+	addMetadata(metadata: Record<string, any>): void;
 }
 
 /**

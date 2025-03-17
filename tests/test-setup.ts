@@ -6,6 +6,8 @@ import * as fs from "fs";
 import { faker } from '@faker-js/faker';
 import { EntityConfig } from '../src/entity/entity-config';
 import { Relation } from '../src/database';
+// Import EntityGenerator at the top of the file
+import { EntityGenerator, createEntityGenerator } from "../src/generator/entity-generator";
 
 /**
  * Test framework instance
@@ -16,6 +18,7 @@ let testFramework: Framework | null = null;
  * Test data factory instance
  */
 let testDataFactory: TestDataFactory | null = null;
+
 
 /**
  * Initialize the test environment
@@ -58,7 +61,22 @@ export async function setupTestEnvironment(configPath: string = './tests/test-ap
 		// and synchronize the database schema
 		await testFramework.initialize(absoluteConfigPath);
 
-		testFramework.getContext().getLogger().info('Test environment successfully initialized');
+		// Get the application context
+		const context = testFramework.getContext();
+
+		// Initialize entity generator to generate all required repositories
+		const entityGenerator = createEntityGenerator(context, {
+			entityDirectory: path.dirname(absoluteConfigPath),
+			logger: context.getLogger()
+		});
+
+		// Create repository instances for all entities
+		const repositories = await entityGenerator.createRepositoryInstances();
+
+		// Store repositories for later use (optional)
+		(testFramework as any).repositories = repositories;
+
+		context.getLogger().info('Test environment successfully initialized with entity repositories');
 		return testFramework;
 	} catch (error) {
 		console.error('Failed to initialize test environment:', error);
@@ -370,13 +388,13 @@ export class TestDataFactory {
 	}
 
 	/**
-	 * Set up a specific relationship
-	 * @param entityName Source entity name
-	 * @param relation Relationship definition
-	 * @param entityData Source entity data
-	 * @param allData All generated data
-	 * @param options Generation options
-	 */
+ * Set up a specific relationship
+ * @param entityName Source entity name
+ * @param relation Relationship definition
+ * @param entityData Source entity data
+ * @param allData All generated data
+ * @param options Generation options
+ */
 	private async setupRelation(
 		entityName: string,
 		relation: Relation,
@@ -385,6 +403,10 @@ export class TestDataFactory {
 		options: TestDataOptions
 	): Promise<void> {
 		const context = this.framework.getContext();
+		const entityConfig = context.getEntityConfig(entityName);
+		const targetConfig = context.getEntityConfig(relation.targetEntity);
+		const entityIdField = entityConfig.idField; // Use the actual ID field from entity config
+		const targetIdField = targetConfig.idField; // Use the actual ID field from target config
 		const targetIds = this.generatedIds.get(relation.targetEntity) || [];
 
 		if (targetIds.length === 0) return;
@@ -402,7 +424,7 @@ export class TestDataFactory {
 
 					try {
 						await context.getEntityManager(entityName).update(
-							item[context.getEntityConfig(entityName).idField],
+							item[entityIdField], // Use the entity's ID field
 							{ [relation.sourceColumn]: randomTargetId }
 						);
 					} catch (error) {
@@ -436,7 +458,7 @@ export class TestDataFactory {
 
 							try {
 								await junctionTableManager.create({
-									[relation.junctionSourceColumn]: item[context.getEntityConfig(entityName).idField],
+									[relation.junctionSourceColumn]: item[entityIdField], // Use the entity's ID field
 									[relation.junctionTargetColumn]: randomTargetId
 								});
 							} catch (error) {
@@ -468,7 +490,7 @@ export class TestDataFactory {
 
 						try {
 							await context.getEntityManager(entityName).update(
-								item[context.getEntityConfig(entityName).idField],
+								item[entityIdField], // Use the entity's ID field
 								{ [relation.sourceColumn]: randomTargetId }
 							);
 						} catch (error) {
