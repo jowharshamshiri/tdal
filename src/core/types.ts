@@ -381,7 +381,7 @@ export interface LoggingConfig {
 
 	/**
 	 * Whether to use daily consolidated log files (true) or create new file per session (false)
-	 * @default true
+	 * @default false
 	 */
 	useDailyLogs?: boolean;
 

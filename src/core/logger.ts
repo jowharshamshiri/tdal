@@ -6,7 +6,7 @@ export class DefaultLogger implements Logger {
 	private console: boolean = true;
 	private logToFile: boolean = true;
 	private logFilePath?: string;
-	private useDailyLogs: boolean = true;
+	private useDailyLogs: boolean = false;
 	private level: 'trace' | 'debug' | 'info' | 'warn' | 'error' = 'info';
 	private pretty: boolean = false;
 	private formatters: Record<string, (data: any) => string> = {};
@@ -33,7 +33,7 @@ export class DefaultLogger implements Logger {
 	constructor(options: LoggingConfig = {}) {
 		this.console = options.console !== undefined ? options.console : true;
 		this.logToFile = options.logToFile !== undefined ? options.logToFile : true;
-		this.useDailyLogs = options.useDailyLogs !== undefined ? options.useDailyLogs : true;
+		this.useDailyLogs = options.useDailyLogs !== undefined ? options.useDailyLogs : false;
 		this.level = options.level || 'info';
 		this.pretty = options.pretty || false;
 		this.formatters = options.formatters || {};
