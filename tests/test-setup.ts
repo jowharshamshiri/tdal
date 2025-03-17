@@ -654,7 +654,32 @@ export async function generateTestData(options: TestDataOptions = {}): Promise<M
  * Clean up test data between tests
  */
 export async function cleanupTestData(): Promise<void> {
-	if (testDataFactory) {
-		await testDataFactory.clear();
+	try {
+		// Get the framework and database
+		const framework = getTestFramework();
+		const db = framework.getContext().getDatabase();
+
+		// Get all entity configurations to find all tables
+		const entityConfigs = framework.getContext().getAllEntityConfigs();
+
+		// Delete data from all tables in reverse order (to respect foreign keys)
+		const tableNames = Array.from(entityConfigs.values())
+			.map(config => config.table)
+			.reverse();
+
+		for (const tableName of tableNames) {
+			try {
+				await db.execute(`DELETE FROM ${tableName}`);
+			} catch (error) {
+				console.error(`Error cleaning up table ${tableName}:`, error);
+			}
+		}
+
+		// Call the original factory cleanup as well (if it exists)
+		if (testDataFactory) {
+			await testDataFactory.clear();
+		}
+	} catch (error) {
+		console.error("Error during test data cleanup:", error);
 	}
 }
