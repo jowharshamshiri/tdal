@@ -157,6 +157,10 @@ export class Framework {
 			this.config = config;
 			this.logger = loggingService.createLogger();
 
+			if (!this.logger) {
+				throw new Error('Failed to create logger');
+			}
+
 			this.logger?.info(`Initializing framework, loaded configuration for ${this.config.name} v${this.config.version}`);
 
 			// Load entity configurations
