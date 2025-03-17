@@ -9,9 +9,12 @@ import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import Ajv, { Ajv as AjvType } from 'ajv';
 import { Options } from 'ajv';
-import { Logger, AppConfig } from './types';
+import { AppConfig } from './types';
 import { EntityConfig } from '../entity/entity-config';
 import { entityJsonSchema } from '../entity/entity-schema';
+
+import { LoggingService } from '../logging/log-service';
+import { Logger } from '../logging';
 
 /**
  * Configuration loader options
@@ -71,7 +74,7 @@ export class ConfigLoader {
 	/**
 	 * Logger instance
 	 */
-	private logger: Logger;
+	private logger?: Logger;
 
 	/**
 	 * Constructor
@@ -85,13 +88,6 @@ export class ConfigLoader {
 			...options
 		};
 
-		this.logger = this.options.logger || {
-			debug: console.debug,
-			info: console.info,
-			warn: console.warn,
-			error: console.error
-		};
-
 		this.validator = new Ajv({
 			allErrors: true
 			// Remove the 'strict' property that doesn't exist in newer Ajv versions
@@ -99,8 +95,6 @@ export class ConfigLoader {
 
 		// Register entity schema
 		this.validator.addSchema(entityJsonSchema, 'entity');
-
-		this.logger.debug('Configuration loader created');
 	}
 
 	/**
@@ -108,11 +102,11 @@ export class ConfigLoader {
 	 * @param configPath Path to application configuration file
 	 * @returns Application configuration
 	 */
-	async loadAppConfig(configPath?: string): Promise<AppConfig> {
+	async loadAppConfig(configPath?: string): Promise<{ config: AppConfig; loggingService: LoggingService }> {
 		const appConfigPath = configPath || path.join(this.options.configDir!, 'app.yaml');
 
 		try {
-			this.logger.info(`Loading application configuration from ${appConfigPath}`);
+			this.logger?.info(`Loading application configuration from ${appConfigPath}`);
 
 			// Check if file exists
 			if (!fs.existsSync(appConfigPath)) {
@@ -134,20 +128,114 @@ export class ConfigLoader {
 			config.entitiesDir = config.entitiesDir || this.options.entitiesDir;
 
 			this.appConfig = config;
-			this.logger.info('Application configuration loaded successfully');
+			this.logger?.info('Application configuration loaded successfully');
+
+			// Initialize logging service
+			const loggingService = LoggingService.getInstance();
+
+			if (config.logging) {
+				// Create streams from configuration
+				if (config.logging.streams) {
+					for (const [id, streamConfig] of Object.entries(config.logging.streams)) {
+						loggingService.createStream({
+							id,
+							destination: streamConfig.destination,
+							level: streamConfig.level || config.logging.level || 'info',
+							filePath: streamConfig.filePath,
+							fileOptions: {
+								maxFileSize: streamConfig.maxFileSize,
+								maxFiles: streamConfig.maxFiles,
+								dailyLogs: streamConfig.dailyLogs,
+								fileNamePattern: streamConfig.fileNamePattern,
+							},
+							formatOptions: streamConfig.formatOptions
+						});
+					}
+				}
+
+				// Handle legacy configuration format
+				if (!config.logging.streams || Object.keys(config.logging.streams).length === 0) {
+					// Create default console stream if console logging is enabled
+					if (config.logging.console !== false) {
+						loggingService.createStream({
+							id: 'console',
+							destination: 'console',
+							level: config.logging.level || 'info',
+							formatOptions: {
+								timestampFormat: config.logging.timestampFormat,
+								useColors: config.logging.useColors !== false,
+								includePid: config.logging.includePid || false,
+								pretty: config.logging.pretty || false
+							}
+						});
+					}
+
+					// Create file stream if file logging is enabled
+					if (config.logging.logToFile) {
+						const logsDir = config.logging.logsDir || path.join(process.cwd(), 'logs');
+						// Ensure logs directory exists
+						if (!fs.existsSync(logsDir)) {
+							fs.mkdirSync(logsDir, { recursive: true });
+						}
+
+						const fileName = config.logging.fileNamePattern || 'app.log';
+						const filePath = path.join(logsDir, fileName);
+
+						loggingService.createStream({
+							id: 'file',
+							destination: 'file',
+							level: config.logging.level || 'info',
+							filePath: filePath,
+							fileOptions: {
+								maxFileSize: config.logging.maxFileSize,
+								maxFiles: config.logging.maxFiles,
+								dailyLogs: config.logging.dailyLogs,
+								fileNamePattern: config.logging.fileNamePattern
+							},
+							formatOptions: {
+								timestampFormat: config.logging.timestampFormat,
+								useColors: false,
+								includePid: config.logging.includePid || false,
+								pretty: config.logging.pretty || false
+							}
+						});
+					}
+				}
+
+				// Set default stream
+				if (config.logging.defaultStream) {
+					if (loggingService.getStream(config.logging.defaultStream)) {
+						loggingService.setDefaultStreamId(config.logging.defaultStream);
+					}
+				} else if (loggingService.getStream('file')) {
+					loggingService.setDefaultStreamId('file');
+				} else if (loggingService.getStream('console')) {
+					loggingService.setDefaultStreamId('console');
+				}
+			} else {
+				// Create default console logger if no logging config
+				loggingService.createConsoleLogger('default');
+			}
+
+			// Get logger for further processing
+			const configuredLogger = loggingService.createLogger();
+			configuredLogger.info('Logging service initialized with configuration settings');
+
+			// Update this.logger
+			this.logger = configuredLogger;
 
 			// Load inline entity definitions if present
 			if ((config as any).entities) {
 				try {
 					await this.loadInlineEntities((config as any).entities);
 				} catch (error: any) {
-					this.logger.error(`Failed to load inline entity configurations: ${error}`);
+					this.logger?.error(`Failed to load inline entity configurations: ${error}`);
 				}
 			}
 
-			return config;
+			return { config, loggingService };
 		} catch (error: any) {
-			this.logger.error(`Failed to load application configuration: ${error}`);
+			this.logger?.error(`Failed to load application configuration: ${error}`);
 			throw new Error(`Failed to load application configuration: ${error}`);
 		}
 	}
@@ -158,11 +246,11 @@ export class ConfigLoader {
 	 * @returns Map of entity name to entity configuration
 	 */
 	async loadInlineEntities(inlineEntities: Record<string, any>): Promise<Map<string, EntityConfig>> {
-		this.logger.info('Loading inline entity configurations');
+		this.logger?.info('Loading inline entity configurations');
 
 		try {
 			const entries = Object.entries(inlineEntities);
-			this.logger.info(`Found ${entries.length} inline entity configurations`);
+			this.logger?.info(`Found ${entries.length} inline entity configurations`);
 
 			for (const [name, config] of entries) {
 				try {
@@ -187,15 +275,15 @@ export class ConfigLoader {
 
 					// Add to entities map
 					this.entities.set(name, config as EntityConfig);
-					this.logger.debug(`Loaded inline entity configuration for ${name}`);
+					this.logger?.debug(`Loaded inline entity configuration for ${name}`);
 				} catch (error: any) {
-					this.logger.error(`Failed to load inline entity ${name}: ${error}`);
+					this.logger?.error(`Failed to load inline entity ${name}: ${error}`);
 				}
 			}
 
 			return this.entities;
 		} catch (error: any) {
-			this.logger.error(`Failed to load inline entity configurations: ${error}`);
+			this.logger?.error(`Failed to load inline entity configurations: ${error}`);
 			throw error;
 		}
 	}
@@ -213,7 +301,7 @@ export class ConfigLoader {
 		}
 
 		try {
-			this.logger.info(`Loading entity configurations from ${dirPath}`);
+			this.logger?.info(`Loading entity configurations from ${dirPath}`);
 
 			// Check if directory exists
 			if (!fs.existsSync(dirPath)) {
@@ -224,12 +312,12 @@ export class ConfigLoader {
 			const entityFiles = await glob('**/*.{yaml,yml}', { cwd: dirPath });
 
 			if (entityFiles.length === 0) {
-				this.logger.warn(`No entity configuration files found in ${dirPath}`);
+				this.logger?.warn(`No entity configuration files found in ${dirPath}`);
 				// Return the existing entities map which may contain inline entities
 				return this.entities;
 			}
 
-			this.logger.info(`Found ${entityFiles.length} entity configuration files`);
+			this.logger?.info(`Found ${entityFiles.length} entity configuration files`);
 
 			// Load each entity file
 			for (const file of entityFiles) {
@@ -240,11 +328,11 @@ export class ConfigLoader {
 			// Process entity relationships
 			this.resolveEntityRelationships();
 
-			this.logger.info(`Loaded ${this.entities.size} entity configurations in total`);
+			this.logger?.info(`Loaded ${this.entities.size} entity configurations in total`);
 
 			return this.entities;
 		} catch (error: any) {
-			this.logger.error(`Failed to load entity configurations: ${error}`);
+			this.logger?.error(`Failed to load entity configurations: ${error}`);
 			throw new Error(`Failed to load entity configurations: ${error}`);
 		}
 	}
@@ -255,7 +343,7 @@ export class ConfigLoader {
 	 */
 	async loadEntityFile(filePath: string): Promise<void> {
 		try {
-			this.logger.debug(`Loading entity from ${filePath}`);
+			this.logger?.debug(`Loading entity from ${filePath}`);
 
 			// Read and parse YAML
 			const content = fs.readFileSync(filePath, 'utf8');
@@ -285,9 +373,9 @@ export class ConfigLoader {
 
 			// Add to entities map
 			this.entities.set(config.entity, config);
-			this.logger.debug(`Loaded entity configuration for ${config.entity}`);
+			this.logger?.debug(`Loaded entity configuration for ${config.entity}`);
 		} catch (error: any) {
-			this.logger.error(`Failed to load entity file ${filePath}: ${error}`);
+			this.logger?.error(`Failed to load entity file ${filePath}: ${error}`);
 			throw new Error(`Failed to load entity file ${filePath}: ${error}`);
 		}
 	}
@@ -297,7 +385,7 @@ export class ConfigLoader {
 	 * Validates that referenced entities exist
 	 */
 	private resolveEntityRelationships(): void {
-		this.logger.debug('Resolving entity relationships');
+		this.logger?.debug('Resolving entity relationships');
 
 		for (const [entityName, config] of this.entities.entries()) {
 			// Skip if no relations
@@ -308,7 +396,7 @@ export class ConfigLoader {
 			for (const relation of config.relations) {
 				// Check if target entity exists
 				if (!this.entities.has(relation.targetEntity)) {
-					this.logger.warn(`Entity ${entityName} references non-existent entity ${relation.targetEntity} in relation ${relation.name}`);
+					this.logger?.warn(`Entity ${entityName} references non-existent entity ${relation.targetEntity} in relation ${relation.name}`);
 				}
 
 				// Check for bidirectional relationships
@@ -317,11 +405,11 @@ export class ConfigLoader {
 					if (targetEntity && targetEntity.relations) {
 						const inverseRelation = targetEntity.relations.find(r => r.name === relation.inverseName);
 						if (!inverseRelation) {
-							this.logger.warn(`Inverse relation ${relation.inverseName} not found in entity ${relation.targetEntity}`);
+							this.logger?.warn(`Inverse relation ${relation.inverseName} not found in entity ${relation.targetEntity}`);
 						} else {
 							// Verify inverse relation points back to source entity
 							if (inverseRelation.targetEntity !== entityName) {
-								this.logger.warn(`Inverse relation ${relation.inverseName} in entity ${relation.targetEntity} does not point back to ${entityName}`);
+								this.logger?.warn(`Inverse relation ${relation.inverseName} in entity ${relation.targetEntity} does not point back to ${entityName}`);
 							}
 						}
 					}
@@ -339,7 +427,7 @@ export class ConfigLoader {
 		const validate = this.validator.getSchema(type);
 
 		if (!validate) {
-			this.logger.warn(`No schema found for ${type}, skipping validation`);
+			this.logger?.warn(`No schema found for ${type}, skipping validation`);
 			return;
 		}
 
@@ -366,7 +454,7 @@ export class ConfigLoader {
 				? filePath
 				: path.join(process.cwd(), filePath);
 
-			this.logger.debug(`Loading external code from ${resolvedPath}`);
+			this.logger?.debug(`Loading external code from ${resolvedPath}`);
 
 			// Check if file exists
 			if (!fs.existsSync(resolvedPath)) {
@@ -384,7 +472,7 @@ export class ConfigLoader {
 				return module.default || module;
 			}
 		} catch (error: any) {
-			this.logger.error(`Failed to load external code from ${filePath}: ${error}`);
+			this.logger?.error(`Failed to load external code from ${filePath}: ${error}`);
 			throw new Error(`Failed to load external code from ${filePath}: ${error}`);
 		}
 	}

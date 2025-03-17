@@ -11,13 +11,13 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { AppContext } from './app-context';
 import { ConfigLoader } from './config-loader';
-import { Logger, AppConfig } from './types';
+import { AppConfig } from './types';
 import { RequestProcessor } from '../middleware/request-processor';
 import { ActionRegistry } from '../actions/action-registry';
 import { AuthenticationService } from '../middleware/authentication';
 import { createAdapterRegistry } from '../adapters';
 import fs from 'fs';
-import { DefaultLogger } from './logger';
+import { Logger } from '../logging';
 /**
  * Framework options
  */
@@ -102,7 +102,7 @@ export class Framework {
 	/**
 	 * Logger instance
 	 */
-	private logger: Logger;
+	private logger?: Logger;
 
 	/**
 	 * Request processor for handling API requests
@@ -129,10 +129,6 @@ export class Framework {
 	 * @param options Framework options
 	 */
 	constructor(options: FrameworkOptions = {}) {
-		// Set up logger
-		// Set up logger that logs to both console and file
-		this.logger = options.logger || new DefaultLogger();
-
 		// Create Express app if not provided
 		this.app = options.app || express();
 
@@ -145,11 +141,8 @@ export class Framework {
 		this.configLoader = new ConfigLoader({
 			configDir: path.dirname(options.configPath || ''),
 			entitiesDir: options.entitiesDir,
-			schemaDir: options.schemaDir,
-			logger: this.logger
+			schemaDir: options.schemaDir
 		});
-
-		this.logger.info('Framework instance created');
 	}
 
 	/**
@@ -159,27 +152,18 @@ export class Framework {
 	 */
 	async initialize(configPath?: string): Promise<Framework> {
 		try {
-			this.logger.info('Initializing framework');
-
 			// Load application configuration
-			this.config = await this.configLoader.loadAppConfig(configPath);
+			const { config, loggingService } = await this.configLoader.loadAppConfig(configPath);
+			this.config = config;
+			this.logger = loggingService.createLogger();
 
-			// Recreate logger with loaded configuration
-			if (this.config.logging) {
-				this.logger = new DefaultLogger(this.config.logging);
-
-				// Just update the logger in the existing ConfigLoader
-				// This assumes the ConfigLoader class allows direct access to its logger property
-				(this.configLoader as any).logger = this.logger;
-			}
-
-			this.logger.info(`Loaded configuration for ${this.config.name} v${this.config.version}`);
+			this.logger?.info(`Initializing framework, loaded configuration for ${this.config.name} v${this.config.version}`);
 
 			// Load entity configurations
 			const entitiesDir = this.config.entitiesDir || path.join(process.cwd(), 'entities');
 			const entities = await this.configLoader.loadEntities(entitiesDir);
 
-			this.logger.info(`Loaded ${entities.size} entities`);
+			this.logger?.info(`Loaded ${entities.size} entities`);
 
 			// Create and initialize application context
 			this.context = new AppContext(this.config, this.logger, this.app);
@@ -239,19 +223,19 @@ export class Framework {
 						try {
 							const adapter = this.adapterRegistry.getAdapter(name, adapterConfig.options);
 							await adapter.initialize(adapterConfig.options);
-							this.logger.info(`Initialized adapter: ${name}`);
+							this.logger?.info(`Initialized adapter: ${name}`);
 						} catch (error: any) {
-							this.logger.error(`Failed to initialize adapter ${name}: ${error.message}`);
+							this.logger?.error(`Failed to initialize adapter ${name}: ${error.message}`);
 						}
 					}
 				}
 			}
 
-			this.logger.info('Framework initialized successfully');
+			this.logger?.info('Framework initialized successfully');
 
 			return this;
 		} catch (error: any) {
-			this.logger.error(`Framework initialization failed: ${error}`);
+			this.logger?.error(`Framework initialization failed: ${error}`);
 			throw new Error(`Framework initialization failed: ${error}`);
 		}
 	}
@@ -342,7 +326,7 @@ export class Framework {
 			return;
 		}
 
-		this.logger.debug('Setting up Express middleware');
+		this.logger?.debug('Setting up Express middleware');
 
 		// Basic middleware
 		this.app.use(cors());
@@ -357,7 +341,7 @@ export class Framework {
 
 		// Request logging
 		this.app.use((req: Request, res: Response, next: NextFunction) => {
-			this.logger.debug(`${req.method} ${req.path}`);
+			this.logger?.debug(`${req.method} ${req.path}`);
 			next();
 		});
 
@@ -387,12 +371,12 @@ export class Framework {
 						// Apply middleware
 						if (typeof handler === 'function') {
 							this.app.use(handler(middlewareConfig.options || {}, this.context!));
-							this.logger.debug(`Applied global middleware: ${middlewareName}`);
+							this.logger?.debug(`Applied global middleware: ${middlewareName}`);
 						} else {
-							this.logger.warn(`Invalid middleware handler for ${middlewareName}`);
+							this.logger?.warn(`Invalid middleware handler for ${middlewareName}`);
 						}
 					} catch (error: any) {
-						this.logger.error(`Error applying middleware ${middlewareName}: ${error}`);
+						this.logger?.error(`Error applying middleware ${middlewareName}: ${error}`);
 					}
 				}
 			}
@@ -408,7 +392,7 @@ export class Framework {
 			return;
 		}
 
-		this.logger.debug('Setting up routes');
+		this.logger?.debug('Setting up routes');
 
 		// Add API base path
 		const apiBasePath = this.config?.apiBasePath || this.apiBasePath;
@@ -428,23 +412,23 @@ export class Framework {
 				// Initialize API routes
 				const registeredRoutes = await this.context.initializeApiRoutes(apiBasePath);
 
-				this.logger.info(`Generated ${registeredRoutes.length} API routes`);
+				this.logger?.info(`Generated ${registeredRoutes.length} API routes`);
 
 				// Log all registered routes in debug mode
-				if (this.logger.debug && registeredRoutes.length > 0) {
-					this.logger.debug('Registered API routes:');
+				if (this.logger?.debug && registeredRoutes.length > 0) {
+					this.logger?.debug('Registered API routes:');
 					for (const route of registeredRoutes) {
-						this.logger.debug(`  ${route}`);
+						this.logger?.debug(`  ${route}`);
 					}
 				}
 			} catch (error: any) {
-				this.logger.error(`Failed to generate API routes: ${error}`);
+				this.logger?.error(`Failed to generate API routes: ${error}`);
 			}
 		}
 
 		// Add generic error handler
 		this.app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-			this.logger.error(`API Error: ${err.message || err}`);
+			this.logger?.error(`API Error: ${err.message || err}`);
 			res.status(err.status || 500).json({
 				error: err.name || 'InternalServerError',
 				message: err.message || 'An unexpected error occurred',
@@ -474,18 +458,18 @@ export class Framework {
 		return new Promise((resolve, reject) => {
 			try {
 				this.server = this.app.listen(serverPort, serverHost, () => {
-					this.logger.info(`Server started at http://${serverHost}:${serverPort}`);
+					this.logger?.info(`Server started at http://${serverHost}:${serverPort}`);
 
 					// If API routes were generated, log the API base URL
 					if (this.autoGenerateApi) {
 						const apiBasePath = this.config?.apiBasePath || this.apiBasePath;
-						this.logger.info(`API available at http://${serverHost}:${serverPort}${apiBasePath}`);
+						this.logger?.info(`API available at http://${serverHost}:${serverPort}${apiBasePath}`);
 					}
 
 					resolve(this.server);
 				});
 			} catch (error: any) {
-				this.logger.error(`Failed to start server: ${error}`);
+				this.logger?.error(`Failed to start server: ${error}`);
 				reject(error);
 			}
 		});
@@ -495,14 +479,14 @@ export class Framework {
 	 * Stop the server
 	 */
 	async stop(): Promise<void> {
-		this.logger.info('Stopping server');
+		this.logger?.info('Stopping server');
 
 		// Close HTTP server
 		if (this.server) {
 			await new Promise<void>((resolve, reject) => {
 				this.server.close((err?: Error) => {
 					if (err) {
-						this.logger.error(`Error closing server: ${err}`);
+						this.logger?.error(`Error closing server: ${err}`);
 						reject(err);
 					} else {
 						resolve();
@@ -516,7 +500,7 @@ export class Framework {
 			await this.context.shutdown();
 		}
 
-		this.logger.info('Server stopped');
+		this.logger?.info('Server stopped');
 	}
 
 	/**

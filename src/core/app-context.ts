@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import express, { Express, Router } from 'express';
-import { AppConfig, Logger, ServiceDefinition, MiddlewareConfig } from './types';
+import { AppConfig, ServiceDefinition, MiddlewareConfig } from './types';
 import { EntityConfig } from '../entity/entity-config';
 import { EntityDao } from '../entity/entity-manager';
 import { ActionRegistry } from '../actions/action-registry';
@@ -15,6 +15,7 @@ import { ApiGenerator } from '../api/api-generator';
 import { DatabaseAdapter, DatabaseContext } from '../database';
 import { HookExecutor, HookImplementation } from '../hooks/hooks-executor';
 import { EntityRegistry, getEntityRegistry } from '../entity/EntityRegistry';
+import { Logger } from '../logging';
 
 /**
  * Application Context class
