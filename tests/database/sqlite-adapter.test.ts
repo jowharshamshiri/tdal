@@ -46,7 +46,7 @@ describe("SQLiteAdapter", () => {
 		const adapter = new SQLiteAdapter({
 			type: "sqlite",
 			connection: {
-				filename: path.join(process.cwd(), "data", "test.db"),
+				filename: path.join(process.cwd(), "trash", "data", "test.db"),
 			},
 		}, true); // Use test mode
 

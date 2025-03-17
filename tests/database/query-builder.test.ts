@@ -490,11 +490,15 @@ describe("SQLiteQueryBuilder", () => {
 		const db = context.getDatabase();
 		const userManager = context.getEntityManager('User');
 
-		// Create exactly 3 admin users directly
+		// Explicitly delete all admin users first to ensure a clean slate
+		await db.deleteBy("users", { role: "admin" });
+
+		// Create exactly 3 admin users directly with unique emails
+		const timestamp = Date.now();
 		for (let i = 0; i < 3; i++) {
 			await userManager.create({
 				name: `Admin Count Test ${i}`,
-				email: `admin-count-${i}@example.com`,
+				email: `admin-count-${timestamp}-${i}@example.com`,
 				role: "admin",
 				password: "admin123"
 			});
