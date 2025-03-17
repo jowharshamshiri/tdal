@@ -6,8 +6,6 @@ import {
 	generateTestData,
 	cleanupTestData
 } from '../../test-setup';
-import { EntityManager } from "../../../src/entity/entity-manager";
-import { QueryBuilder } from "../../../src/database/query/query-builder";
 
 // Define interface for User entity based on test-app.yaml
 interface User {
@@ -31,24 +29,23 @@ interface UserResourceAccess {
 	created_at?: string;
 }
 
-describe("User Entity Operations", () => {
-	let userManager: EntityManager<User>;
-	let resourceAccessManager: EntityManager<UserResourceAccess>;
-	let framework: any;
-	let queryBuilder: QueryBuilder;
+// Helper function to generate a unique name with timestamp and random suffix
+function uniqueName(prefix: string = ''): string {
+	const timestamp = Date.now();
+	const random = Math.floor(Math.random() * 10000);
+	return `${prefix}-${timestamp}-${random}`;
+}
 
+// Helper function to generate a unique email
+function uniqueEmail(prefix: string = ''): string {
+	const name = uniqueName(prefix);
+	return `${name}@example.com`;
+}
+
+describe("User Entity Operations", () => {
 	beforeAll(async () => {
 		// Initialize test framework with test-app.yaml configuration
 		await setupTestEnvironment('./tests/test-app.yaml');
-		framework = getTestFramework();
-
-		// Get entity managers from the framework context
-		const context = framework.getContext();
-		userManager = context.getEntityManager<User>('User');
-		resourceAccessManager = context.getEntityManager<UserResourceAccess>('UserResourceAccess');
-
-		// Get query builder for advanced queries
-		queryBuilder = context.getDatabase().createQueryBuilder();
 	});
 
 	afterAll(async () => {
@@ -58,24 +55,37 @@ describe("User Entity Operations", () => {
 	beforeEach(async () => {
 		// Clean up any previous test data
 		await cleanupTestData();
+	});
+
+	afterEach(async () => {
+		// Clean up any test data created during the test
+		await cleanupTestData();
+	});
+
+	test("should find user by email", async () => {
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('owner');
 
 		// Generate test data with fixed values for predictable test results
 		await generateTestData({
-			count: 3,  // Generate a reasonable number of records
-			withRelations: true,
+			count: 1,
+			withRelations: false,
 			fixedValues: {
 				User: {
 					name: 'Pet Store Owner',
-					email: 'owner@dogfoodstore.com',
+					email: uniqueUserEmail,
 					role: 'admin'
 				}
 			}
 		});
-	});
 
-	test("should find user by email", async () => {
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+
 		// Use the entity manager to find by condition
-		const users = await userManager.find({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueUserEmail });
 		const user = users[0];
 
 		expect(user).toBeDefined();
@@ -84,17 +94,44 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should return undefined for non-existent email", async () => {
+		// Use a very unlikely email address
+		const nonExistentEmail = uniqueEmail('nonexistent-user');
+
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+
 		// Use the entity manager to find by condition
-		const users = await userManager.find({ email: "nonexistent@example.com" });
+		const users = await userManager.findBy({ email: nonExistentEmail });
 
 		expect(users).toHaveLength(0);
 	});
 
 	test("should update last login timestamp", async () => {
 		const before = new Date();
+		const uniqueUserEmail = uniqueEmail('login-test');
+
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Login Test User',
+					email: uniqueUserEmail,
+					role: 'user'
+				}
+			}
+		});
+
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
 
 		// Find the test user first
-		const users = await userManager.find({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueUserEmail });
 		const user = users[0];
 
 		// Update the last_login field
@@ -115,24 +152,41 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should find users with credit balance using query builder", async () => {
-		// Create a user credit record first to ensure we have data to test with
-		const users = await userManager.find({});
-		const user = users.find(u => u.name === 'Pet Store Owner');
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('credit-user');
 
-		// Get the UserCredit entity manager
-		const creditManager = framework.getContext().getEntityManager('UserCredit');
-
-		// Add credit to the user
-		await creditManager.create({
-			user_id: user?.user_id,
-			amount: 100,
-			source: 'test',
-			purchase_date: new Date().toISOString(),
-			expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Credit Test User',
+					email: uniqueUserEmail,
+					role: 'user'
+				}
+			}
 		});
 
+		// Get the framework and entity managers
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+		const db = context.getDatabase();
+
+		// Find the user we just created
+		const users = await userManager.findBy({ email: uniqueUserEmail });
+		const user = users[0];
+
+		// Add credit to the user
+		await db.execute(
+			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
+			user.user_id, 100, 'test', new Date().toISOString(),
+			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+		);
+
 		// Build a query to find users with credit balance
-		const queryBuilder = framework.getContext().getDatabase().createQueryBuilder();
+		const queryBuilder = db.createQueryBuilder();
 		const results = await queryBuilder
 			.select(['u.user_id', 'u.name', 'u.role', 'SUM(c.amount) as credit_balance'])
 			.from('users', 'u')
@@ -145,38 +199,58 @@ describe("User Entity Operations", () => {
 		expect(results.length).toBeGreaterThan(0);
 
 		// Find our test user in the results
-		const testUser = results.find(u => u.name === 'Pet Store Owner');
+		const testUser = results.find(u => u.name === 'Credit Test User');
 		expect(testUser).toBeDefined();
 		expect(Number(testUser.credit_balance)).toBe(100);
 	});
 
 	test("should get user credit details", async () => {
-		// Create a user credit record first to ensure we have data to test with
-		const users = await userManager.find({});
-		const user = users.find(u => u.name === 'Pet Store Owner');
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('credit-details');
 
-		// Get the UserCredit entity manager
-		const creditManager = framework.getContext().getEntityManager('UserCredit');
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Credit Details User',
+					email: uniqueUserEmail,
+					role: 'user'
+				}
+			}
+		});
+
+		// Get the framework and entity managers
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+		const db = context.getDatabase();
+
+		// Find the user we just created
+		const users = await userManager.findBy({ email: uniqueUserEmail });
+		const user = users[0];
 
 		// Add two credit entries to the user
-		await creditManager.create({
-			user_id: user?.user_id,
-			amount: 50,
-			source: 'purchase',
-			purchase_date: new Date().toISOString(),
-			expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
-		});
+		await db.execute(
+			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
+			user.user_id, 50, 'purchase', new Date().toISOString(),
+			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+		);
 
-		await creditManager.create({
-			user_id: user?.user_id,
-			amount: 10,
-			source: 'bonus',
-			purchase_date: new Date().toISOString(),
-			expiry_date: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days from now
-		});
+		await db.execute(
+			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
+			user.user_id, 10, 'bonus', new Date().toISOString(),
+			new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days from now
+		);
 
-		// Get the user's credits using the entity manager
-		const userCredits = await creditManager.find({ user_id: user?.user_id });
+		// Get the user's credits using a query builder
+		const creditQuery = db.createQueryBuilder();
+		const userCredits = await creditQuery
+			.select('*')
+			.from('user_credits')
+			.where('user_id = ?', user.user_id)
+			.execute();
 
 		// Calculate the total credit balance
 		const totalBalance = userCredits.reduce((sum, credit) => sum + Number(credit.amount), 0);
@@ -186,8 +260,30 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should change user password", async () => {
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('password-change');
+
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Password Test User',
+					email: uniqueUserEmail,
+					role: 'user',
+					password: 'oldhashpassword'
+				}
+			}
+		});
+
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+
 		// Find the test user first
-		const users = await userManager.find({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueUserEmail });
 		const user = users[0];
 
 		// Update the password
@@ -202,30 +298,75 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should update user profile", async () => {
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('profile-update');
+		const newEmail = uniqueEmail('new-profile');
+
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Profile Test User',
+					email: uniqueUserEmail,
+					role: 'user'
+				}
+			}
+		});
+
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+
 		// Find the test user first
-		const users = await userManager.find({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueUserEmail });
 		const user = users[0];
 
 		// Update the profile
 		await userManager.update(user.user_id!, {
-			name: "New Admin Name",
-			email: "newowner@dogfoodstore.com"
+			name: "New User Name",
+			email: newEmail
 		});
 
 		// Verify profile update
 		const updatedUser = await userManager.findById(user.user_id!);
 		expect(updatedUser).toBeDefined();
-		expect(updatedUser?.name).toBe("New Admin Name");
-		expect(updatedUser?.email).toBe("newowner@dogfoodstore.com");
+		expect(updatedUser?.name).toBe("New User Name");
+		expect(updatedUser?.email).toBe(newEmail);
 	});
 
 	test("should retrieve user without password field", async () => {
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('secure-profile');
+
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: false,
+			fixedValues: {
+				User: {
+					name: 'Secure User',
+					email: uniqueUserEmail,
+					role: 'user',
+					password: 'securepassword'
+				}
+			}
+		});
+
+		// Get the framework and entity manager
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+		const db = context.getDatabase();
+
 		// Find the test user first
-		const users = await userManager.find({ email: "owner@dogfoodstore.com" });
+		const users = await userManager.findBy({ email: uniqueUserEmail });
 		const user = users[0];
 
 		// Use query builder to select specific fields (excluding password)
-		const queryBuilder = framework.getContext().getDatabase().createQueryBuilder();
+		const queryBuilder = db.createQueryBuilder();
 		const profile = await queryBuilder
 			.select(['name', 'email', 'role'])
 			.from('users')
@@ -233,30 +374,66 @@ describe("User Entity Operations", () => {
 			.getOne();
 
 		expect(profile).toBeDefined();
-		expect(profile.name).toBe("Pet Store Owner");
-		expect(profile.email).toBe("owner@dogfoodstore.com");
-		expect(profile.role).toBe("admin");
+		expect(profile.name).toBe("Secure User");
+		expect(profile.email).toBe(uniqueUserEmail);
+		expect(profile.role).toBe("user");
 
 		// Password should not be included
 		expect(Object.prototype.hasOwnProperty.call(profile, "password")).toBe(false);
 	});
 
 	test("should get user with resource access history", async () => {
-		// Find the test user first
-		const users = await userManager.find({});
-		const user = users.find(u => u.name === 'Pet Store Owner');
+		// Create unique email for this test
+		const uniqueUserEmail = uniqueEmail('resource-access');
 
-		// Add resource access record
-		await resourceAccessManager.create({
-			user_id: user?.user_id!,
-			resource_type: 'product',
-			resource_id: 1,
-			credit_cost: 10,
-			access_date: new Date().toISOString()
+		// Generate test data
+		await generateTestData({
+			count: 1,
+			withRelations: true,
+			fixedValues: {
+				User: {
+					name: 'Resource Access User',
+					email: uniqueUserEmail,
+					role: 'user'
+				},
+				Product: {
+					title: uniqueName('Test Product'),
+					pricing: 'standard',
+					is_free: false,
+					credit_cost: 10
+				}
+			}
 		});
 
-		// Use query builder to join user with resource access
-		const queryBuilder = framework.getContext().getDatabase().createQueryBuilder();
+		// Get the framework and entity managers
+		const framework = getTestFramework();
+		const context = framework.getContext();
+		const userManager = context.getEntityManager<User>('User');
+		const productManager = context.getEntityManager('Product');
+		const db = context.getDatabase();
+
+		// Find the user and product we just created
+		const users = await userManager.findBy({ email: uniqueUserEmail });
+		const user = users[0];
+
+		const products = await productManager.findBy({});
+		const product = products[0]; // Get first product
+
+		// Add resource access record
+		await db.execute(
+			"INSERT INTO user_resource_access (user_id, resource_type, resource_id, credit_cost, access_date, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+			user.user_id, 'product', product.product_id, 10, new Date().toISOString(), new Date().toISOString()
+		);
+
+		// Add credit to the user
+		await db.execute(
+			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
+			user.user_id, 50, 'purchase', new Date().toISOString(),
+			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
+		);
+
+		// Use query builder to join user with resource access and credits
+		const queryBuilder = db.createQueryBuilder();
 		const result = await queryBuilder
 			.select([
 				'u.user_id',
@@ -267,12 +444,17 @@ describe("User Entity Operations", () => {
 			])
 			.from('users', 'u')
 			.leftJoin('user_credits', 'c', 'u.user_id = c.user_id')
-			.where('u.user_id = ?', user?.user_id)
+			.where('u.user_id = ?', user.user_id)
 			.groupBy('u.user_id')
 			.getOne();
 
 		// Get the user's recent access history
-		const accessHistory = await resourceAccessManager.find({ user_id: user?.user_id });
+		const accessHistoryQuery = db.createQueryBuilder();
+		const accessHistory = await accessHistoryQuery
+			.select('*')
+			.from('user_resource_access')
+			.where('user_id = ?', user.user_id)
+			.execute();
 
 		// Combine the results
 		const userWithHistory = {
@@ -281,9 +463,10 @@ describe("User Entity Operations", () => {
 		};
 
 		expect(userWithHistory).toBeDefined();
-		expect(userWithHistory.name).toBe("Pet Store Owner");
+		expect(userWithHistory.name).toBe("Resource Access User");
 		expect(Array.isArray(userWithHistory.recent_access)).toBe(true);
 		expect(userWithHistory.recent_access.length).toBe(1);
 		expect(userWithHistory.recent_access[0].resource_type).toBe("product");
+		expect(Number(userWithHistory.credit_balance)).toBe(50);
 	});
 });
