@@ -1597,6 +1597,12 @@ export class EntityDao<T, IdType = string | number> {
 	 * @param data Entity data
 	 * @returns Converted data with database-specific types
 	 */
+	/**
+ * Convert entity values to database-specific values
+ * Handles booleans and dates properly
+ * @param data Entity data
+ * @returns Converted data with database-specific types
+ */
 	private convertToDbValues(data: Partial<T>): Record<string, unknown> {
 		const result: Record<string, unknown> = {};
 

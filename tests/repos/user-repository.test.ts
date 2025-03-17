@@ -5,7 +5,7 @@ import {
 	getTestFramework,
 	generateTestData,
 	cleanupTestData
-} from '../../test-setup';
+} from '../test-setup';
 
 // Define interface for User entity based on test-app.yaml
 interface User {
