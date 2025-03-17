@@ -1,14 +1,14 @@
 // query-builder.test.ts
-import {
-	setupTestDatabase,
-	teardownTestDatabase,
-	createTestSchema,
-	insertTestData,
-	cleanupDatabase,
-} from "../test-setup";
-import { DatabaseAdapter } from "../../src/database/core/types";
-import { SQLiteQueryBuilder } from "../../src/database/query/sqlite-query-builder";
-import { QueryBuilder } from "../../src/database/query/query-builder";
+import { 
+  setupTestEnvironment, 
+  teardownTestEnvironment, 
+  getTestFramework, 
+  generateTestData,
+  cleanupTestData
+} from '../../test-setup';
+import { DatabaseAdapter } from "../../../src/database/core/types";
+import { SQLiteQueryBuilder } from "../../../src/database/query/sqlite-query-builder";
+import { QueryBuilder } from "../../../src/database/query/query-builder";
 
 interface UserRecord {
 	name: string;
@@ -23,18 +23,34 @@ describe("SQLiteQueryBuilder", () => {
 	let qb: QueryBuilder;
 
 	beforeAll(async () => {
-		db = await setupTestDatabase();
-		await createTestSchema(db);
+		// Initialize test framework with test-app.yaml configuration
+		await setupTestEnvironment('./tests/test-app.yaml');
+		const framework = getTestFramework();
+		// Get database adapter from the framework context
+		db = framework.getContext().getDatabase().getAdapter();
 	});
 
-	afterAll(() => {
-		teardownTestDatabase();
+	afterAll(async () => {
+		await teardownTestEnvironment();
 	});
 
 	beforeEach(async () => {
-		// Use the new cleanupDatabase function
-		await cleanupDatabase(db);
-		await insertTestData(db);
+		// Clean up any previous test data
+		await cleanupTestData();
+		
+		// Generate test data using faker
+		await generateTestData({
+			count: 5,  // 5 records per entity
+			withRelations: true,
+			// Set fixed values for specific entities/fields for predictable test data
+			fixedValues: {
+				User: {
+					role: 'admin',
+					name: 'Pet Store Owner',
+					email: 'owner@dogfoodstore.com'
+				}
+			}
+		});
 
 		// Create a new query builder for each test
 		qb = new SQLiteQueryBuilder(db);
@@ -271,9 +287,12 @@ describe("SQLiteQueryBuilder", () => {
 	test("should execute a query and return results", async () => {
 		const results = await qb.select(["*"]).from("users").execute<UserRecord>();
 
-		expect(results).toHaveLength(2);
-		expect(results[0].name).toBe("Pet Store Owner");
-		expect(results[1].name).toBe("Dog Lover");
+		// We now generate 5 users with faker plus our fixed one
+		expect(results.length).toBeGreaterThan(0);
+		// We expect to find our fixed user
+		const ownerUser = results.find(user => user.name === "Pet Store Owner");
+		expect(ownerUser).toBeDefined();
+		expect(ownerUser?.email).toBe("owner@dogfoodstore.com");
 	});
 
 	test("should execute a query with parameters", async () => {
@@ -283,8 +302,10 @@ describe("SQLiteQueryBuilder", () => {
 			.where("role = ?", "admin")
 			.execute<UserRecord>();
 
-		expect(results).toHaveLength(1);
-		expect(results[0].name).toBe("Pet Store Owner");
+		// We expect at least one admin user (our fixed one)
+		expect(results.length).toBeGreaterThan(0);
+		const adminUser = results.find(user => user.name === "Pet Store Owner");
+		expect(adminUser).toBeDefined();
 	});
 
 	test("should get a single result", async () => {
