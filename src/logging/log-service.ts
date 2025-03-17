@@ -39,8 +39,34 @@ class StreamLogger implements Logger {
 		if (messageOrError instanceof Error && messageOrError.stack) {
 			this.stream.log('error', `Stack trace: ${messageOrError.stack}`);
 
-			if (messageOrError.cause) {
-				this.stream.log('error', `Caused by: ${messageOrError.cause}`);
+			// Properly handle error cause chain
+			let currentCause: unknown = messageOrError.cause;
+			if (currentCause) {
+				if (currentCause instanceof Error) {
+					this.stream.log('error', `Caused by: ${currentCause.message}`);
+					if (currentCause.stack) {
+						this.stream.log('error', `Cause stack trace: ${currentCause.stack}`);
+					}
+
+					// Handle nested causes recursively
+					let depth = 0;
+					while (currentCause instanceof Error && currentCause.cause && depth < 5) {
+						currentCause = currentCause.cause;
+						depth++;
+
+						if (currentCause instanceof Error) {
+							this.stream.log('error', `Nested cause (${depth}): ${currentCause.message}`);
+							if (currentCause.stack) {
+								this.stream.log('error', `Nested cause (${depth}) stack trace: ${currentCause.stack}`);
+							}
+						} else {
+							this.stream.log('error', `Nested cause (${depth}): ${String(currentCause)}`);
+						}
+					}
+				} else {
+					// Handle non-Error cause
+					this.stream.log('error', `Caused by: ${String(currentCause)}`);
+				}
 			}
 		}
 	}
