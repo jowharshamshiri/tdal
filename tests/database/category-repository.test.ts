@@ -1,245 +1,179 @@
 // category-repository.test.ts
 import {
-	setupTestEnvironment,
-	teardownTestEnvironment,
-	getTestFramework,
-	generateTestData,
-	cleanupTestData
-} from '../test-setup';
-import { faker } from '@faker-js/faker';
+	setupTestDatabase,
+	teardownTestDatabase,
+	createTestSchema,
+	insertTestData,
+	cleanupDatabase,
+} from "../test-setup";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { ProductCategoryRepository } from "../testcase/repositories/category-repository";
 
-// Define interfaces for entities
-interface ProductCategory {
-	category_id?: number;
-	category_name: string;
-	description?: string;
-	parent_id?: number;
-	image_url?: string;
-	created_at?: string;
-	updated_at?: string;
-}
+describe("ProductCategoryRepository", () => {
+	let db: DatabaseAdapter;
+	let productCategoryRepo: ProductCategoryRepository;
 
-describe("Category Repository Operations", () => {
 	beforeAll(async () => {
-		// Initialize test framework with test-app.yaml configuration
-		await setupTestEnvironment('./tests/test-app.yaml');
+		db = await setupTestDatabase();
+		await createTestSchema(db);
 	});
 
-	afterAll(async () => {
-		await teardownTestEnvironment();
+	afterAll(() => {
+		teardownTestDatabase();
 	});
 
 	beforeEach(async () => {
-		// Clean up any previous test data
-		await cleanupTestData();
+		// Use the new cleanupDatabase function
+		await cleanupDatabase(db);
+		await insertTestData(db);
+
+		// Create repository instance
+		productCategoryRepo = new ProductCategoryRepository(db);
 	});
 
-	afterEach(async () => {
-		// Clean up test data after each test
-		await cleanupTestData();
+	test("should find root categories", async () => {
+		const rootCategories = await productCategoryRepo.findRootCategories();
+
+		expect(rootCategories).toHaveLength(1);
+		expect(rootCategories[0].category_name).toBe("Dog Food");
+		expect(rootCategories[0].parent_id).toBeNull();
 	});
 
-	test("should create a category", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
+	test("should find categories by parent ID", async () => {
+		const childCategories = await productCategoryRepo.findByParentId(1);
 
-		const uniqueName = `Test Category ${Date.now()}`;
-		const categoryData: Partial<ProductCategory> = {
-			category_name: uniqueName,
-			description: 'A test category',
-			image_url: 'https://example.com/image.jpg'
-		};
-
-		const categoryId = await categoryManager.create(categoryData);
-		expect(categoryId).toBeGreaterThan(0);
-
-		// Verify category creation
-		const category = await categoryManager.findById(categoryId);
-		expect(category).toBeDefined();
-		expect(category?.category_name).toBe(uniqueName);
-		expect(category?.description).toBe('A test category');
+		expect(childCategories).toHaveLength(2);
+		expect(childCategories[0].category_name).toBe("Dry Food");
+		expect(childCategories[1].category_name).toBe("Wet Food");
 	});
 
-	test("should create child categories with parent-child relationship", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
+	test("should find all categories with metadata", async () => {
+		const categories = await productCategoryRepo.findAllWithMeta();
 
-		// Create parent category
-		const parentName = `Parent Category ${Date.now()}`;
-		const parentId = await categoryManager.create({
-			category_name: parentName,
-			description: 'A parent category'
-		});
+		expect(categories).toHaveLength(3);
 
-		// Create child category
-		const childName = `Child Category ${Date.now()}`;
-		const childId = await categoryManager.create({
-			category_name: childName,
-			description: 'A child category',
-			parent_id: parentId
-		});
-
-		// Verify parent category
-		const parent = await categoryManager.findById(parentId);
-		expect(parent).toBeDefined();
-		expect(parent?.category_name).toBe(parentName);
-
-		// Verify child category
-		const child = await categoryManager.findById(childId);
-		expect(child).toBeDefined();
-		expect(child?.category_name).toBe(childName);
-		expect(child?.parent_id).toBe(parentId);
-	});
-
-	test("should find categories by name", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-
-		// Create categories with a specific pattern in the name
-		const namePrefix = `FindTest ${Date.now()}`;
-
-		for (let i = 0; i < 3; i++) {
-			await categoryManager.create({
-				category_name: `${namePrefix} Category ${i}`,
-				description: `Test category ${i}`
-			});
+		// Dog Food category should have 2 children
+		const mathProductCategory = categories.find(
+			(c) => c.category_name === "Dog Food"
+		);
+		expect(mathProductCategory).toBeDefined();
+		if (mathProductCategory) {
+			expect(mathProductCategory.child_count).toBe(2);
+			expect(mathProductCategory.parent_name).toBeNull();
 		}
 
-		// Create another category with a different name
-		await categoryManager.create({
-			category_name: `Other Category ${Date.now()}`,
-			description: 'Other category'
-		});
-
-		// Search for categories with the prefix
-		const db = context.getDatabase();
-		const found = await db.findBy('categories', {}, {
-			orderBy: [{ field: 'category_name', direction: 'ASC' }]
-		});
-
-		// Filter in memory since different databases handle LIKE differently
-		const filteredCategories = found.filter(cat =>
-			cat.category_name.includes(namePrefix)
+		// Dry Food category should have Dog Food as parent
+		const algebraProductCategory = categories.find(
+			(c) => c.category_name === "Dry Food"
 		);
+		expect(algebraProductCategory).toBeDefined();
+		if (algebraProductCategory) {
+			expect(algebraProductCategory.parent_name).toBe("Dog Food");
+		}
 
-		// Should find exactly 3 categories with our prefix
-		expect(filteredCategories.length).toBe(3);
-		// Verify they're in the right order
-		expect(filteredCategories[0].category_name).toContain('0');
-		expect(filteredCategories[1].category_name).toContain('1');
-		expect(filteredCategories[2].category_name).toContain('2');
-	});
-
-	test("should update a category", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-
-		// Create a category
-		const originalName = `Update Test ${Date.now()}`;
-		const categoryId = await categoryManager.create({
-			category_name: originalName,
-			description: 'Original description'
-		});
-
-		// Update the category
-		const newName = `Updated Category ${Date.now()}`;
-		const result = await categoryManager.update(categoryId, {
-			category_name: newName,
-			description: 'Updated description'
-		});
-
-		expect(result).toBe(1); // 1 row affected
-
-		// Verify update
-		const updated = await categoryManager.findById(categoryId);
-		expect(updated).toBeDefined();
-		expect(updated?.category_name).toBe(newName);
-		expect(updated?.description).toBe('Updated description');
-	});
-
-	test("should delete a category", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-
-		// Create a category to delete
-		const categoryId = await categoryManager.create({
-			category_name: `Delete Test ${Date.now()}`,
-			description: 'To be deleted'
-		});
-
-		// Verify category exists
-		let category = await categoryManager.findById(categoryId);
-		expect(category).toBeDefined();
-
-		// Delete the category
-		const deleteResult = await categoryManager.delete(categoryId);
-		expect(deleteResult).toBe(1);
-
-		// Verify category is deleted
-		category = await categoryManager.findById(categoryId);
-		expect(category).toBeUndefined();
-	});
-
-	test("should find categories with hierarchy", async () => {
-		const framework = getTestFramework();
-		const context = framework.getContext();
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-
-		// Create a hierarchy of categories
-		const timestamp = Date.now();
-		const rootId = await categoryManager.create({
-			category_name: `Root ${timestamp}`,
-			description: 'Root category'
-		});
-
-		const child1Id = await categoryManager.create({
-			category_name: `Child 1 ${timestamp}`,
-			description: 'First child',
-			parent_id: rootId
-		});
-
-		const child2Id = await categoryManager.create({
-			category_name: `Child 2 ${timestamp}`,
-			description: 'Second child',
-			parent_id: rootId
-		});
-
-		const grandchildId = await categoryManager.create({
-			category_name: `Grandchild ${timestamp}`,
-			description: 'Grandchild category',
-			parent_id: child1Id
-		});
-
-		// Find all categories
-		const categories = await categoryManager.findBy({});
-
-		// Filter for just our categories from this test
-		const testCategories = categories.filter(c =>
-			c.category_name.includes(timestamp.toString())
+		// Wet Food category should have Dog Food as parent
+		const geometryProductCategory = categories.find(
+			(c) => c.category_name === "Wet Food"
 		);
+		expect(geometryProductCategory).toBeDefined();
+		if (geometryProductCategory) {
+			expect(geometryProductCategory.parent_name).toBe("Dog Food");
+		}
+	});
 
-		// Should have our 4 categories
-		expect(testCategories.length).toBe(4);
+	test("should get category detail", async () => {
+		const productCategoryDetail =
+			await productCategoryRepo.getProductCategoryDetail(1);
 
-		// Find root categories (no parent)
-		const rootCategories = testCategories.filter(c => !c.parent_id);
-		expect(rootCategories.length).toBe(1);
-		expect(rootCategories[0].category_id).toBe(rootId);
+		expect(productCategoryDetail).toBeDefined();
+		if (!productCategoryDetail) return;
 
-		// Find child categories of root
-		const childCategories = testCategories.filter(c => c.parent_id === rootId);
-		expect(childCategories.length).toBe(2);
-		expect(childCategories.some(c => c.category_id === child1Id)).toBe(true);
-		expect(childCategories.some(c => c.category_id === child2Id)).toBe(true);
+		expect(productCategoryDetail.category_name).toBe("Dog Food");
 
-		// Find grandchild categories
-		const grandchildCategories = testCategories.filter(c => c.parent_id === child1Id);
-		expect(grandchildCategories.length).toBe(1);
-		expect(grandchildCategories[0].category_id).toBe(grandchildId);
+		// Should include parent (null for root category)
+		expect(productCategoryDetail.parent).toBeNull();
+
+		// Should include children
+		expect(productCategoryDetail.children).toHaveLength(2);
+		expect(productCategoryDetail.children[0].category_name).toBe("Dry Food");
+		expect(productCategoryDetail.children[1].category_name).toBe("Wet Food");
+
+		// Should include descendant count
+		expect(productCategoryDetail.descendant_count).toBe(2);
+
+		// Should include products
+		expect(productCategoryDetail.products).toHaveLength(1);
+		expect(productCategoryDetail.products[0].title).toBe("Kibble Crunch");
+	});
+
+	test("should return undefined for non-existent category detail", async () => {
+		const productCategoryDetail =
+			await productCategoryRepo.getProductCategoryDetail(999);
+
+		expect(productCategoryDetail).toBeUndefined();
+	});
+
+	test("should add a product to a category", async () => {
+		const success = await productCategoryRepo.addProduct(1, 3);
+
+		expect(success).toBe(true);
+
+		// Verify product was added
+		const productCategoryDetail =
+			await productCategoryRepo.getProductCategoryDetail(1);
+		if (!productCategoryDetail) {
+			throw new Error("ProductCategory not found");
+		}
+		const hasProduct = productCategoryDetail.products.some(
+			(f) => f.product_id === 3
+		);
+		expect(hasProduct).toBe(true);
+	});
+
+	test("should remove a product from a category", async () => {
+		const success = await productCategoryRepo.removeProduct(1, 1);
+
+		expect(success).toBe(true);
+
+		// Verify product was removed
+		const productCategoryDetail =
+			await productCategoryRepo.getProductCategoryDetail(1);
+		if (!productCategoryDetail) {
+			throw new Error("ProductCategory not found");
+		}
+		const hasProduct = productCategoryDetail.products.some(
+			(f) => f.product_id === 1
+		);
+		expect(hasProduct).toBe(false);
+	});
+
+	test("should search categories by name", async () => {
+		const categories = await productCategoryRepo.searchByName("Dry");
+
+		expect(categories).toHaveLength(1);
+		expect(categories[0].category_name).toBe("Dry Food");
+	});
+
+	test("should get category hierarchy", async () => {
+		const hierarchy = await productCategoryRepo.getProductCategoryHierarchy();
+
+		expect(hierarchy).toHaveLength(1);
+		expect(hierarchy[0].category_name).toBe("Dog Food");
+		expect(Array.isArray(hierarchy[0].children)).toBe(true);
+
+		const children = hierarchy[0].children as Array<Record<string, unknown>>;
+		expect(children).toHaveLength(2);
+
+		// Check children
+		expect(children[0].category_name).toBe("Dry Food");
+		expect(children[1].category_name).toBe("Wet Food");
+	});
+
+	test("should get product counts", async () => {
+		const counts = await productCategoryRepo.getProductCounts(1);
+
+		expect(counts).toBeDefined();
+		expect(counts.direct).toBe(1);
+		expect(counts.total).toBe(3); // Dog Food (1) + Dry Food (1) + Wet Food (1)
 	});
 });

@@ -1,420 +1,354 @@
 // shopping-session-repository.test.ts
 import {
-	setupTestEnvironment,
-	teardownTestEnvironment,
-	getTestFramework,
-	generateTestData,
-	cleanupTestData
-} from '../test-setup';
-import { faker } from '@faker-js/faker';
+	setupTestDatabase,
+	teardownTestDatabase,
+	createTestSchema,
+	insertTestData,
+	cleanupDatabase,
+} from "../test-setup";
+import { DatabaseAdapter } from "../../src/database/core/types";
+import { ShoppingSessionRepository } from "../testcase/repositories/shopping-session-repository";
+import { ShoppingSessionStatus } from "../testcase/models/shopping-session";
 
-// Define interfaces for entities
-interface User {
-	user_id?: number;
-	name: string;
-	email: string;
-	password?: string;
-	role: string;
+// Define ProductSide enum
+enum ProductSide {
+	TITLE = "title",
+	PRICING = "pricing",
+	BOTH = "both",
 }
 
-interface ProductCategory {
-	category_id?: number;
-	category_name: string;
-	description?: string;
-}
-
-interface ProductShoppingSession {
-	session_id?: number;
+interface ViewRecord {
+	session_id: number;
 	user_id: number;
-	category_id?: number;
-	start_time: string;
-	last_activity_time: string;
-	end_time?: string;
-	status: string;
-	cards_studied: number;
-	current_card_index: number;
-	total_shopping_time: number;
-	cards_order?: string;
-	created_at?: string;
-	updated_at?: string;
+	product_id: number;
+	page_shown: string;
+	hint_viewed: number;
+	view_time?: number;
+	view_end?: string;
 }
 
-// Helper function to generate a unique email
-function uniqueEmail(prefix: string = ''): string {
-	const timestamp = Date.now();
-	const random = Math.floor(Math.random() * 10000);
-	return `${prefix}${timestamp}-${random}@example.com`;
-}
+describe("ShoppingSessionRepository", () => {
+	let db: DatabaseAdapter;
+	let sessionRepo: ShoppingSessionRepository;
 
-describe("Shopping Session Repository Operations", () => {
 	beforeAll(async () => {
-		// Initialize test framework with test-app.yaml configuration
-		await setupTestEnvironment('./tests/test-app.yaml');
+		db = await setupTestDatabase();
+		await createTestSchema(db);
 	});
 
-	afterAll(async () => {
-		await teardownTestEnvironment();
+	afterAll(() => {
+		teardownTestDatabase();
 	});
 
 	beforeEach(async () => {
-		// Clean up any previous test data
-		await cleanupTestData();
-	});
+		// Use the new cleanupDatabase function
+		await cleanupDatabase(db);
+		await insertTestData(db);
 
-	afterEach(async () => {
-		// Clean up test data after each test
-		await cleanupTestData();
-	});
-
-	test("should create a shopping session", async () => {
-		// Generate test user
-		const userEmail = uniqueEmail('session-user');
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Session Test User',
-					email: userEmail,
-					role: 'user',
-					password: 'password123'
-				}
-			}
-		});
-
-		const framework = getTestFramework();
-		const context = framework.getContext();
-
-		// Get user
-		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: userEmail });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id!;
-
-		// Create a category
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-		const categoryName = `Test Category ${Date.now()}`;
-		const categoryId = await categoryManager.create({
-			category_name: categoryName,
-			description: 'Test category for shopping session'
-		});
-
-		// Get shopping session manager
-		const sessionManager = context.getEntityManager<ProductShoppingSession>('ProductShoppingSession');
-
-		// Create a shopping session
-		const now = new Date();
-		const sessionData: Partial<ProductShoppingSession> = {
-			user_id: userId,
-			category_id: categoryId,
-			start_time: now.toISOString(),
-			last_activity_time: now.toISOString(),
-			status: 'active',
-			cards_studied: 0,
-			current_card_index: 0,
-			total_shopping_time: 0
-		};
-
-		const sessionId = await sessionManager.create(sessionData);
-		expect(sessionId).toBeGreaterThan(0);
-
-		// Verify session creation
-		const session = await sessionManager.findById(sessionId);
-		expect(session).toBeDefined();
-		expect(session?.user_id).toBe(userId);
-		expect(session?.category_id).toBe(categoryId);
-		expect(session?.status).toBe('active');
+		// Create repository instance
+		sessionRepo = new ShoppingSessionRepository(db);
 	});
 
 	test("should find active sessions for a user", async () => {
-		// Generate test user
-		const userEmail = uniqueEmail('active-sessions');
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Active Sessions User',
-					email: userEmail,
-					role: 'user',
-					password: 'password123'
-				}
-			}
-		});
+		const activeSessions = await sessionRepo.findActiveSessionsForUser(2);
 
-		const framework = getTestFramework();
-		const context = framework.getContext();
-
-		// Get user
-		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: userEmail });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id!;
-
-		// Create a category
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-		const categoryId = await categoryManager.create({
-			category_name: `Active Sessions Category ${Date.now()}`,
-			description: 'Category for active sessions test'
-		});
-
-		// Get shopping session manager
-		const sessionManager = context.getEntityManager<ProductShoppingSession>('ProductShoppingSession');
-
-		// Create active sessions for the user
-		const now = new Date();
-
-		for (let i = 0; i < 2; i++) {
-			await sessionManager.create({
-				user_id: userId,
-				category_id: categoryId,
-				start_time: now.toISOString(),
-				last_activity_time: now.toISOString(),
-				status: 'active',
-				cards_studied: i * 5,
-				current_card_index: i * 5,
-				total_shopping_time: i * 60 // seconds
-			});
-		}
-
-		// Create a completed session
-		await sessionManager.create({
-			user_id: userId,
-			category_id: categoryId,
-			start_time: new Date(now.getTime() - 3600000).toISOString(), // 1 hour ago
-			last_activity_time: new Date(now.getTime() - 1800000).toISOString(), // 30 min ago
-			end_time: now.toISOString(),
-			status: 'completed',
-			cards_studied: 10,
-			current_card_index: 10,
-			total_shopping_time: 1800 // 30 minutes
-		});
-
-		// Find active sessions
-		const activeSessions = await sessionManager.findBy({
-			user_id: userId,
-			status: 'active'
-		});
-
-		// Should have exactly 2 active sessions
-		expect(activeSessions.length).toBe(2);
-
-		// Find all sessions
-		const allSessions = await sessionManager.findBy({ user_id: userId });
-
-		// Should have 3 sessions total
-		expect(allSessions.length).toBe(3);
-
-		// Verify completed session
-		const completedSessions = allSessions.filter(s => s.status === 'completed');
-		expect(completedSessions.length).toBe(1);
-		expect(completedSessions[0].end_time).toBeDefined();
+		expect(activeSessions).toHaveLength(1);
+		expect(activeSessions[0].status).toBe(ShoppingSessionStatus.ACTIVE);
 	});
 
-	test("should update shopping session status", async () => {
-		// Generate test user
-		const userEmail = uniqueEmail('session-update');
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Update Session User',
-					email: userEmail,
-					role: 'user',
-					password: 'password123'
-				}
-			}
-		});
+	test("should find sessions for a user", async () => {
+		const sessions = await sessionRepo.findSessionsForUser(2);
 
-		const framework = getTestFramework();
-		const context = framework.getContext();
-
-		// Get user
-		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: userEmail });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id!;
-
-		// Get shopping session manager
-		const sessionManager = context.getEntityManager<ProductShoppingSession>('ProductShoppingSession');
-
-		// Create a shopping session
-		const now = new Date();
-		const sessionId = await sessionManager.create({
-			user_id: userId,
-			start_time: now.toISOString(),
-			last_activity_time: now.toISOString(),
-			status: 'active',
-			cards_studied: 0,
-			current_card_index: 0,
-			total_shopping_time: 0
-		});
-
-		// Update session to completed
-		const later = new Date(now.getTime() + 3600000); // 1 hour later
-		const updateResult = await sessionManager.update(sessionId, {
-			status: 'completed',
-			end_time: later.toISOString(),
-			last_activity_time: later.toISOString(),
-			cards_studied: 20,
-			current_card_index: 20,
-			total_shopping_time: 3600 // 1 hour
-		});
-
-		expect(updateResult).toBe(1); // 1 row affected
-
-		// Verify update
-		const updatedSession = await sessionManager.findById(sessionId);
-		expect(updatedSession).toBeDefined();
-		expect(updatedSession?.status).toBe('completed');
-		expect(updatedSession?.end_time).toBeDefined();
-		expect(updatedSession?.cards_studied).toBe(20);
-		expect(updatedSession?.total_shopping_time).toBe(3600);
+		expect(sessions).toHaveLength(1);
+		expect(sessions[0].user_id).toBe(2);
 	});
 
-	test("should count shopping sessions by category", async () => {
-		// Generate test user
-		const userEmail = uniqueEmail('category-count');
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Category Count User',
-					email: userEmail,
-					role: 'user',
-					password: 'password123'
-				}
-			}
-		});
+	test("should get session with view records", async () => {
+		const sessionWithRecords = await sessionRepo.getSessionWithRecords(1);
 
-		const framework = getTestFramework();
-		const context = framework.getContext();
+		expect(sessionWithRecords).toBeDefined();
+		if (!sessionWithRecords) return;
 
-		// Get user
-		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: userEmail });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id!;
-
-		// Create categories
-		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
-		const timestamp = Date.now();
-
-		const category1Id = await categoryManager.create({
-			category_name: `Category 1 ${timestamp}`,
-			description: 'First category'
-		});
-
-		const category2Id = await categoryManager.create({
-			category_name: `Category 2 ${timestamp}`,
-			description: 'Second category'
-		});
-
-		// Get shopping session manager
-		const sessionManager = context.getEntityManager<ProductShoppingSession>('ProductShoppingSession');
-
-		// Create sessions for category 1
-		const now = new Date();
-		for (let i = 0; i < 3; i++) {
-			await sessionManager.create({
-				user_id: userId,
-				category_id: category1Id,
-				start_time: now.toISOString(),
-				last_activity_time: now.toISOString(),
-				status: 'active',
-				cards_studied: i * 5,
-				current_card_index: i * 5,
-				total_shopping_time: i * 60
-			});
-		}
-
-		// Create sessions for category 2
-		for (let i = 0; i < 2; i++) {
-			await sessionManager.create({
-				user_id: userId,
-				category_id: category2Id,
-				start_time: now.toISOString(),
-				last_activity_time: now.toISOString(),
-				status: 'active',
-				cards_studied: i * 5,
-				current_card_index: i * 5,
-				total_shopping_time: i * 60
-			});
-		}
-
-		// Count sessions by category
-		const db = context.getDatabase();
-		const results = await db.aggregate('product_shopping_session', {
-			aggregates: [
-				{ function: 'COUNT', field: '*', alias: 'session_count' }
-			],
-			groupBy: ['category_id'],
-			conditions: { user_id: userId }
-		});
-
-		// Should have results for 2 categories
-		expect(results.length).toBe(2);
-
-		// Find counts for each category
-		const category1Count = results.find(r => r.category_id === category1Id)?.session_count;
-		const category2Count = results.find(r => r.category_id === category2Id)?.session_count;
-
-		expect(category1Count).toBe(3);
-		expect(category2Count).toBe(2);
+		expect(sessionWithRecords.session.session_id).toBe(1);
+		expect(sessionWithRecords.records).toHaveLength(1);
+		expect(sessionWithRecords.records[0].product_id).toBe(1);
+		expect(sessionWithRecords.records[0].title).toBe("Kibble Crunch");
 	});
 
-	test("should delete a shopping session", async () => {
-		// Generate test user
-		const userEmail = uniqueEmail('session-delete');
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Delete Session User',
-					email: userEmail,
-					role: 'user',
-					password: 'password123'
-				}
-			}
-		});
+	test("should start a new shopping session", async () => {
+		const productIds = [1, 2, 3];
 
-		const framework = getTestFramework();
-		const context = framework.getContext();
+		const sessionId = await sessionRepo.startSession(2, 1, productIds);
 
-		// Get user
-		const userManager = context.getEntityManager<User>('User');
-		const users = await userManager.findBy({ email: userEmail });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id!;
+		expect(sessionId).toBeGreaterThan(0);
 
-		// Get shopping session manager
-		const sessionManager = context.getEntityManager<ProductShoppingSession>('ProductShoppingSession');
-
-		// Create a shopping session
-		const now = new Date();
-		const sessionId = await sessionManager.create({
-			user_id: userId,
-			start_time: now.toISOString(),
-			last_activity_time: now.toISOString(),
-			status: 'active',
-			cards_studied: 0,
-			current_card_index: 0,
-			total_shopping_time: 0
-		});
-
-		// Verify session exists
-		let session = await sessionManager.findById(sessionId);
+		// Verify session was created
+		const session = await sessionRepo.findById(sessionId);
 		expect(session).toBeDefined();
+		if (!session) return;
 
-		// Delete the session
-		const deleteResult = await sessionManager.delete(sessionId);
-		expect(deleteResult).toBe(1);
+		expect(session.user_id).toBe(2);
+		expect(session.category_id).toBe(1);
+		expect(session.status).toBe(ShoppingSessionStatus.ACTIVE);
+		expect(JSON.parse(session.cards_order || "[]")).toEqual(productIds);
+	});
 
-		// Verify session is deleted
-		session = await sessionManager.findById(sessionId);
-		expect(session).toBeUndefined();
+	test("should record a product view", async () => {
+		const viewId = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			false
+		);
+
+		expect(viewId).toBeGreaterThan(0);
+
+		// Verify view was recorded
+		const view = await db.findById<ViewRecord>(
+			"product_view_record",
+			"record_id",
+			viewId
+		);
+		expect(view).toBeDefined();
+		if (view) {
+			expect(view.session_id).toBe(1);
+			expect(view.user_id).toBe(2);
+			expect(view.product_id).toBe(1);
+			expect(view.page_shown).toBe("both");
+			expect(view.hint_viewed).toBe(0);
+		}
+	});
+
+	test("should complete a product view", async () => {
+		// First record a view
+		const viewId = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			false
+		);
+
+		const success = await sessionRepo.completeView(viewId, 1, 30);
+
+		expect(success).toBe(true);
+
+		// Verify view was completed
+		const view = await db.findById<ViewRecord>(
+			"product_view_record",
+			"record_id",
+			viewId
+		);
+		expect(view).toBeDefined();
+		if (view) {
+			expect(view.view_time).toBe(30);
+			expect(view.view_end).toBeDefined();
+		}
+
+		// Verify session was updated
+		const session = await sessionRepo.findById(1);
+		expect(session).toBeDefined();
+		if (!session) return;
+
+		expect(session.cards_studied).toBe(1);
+		expect(session.current_card_index).toBe(1);
+		expect(session.total_shopping_time).toBe(30);
+	});
+
+	test("should update session status", async () => {
+		const success = await sessionRepo.updateStatus(
+			1,
+			ShoppingSessionStatus.COMPLETED
+		);
+
+		expect(success).toBe(true);
+
+		// Verify session status was updated
+		const session = await sessionRepo.findById(1);
+		expect(session).toBeDefined();
+		if (!session) return;
+
+		expect(session.status).toBe(ShoppingSessionStatus.COMPLETED);
+		expect(session.end_time).toBeDefined();
+	});
+
+	test("should get user shopping statistics", async () => {
+		// Record a completed view
+		const viewId = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			false
+		);
+		await sessionRepo.completeView(viewId, 1, 30);
+
+		// Complete the session
+		await sessionRepo.updateStatus(1, ShoppingSessionStatus.COMPLETED);
+
+		const stats = await sessionRepo.getUserShoppingStats(2);
+
+		expect(stats).toBeDefined();
+		expect(stats.totalSessions).toBe(1);
+		expect(stats.totalCards).toBe(1);
+		expect(stats.totalTime).toBe(30);
+		expect(stats.averageTime).toBe(30); // 30 / 1
+		expect(stats.completedSessions).toBe(1);
+		expect(stats.lastSession).toBeDefined();
+	});
+
+	test("should get product performance", async () => {
+		// Record a completed view
+		const viewId = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			true
+		);
+		await sessionRepo.completeView(viewId, 1, 45);
+
+		const performance = await sessionRepo.getProductPerformance(2, 1);
+
+		expect(performance).toBeDefined();
+		// In the test data, there was already one view record, plus we added one = 2
+		expect(performance.viewCount).toBe(2);
+		expect(performance.averageViewTime).toBe(45);
+		expect(performance.lastViewed).toBeDefined();
+		expect(performance.hintViewRate).toBe(1); // 2/2 = 100% hint view rate
+	});
+
+	test("should handle product performance with no views", async () => {
+		const performance = await sessionRepo.getProductPerformance(2, 999); // Non-existent product ID
+
+		expect(performance).toBeDefined();
+		expect(performance.viewCount).toBe(0);
+		expect(performance.averageViewTime).toBe(0);
+		expect(performance.lastViewed).toBeUndefined();
+		expect(performance.hintViewRate).toBe(0);
+	});
+
+	test("should calculate average correctly for multiple views", async () => {
+		// Record first view
+		const viewId1 = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			true
+		);
+		await sessionRepo.completeView(viewId1, 1, 30);
+
+		// Record second view
+		const viewId2 = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.TITLE,
+			false
+		);
+		await sessionRepo.completeView(viewId2, 1, 50);
+
+		const performance = await sessionRepo.getProductPerformance(2, 1);
+
+		// There was one view in test data + two we added = 3
+		expect(performance.viewCount).toBe(3);
+		// Average of all three views
+		expect(performance.averageViewTime).toBe(40); // (30 + 50 + initial test view) / 3
+		expect(performance.hintViewRate).toBe(2 / 3); // 2/3 views had hints
+	});
+
+	test("should start session with null category ID", async () => {
+		const productIds = [1, 2];
+
+		const sessionId = await sessionRepo.startSession(2, null, productIds);
+
+		expect(sessionId).toBeGreaterThan(0);
+
+		// Verify session was created without category ID
+		const session = await sessionRepo.findById(sessionId);
+		expect(session).toBeDefined();
+		if (!session) return;
+
+		expect(session.category_id).toBeNull(); // Changed from toBeUndefined()
+	});
+
+	test("should get session with records when none exist", async () => {
+		// Create a new session without any view records
+		const productIds = [1, 2];
+		const sessionId = await sessionRepo.startSession(2, null, productIds);
+
+		const sessionWithRecords = await sessionRepo.getSessionWithRecords(
+			sessionId
+		);
+
+		expect(sessionWithRecords).toBeDefined();
+		if (!sessionWithRecords) return;
+
+		expect(sessionWithRecords.session.session_id).toBe(sessionId);
+		expect(sessionWithRecords.records).toHaveLength(0);
+	});
+
+	test("should handle non-existent session", async () => {
+		const sessionWithRecords = await sessionRepo.getSessionWithRecords(999); // Non-existent ID
+
+		expect(sessionWithRecords).toBeUndefined();
+	});
+
+	test("should find sessions with limit", async () => {
+		// Create multiple sessions
+		await sessionRepo.startSession(2, null, [1, 2]);
+		await sessionRepo.startSession(2, null, [3, 4]);
+
+		const sessions = await sessionRepo.findSessionsForUser(2, 2);
+
+		expect(sessions).toHaveLength(2);
+	});
+
+	test("should handle transaction failure in completeView", async () => {
+		// Mock a transaction that fails
+		jest.spyOn(db, "transaction").mockImplementationOnce(() => {
+			return Promise.resolve(false);
+		});
+
+		const viewId = await sessionRepo.recordView(
+			1,
+			2,
+			1,
+			ProductSide.BOTH,
+			false
+		);
+
+		const success = await sessionRepo.completeView(viewId, 1, 30);
+
+		expect(success).toBe(false);
+	});
+
+	test("should handle transaction failure in updateStatus", async () => {
+		// Mock the update method to return 0 instead of throwing an error
+		jest
+			.spyOn(ShoppingSessionRepository.prototype as any, "update")
+			.mockImplementationOnce(() => {
+				return Promise.resolve(0); // Return 0 changes instead of throwing error
+			});
+
+		const success = await sessionRepo.updateStatus(
+			1,
+			ShoppingSessionStatus.COMPLETED
+		);
+
+		expect(success).toBe(false);
+	});
+
+	test("should get shopping stats for user with no sessions", async () => {
+		const stats = await sessionRepo.getUserShoppingStats(999); // Non-existent user ID
+
+		expect(stats).toBeDefined();
+		expect(stats.totalSessions).toBe(0);
+		expect(stats.totalCards).toBe(0);
+		expect(stats.totalTime).toBe(0);
+		expect(stats.averageTime).toBe(0);
+		expect(stats.completedSessions).toBe(0);
 	});
 });
