@@ -120,25 +120,21 @@ describe("ProductCategoryRepository", () => {
 			parent_id: parentId
 		});
 
-		// Use raw query for complex data retrieval
-		const categories = await db.query(`
-      SELECT 
-        c.category_id, 
-        c.category_name, 
-        c.description,
-        c.parent_id,
-        p.category_name as parent_name,
-        (
-          SELECT COUNT(*) 
-          FROM categories cc 
-          WHERE cc.parent_id = c.category_id
-        ) as child_count
-      FROM 
-        categories c
-        LEFT JOIN categories p ON c.parent_id = p.category_id
-      ORDER BY 
-        c.category_id
-    `);
+		// Use query builder instead of raw SQL
+		const queryBuilder = db.createQueryBuilder();
+		const categories = await queryBuilder
+			.select([
+				'c.category_id',
+				'c.category_name',
+				'c.description',
+				'c.parent_id',
+				'p.category_name as parent_name',
+				`(SELECT COUNT(*) FROM categories cc WHERE cc.parent_id = c.category_id) as child_count`
+			])
+			.from('categories', 'c')
+			.leftJoin('categories', 'p', 'c.parent_id = p.category_id')
+			.orderBy('c.category_id')
+			.execute();
 
 		expect(categories.length).toBe(3);
 
@@ -207,79 +203,55 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 5
 		});
 
-		// Set up category-product relationship
-		// First ensure the junction table exists
-		await db.execute(`
-      CREATE TABLE IF NOT EXISTS category_product (
-        category_id INTEGER,
-        product_id INTEGER,
-        PRIMARY KEY (category_id, product_id)
-      )
-    `);
+		// Set up category-product relationship using many-to-many relationship management
+		await productCategoryRepo.manageManyToMany(
+			parentId,
+			"products",
+			[productId],
+			"add"
+		);
 
-		await db.execute(`
-      INSERT INTO category_product (category_id, product_id)
-      VALUES (?, ?)
-    `, parentId, productId);
+		// Get the category details
+		const category = await productCategoryRepo.findById(parentId);
 
-		// Use raw query to get category details with related data
-		const productCategoryDetail = await db.querySingle(`
-      SELECT 
-        c.category_id, 
-        c.category_name, 
-        c.description,
-        c.parent_id,
-        p.category_id as parent_category_id,
-        p.category_name as parent_category_name,
-        (
-          SELECT COUNT(*) 
-          FROM categories cc 
-          WHERE cc.parent_id = c.category_id
-        ) as descendant_count
-      FROM 
-        categories c
-        LEFT JOIN categories p ON c.parent_id = p.category_id
-      WHERE 
-        c.category_id = ?
-    `, parentId);
+		// Use query builder for child categories
+		const queryBuilder = db.createQueryBuilder();
+		const children = await queryBuilder
+			.select(['category_id', 'category_name', 'description', 'parent_id'])
+			.from('categories')
+			.where('parent_id = ?', parentId)
+			.execute();
 
-		// Get children
-		const children = await db.query(`
-      SELECT 
-        category_id, 
-        category_name, 
-        description, 
-        parent_id 
-      FROM 
-        categories 
-      WHERE 
-        parent_id = ?
-    `, parentId);
+		// Use query builder for products
+		const productQueryBuilder = db.createQueryBuilder();
+		const products = await productQueryBuilder
+			.select(['p.product_id', 'p.title'])
+			.from('products', 'p')
+			.innerJoin('category_product', 'cp', 'p.product_id = cp.product_id')
+			.where('cp.category_id = ?', parentId)
+			.execute();
 
-		// Get products
-		const products = await db.query(`
-      SELECT 
-        p.product_id, 
-        p.title 
-      FROM 
-        products p
-        JOIN category_product cp ON p.product_id = cp.product_id
-      WHERE 
-        cp.category_id = ?
-    `, parentId);
+		// Get descendant count
+		const descendantCountQueryBuilder = db.createQueryBuilder();
+		const descendantResult = await descendantCountQueryBuilder
+			.select(['COUNT(*) as descendant_count'])
+			.from('categories')
+			.where('parent_id = ?', parentId)
+			.getOne();
 
 		// Combine the results
 		const fullCategoryDetail = {
-			...productCategoryDetail,
+			...category,
 			children,
-			products
+			products,
+			descendant_count: descendantResult?.descendant_count || 0
 		};
 
 		expect(fullCategoryDetail).toBeDefined();
 		expect(fullCategoryDetail.category_name).toBe("Dog Food");
 
 		// Should include parent (null for root category)
-		expect(fullCategoryDetail.parent_category_id).toBeNull();
+		expect(fullCategoryDetail.parent_id).toBeNull();
 
 		// Should include children
 		expect(fullCategoryDetail.children).toHaveLength(2);
@@ -301,7 +273,6 @@ describe("ProductCategoryRepository", () => {
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
 		const productRepo = context.getEntityManager('Product');
-		const db = context.getDatabase();
 
 		// Create a category
 		const categoryId = await productCategoryRepo.create({
@@ -318,27 +289,21 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 10
 		});
 
-		// Ensure junction table exists
-		await db.execute(`
-      CREATE TABLE IF NOT EXISTS category_product (
-        category_id INTEGER,
-        product_id INTEGER,
-        PRIMARY KEY (category_id, product_id)
-      )
-    `);
+		// Add product to category using manageManyToMany
+		await productCategoryRepo.manageManyToMany(
+			categoryId,
+			"products",
+			[productId],
+			"add"
+		);
 
-		// Add product to category
-		await db.execute(`
-      INSERT INTO category_product (category_id, product_id)
-      VALUES (?, ?)
-    `, categoryId, productId);
-
-		// Verify product was added
-		const result = await db.querySingle(`
-      SELECT COUNT(*) as count 
-      FROM category_product 
-      WHERE category_id = ? AND product_id = ?
-    `, categoryId, productId);
+		// Use query builder to verify product was added
+		const queryBuilder = context.getDatabase().createQueryBuilder();
+		const result = await queryBuilder
+			.select(['COUNT(*) as count'])
+			.from('category_product')
+			.where('category_id = ? AND product_id = ?', categoryId, productId)
+			.getOne();
 
 		expect(result.count).toBe(1);
 	});
@@ -348,7 +313,6 @@ describe("ProductCategoryRepository", () => {
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
 		const productRepo = context.getEntityManager('Product');
-		const db = context.getDatabase();
 
 		// Create a category
 		const categoryId = await productCategoryRepo.create({
@@ -365,49 +329,46 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 10
 		});
 
-		// Ensure junction table exists
-		await db.execute(`
-      CREATE TABLE IF NOT EXISTS category_product (
-        category_id INTEGER,
-        product_id INTEGER,
-        PRIMARY KEY (category_id, product_id)
-      )
-    `);
-
 		// Add a product to a category
-		await db.execute(`
-      INSERT INTO category_product (category_id, product_id)
-      VALUES (?, ?)
-    `, categoryId, productId);
+		await productCategoryRepo.manageManyToMany(
+			categoryId,
+			"products",
+			[productId],
+			"add"
+		);
 
-		// Verify it was added
-		const beforeCount = await db.querySingle(`
-      SELECT COUNT(*) as count 
-      FROM category_product 
-      WHERE category_id = ? AND product_id = ?
-    `, categoryId, productId);
-		expect(beforeCount.count).toBe(1);
+		// Use query builder to verify it was added
+		const queryBuilder = context.getDatabase().createQueryBuilder();
+		const beforeResult = await queryBuilder
+			.select(['COUNT(*) as count'])
+			.from('category_product')
+			.where('category_id = ? AND product_id = ?', categoryId, productId)
+			.getOne();
+
+		expect(beforeResult.count).toBe(1);
 
 		// Remove the product
-		await db.execute(`
-      DELETE FROM category_product 
-      WHERE category_id = ? AND product_id = ?
-    `, categoryId, productId);
+		await productCategoryRepo.manageManyToMany(
+			categoryId,
+			"products",
+			[productId],
+			"remove"
+		);
 
-		// Verify removal
-		const afterCount = await db.querySingle(`
-      SELECT COUNT(*) as count 
-      FROM category_product 
-      WHERE category_id = ? AND product_id = ?
-    `, categoryId, productId);
-		expect(afterCount.count).toBe(0);
+		// Use query builder to verify removal
+		const afterResult = await queryBuilder
+			.select(['COUNT(*) as count'])
+			.from('category_product')
+			.where('category_id = ? AND product_id = ?', categoryId, productId)
+			.getOne();
+
+		expect(afterResult.count).toBe(0);
 	});
 
 	test("should search categories by name", async () => {
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
-		const db = context.getDatabase();
 
 		// Create categories with distinct names
 		await productCategoryRepo.create({
@@ -422,9 +383,13 @@ describe("ProductCategoryRepository", () => {
 			parent_id: null
 		});
 
-		const categories = await db.query(`
-      SELECT * FROM categories WHERE category_name LIKE '%Dry%'
-    `);
+		// Use query builder for search instead of raw SQL
+		const queryBuilder = context.getDatabase().createQueryBuilder();
+		const categories = await queryBuilder
+			.select('*')
+			.from('categories')
+			.whereLike('category_name', 'Dry')
+			.execute();
 
 		expect(categories.length).toBe(1);
 		expect(categories[0].category_name).toBe("Dry Food");
@@ -434,7 +399,6 @@ describe("ProductCategoryRepository", () => {
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
-		const db = context.getDatabase();
 
 		// Create parent category
 		const parentId = await productCategoryRepo.create({
@@ -456,34 +420,13 @@ describe("ProductCategoryRepository", () => {
 			parent_id: parentId
 		});
 
-		// Use recursive query to get hierarchy
-		const rootCategories = await db.query(`
-      SELECT 
-        category_id, 
-        category_name, 
-        description, 
-        parent_id 
-      FROM 
-        categories 
-      WHERE 
-        parent_id IS NULL
-    `);
+		// Get root categories using entity manager
+		const rootCategories = await productCategoryRepo.findBy({ parent_id: null });
 
-		// Get children for each root category
+		// Build hierarchy using entity manager
 		const hierarchy = [];
 		for (const root of rootCategories) {
-			const children = await db.query(`
-        SELECT 
-          category_id, 
-          category_name, 
-          description, 
-          parent_id 
-        FROM 
-          categories 
-        WHERE 
-          parent_id = ?
-      `, root.category_id);
-
+			const children = await productCategoryRepo.findBy({ parent_id: root.category_id });
 			hierarchy.push({
 				...root,
 				children
@@ -511,7 +454,6 @@ describe("ProductCategoryRepository", () => {
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
 		const productRepo = context.getEntityManager('Product');
-		const db = context.getDatabase();
 
 		// Create parent category
 		const parentId = await productCategoryRepo.create({
@@ -541,47 +483,33 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 5
 		});
 
-		// Ensure junction table exists
-		await db.execute(`
-      CREATE TABLE IF NOT EXISTS category_product (
-        category_id INTEGER,
-        product_id INTEGER,
-        PRIMARY KEY (category_id, product_id)
-      )
-    `);
+		// Add products to categories using the entity manager
+		await productCategoryRepo.manageManyToMany(parentId, "products", [productId], "add");
+		await productCategoryRepo.manageManyToMany(childId1, "products", [productId], "add");
+		await productCategoryRepo.manageManyToMany(childId2, "products", [productId], "add");
 
-		// Add products to categories
-		await db.execute(`
-      INSERT INTO category_product (category_id, product_id) VALUES
-      (?, ?),
-      (?, ?),
-      (?, ?)
-    `, parentId, productId, childId1, productId, childId2, productId);
+		// Use query builder to get direct product count
+		const queryBuilder = context.getDatabase().createQueryBuilder();
+		const directCountResult = await queryBuilder
+			.select(['COUNT(*) as count'])
+			.from('category_product')
+			.where('category_id = ?', parentId)
+			.getOne();
 
-		// Get direct product count
-		const directCountResult = await db.querySingle(`
-      SELECT COUNT(*) as count
-      FROM category_product
-      WHERE category_id = ?
-    `, parentId);
+		// Get child categories using entity manager
+		const childCategories = await productCategoryRepo.findBy({ parent_id: parentId });
+		const childIds = childCategories.map(c => c.category_id);
 
-		// Get child category IDs
-		const childCategoryIds = await db.query(`
-      SELECT category_id
-      FROM categories
-      WHERE parent_id = ?
-    `, parentId);
-
-		const childIds = childCategoryIds.map(c => c.category_id);
-
-		// Count products in child categories
+		// Count products in child categories using query builder
 		let childProductsCount = 0;
 		for (const childId of childIds) {
-			const result = await db.querySingle(`
-        SELECT COUNT(*) as count
-        FROM category_product
-        WHERE category_id = ?
-      `, childId);
+			const childQueryBuilder = context.getDatabase().createQueryBuilder();
+			const result = await childQueryBuilder
+				.select(['COUNT(*) as count'])
+				.from('category_product')
+				.where('category_id = ?', childId)
+				.getOne();
+
 			childProductsCount += result.count;
 		}
 

@@ -81,15 +81,16 @@ describe("Product Repository Operations", () => {
 			credit_cost: 5
 		});
 
-		// Add the product to the category by creating a junction record
-		const db = context.getDatabase();
-		await db.execute(
-			"INSERT INTO category_product (category_id, product_id) VALUES (?, ?)",
-			categoryId, productId
+		// Add the product to the category using the framework's relationship management
+		await categoryManager.manageManyToMany(
+			categoryId,
+			"products", // relationship name from ProductCategory entity
+			[productId],
+			"add"
 		);
 
 		// Find products for the category using a custom query
-		const queryBuilder = db.createQueryBuilder();
+		const queryBuilder = context.getDatabase().createQueryBuilder();
 		const products = await queryBuilder
 			.select('p.*')
 			.from('products', 'p')
