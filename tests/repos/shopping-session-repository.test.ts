@@ -569,20 +569,20 @@ describe("ShoppingSessionRepository", () => {
 
 		// Get shopping stats for user with no sessions
 		const stats = await db.querySingle(`
-      SELECT 
-        COUNT(*) as totalSessions,
-        COALESCE(SUM(cards_studied), 0) as totalCards,
-        COALESCE(SUM(total_shopping_time), 0) as totalTime,
-        CASE 
-          WHEN COUNT(*) > 0 THEN COALESCE(SUM(total_shopping_time), 0) / COUNT(*) 
-          ELSE 0 
-        END as averageTime,
-        SUM(CASE WHEN status = '${ShoppingSessionStatus.COMPLETED}' THEN 1 ELSE 0 END) as completedSessions
-      FROM 
-        product_shopping_session
-      WHERE 
-        user_id = ?
-    `, userId);
+		  SELECT 
+			COUNT(*) as totalSessions,
+			COALESCE(SUM(cards_studied), 0) as totalCards,
+			COALESCE(SUM(total_shopping_time), 0) as totalTime,
+			CASE 
+			  WHEN COUNT(*) > 0 THEN COALESCE(SUM(total_shopping_time), 0) / COUNT(*) 
+			  ELSE 0 
+			END as averageTime,
+			COALESCE(SUM(CASE WHEN status = '${ShoppingSessionStatus.COMPLETED}' THEN 1 ELSE 0 END), 0) as completedSessions
+		  FROM 
+			product_shopping_session
+		  WHERE 
+			user_id = ?
+		`, userId);
 
 		expect(stats).toBeDefined();
 		expect(stats.totalSessions).toBe(0);

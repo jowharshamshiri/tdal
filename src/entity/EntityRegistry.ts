@@ -107,6 +107,15 @@ export class EntityRegistry {
 			// Store entity configuration
 			this.entityConfigs.set(name, config);
 
+			// Register many-to-many junction tables if needed
+			if (config.relations) {
+				for (const relation of config.relations) {
+					if (relation.type === "manyToMany" && relation.implicitJunction) {
+						this.registerJunctionTable(relation);
+					}
+				}
+			}
+
 			// Register actions if action registry is available
 			if (this.actionRegistry && config.actions) {
 				for (const action of config.actions) {
@@ -126,6 +135,55 @@ export class EntityRegistry {
 			return false;
 		}
 	}
+
+	/**
+	 * Register a junction table as an entity configuration
+	 * @param relation Many-to-many relation with junction table
+	 */
+	private registerJunctionTable(relation: any): void {
+		const junctionTableName = relation.junctionTable;
+
+		// Skip if already registered
+		if (this.entityConfigs.has(junctionTableName)) {
+			return;
+		}
+
+		// Create a simple entity config for the junction table
+		const junctionConfig: EntityConfig = {
+			entity: junctionTableName,
+			table: junctionTableName,
+			idField: [relation.junctionSourceColumn, relation.junctionTargetColumn],
+			columns: [
+				{
+					logical: relation.junctionSourceColumn,
+					physical: relation.junctionSourceColumn,
+					primaryKey: true
+				},
+				{
+					logical: relation.junctionTargetColumn,
+					physical: relation.junctionTargetColumn,
+					primaryKey: true
+				}
+			]
+		};
+
+		// Add extra columns if defined in the relationship
+		if (relation.junctionExtraColumns) {
+			for (const column of relation.junctionExtraColumns) {
+				junctionConfig.columns.push({
+					logical: column.name,
+					physical: column.name,
+					type: column.type,
+					nullable: column.nullable !== false
+				});
+			}
+		}
+
+		// Register the junction table config
+		this.logger.debug(`Registering junction table ${junctionTableName} for ${relation.sourceEntity}-${relation.targetEntity} relation`);
+		this.registerEntityConfig(junctionTableName, junctionConfig);
+	}
+
 	/**
 	 * Register multiple entity configurations
 	 * @param entities Map of entity names to configurations
