@@ -1208,7 +1208,9 @@ export class EntityDao<T, IdType = string | number> {
 		relation: ManyToManyRelation,
 		options?: QueryOptions
 	): Promise<R[]> {
-		const targetTable = relation.targetEntity.toLowerCase();
+		const context = DatabaseContext.getAppContext();
+		const targetConfig = context?.getEntityConfig(relation.targetEntity);
+		const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 
 		// Build where conditions for junction table
 		const conditions: Record<string, unknown> = {};
@@ -1295,7 +1297,9 @@ export class EntityDao<T, IdType = string | number> {
 		relation: OneToManyRelation,
 		options?: QueryOptions
 	): Promise<R[]> {
-		const targetTable = relation.targetEntity.toLowerCase();
+		const context = DatabaseContext.getAppContext();
+		const targetConfig = context?.getEntityConfig(relation.targetEntity);
+		const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 
 		const conditions = {
 			[relation.targetColumn]: id,
@@ -1334,7 +1338,9 @@ export class EntityDao<T, IdType = string | number> {
 			return [];
 		}
 
-		const targetTable = relation.targetEntity.toLowerCase();
+		const context = DatabaseContext.getAppContext();
+		const targetConfig = context?.getEntityConfig(relation.targetEntity);
+		const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 
 		const conditions = {
 			[relation.targetColumn]: foreignKeyValue,
@@ -1374,7 +1380,9 @@ export class EntityDao<T, IdType = string | number> {
 				return [];
 			}
 
-			const targetTable = relation.targetEntity.toLowerCase();
+			const context = DatabaseContext.getAppContext();
+			const targetConfig = context?.getEntityConfig(relation.targetEntity);
+			const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 
 			const conditions = {
 				[relation.targetColumn]: foreignKeyValue,
@@ -1389,7 +1397,9 @@ export class EntityDao<T, IdType = string | number> {
 			return results as unknown as R[];
 		} else {
 			// If this entity is not the owner, the related entity has the foreign key
-			const targetTable = relation.targetEntity.toLowerCase();
+			const context = DatabaseContext.getAppContext();
+			const targetConfig = context?.getEntityConfig(relation.targetEntity);
+			const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 
 			const conditions = {
 				[relation.targetColumn]: id,
@@ -1538,7 +1548,9 @@ export class EntityDao<T, IdType = string | number> {
 	 * @returns Join options
 	 */
 	private relationToJoinOptions(relation: Relation): JoinOptions | null {
-		const targetTable = relation.targetEntity.toLowerCase();
+		const context = DatabaseContext.getAppContext();
+		const targetConfig = context?.getEntityConfig(relation.targetEntity);
+		const targetTable = targetConfig?.table || relation.targetEntity.toLowerCase();
 		const alias = targetTable.charAt(0);
 
 		if (isRelationType<ManyToManyRelation>(relation, "manyToMany")) {
