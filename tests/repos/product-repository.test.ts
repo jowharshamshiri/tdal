@@ -1,12 +1,11 @@
 // product-repository.test.ts
+import { faker } from '@faker-js/faker';
 import {
 	setupTestEnvironment,
 	teardownTestEnvironment,
 	getTestFramework,
-	generateTestData,
 	cleanupTestData
 } from "../test-setup";
-import { DatabaseAdapter } from "../../src/database/core/types";
 
 // Define interfaces for the entities we'll work with
 interface Product {
@@ -60,135 +59,117 @@ describe("Product Repository Operations", () => {
 	});
 
 	test("should find products by category ID", async () => {
-		// Generate test data with unique names
-		const uniqueCategoryName = uniqueName('dog-food');
-		const uniqueProductName = uniqueName('kibble');
-
-		await generateTestData({
-			count: 1,
-			withRelations: true,
-			fixedValues: {
-				ProductCategory: {
-					category_name: uniqueCategoryName,
-					description: 'Dog food category'
-				},
-				Product: {
-					title: uniqueProductName,
-					pricing: 'premium',
-					is_free: false,
-					credit_cost: 5
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const categoryManager = context.getEntityManager<ProductCategory>('ProductCategory');
 		const productManager = context.getEntityManager<Product>('Product');
 
-		// Get the category ID for our test
-		const categories = await categoryManager.findBy({ category_name: uniqueCategoryName });
-		expect(categories.length).toBe(1);
-		const categoryId = categories[0].category_id;
+		// Create a category
+		const uniqueCategoryName = faker.commerce.department();
+		const categoryId = await categoryManager.create({
+			category_name: uniqueCategoryName,
+			description: 'Test category description'
+		});
 
-		// Use junction table to add product to category
+		// Create a product
+		const uniqueProductName = faker.commerce.productName();
+		const productId = await productManager.create({
+			title: uniqueProductName,
+			pricing: 'premium',
+			is_free: false,
+			credit_cost: 5
+		});
+
+		// Add the product to the category by creating a junction record
 		const db = context.getDatabase();
-		const productResult = await productManager.findBy({ title: uniqueProductName });
-		expect(productResult.length).toBe(1);
-		const productId = productResult[0].product_id;
-
-		// Add the product to the category using the junction table
 		await db.execute(
 			"INSERT INTO category_product (category_id, product_id) VALUES (?, ?)",
 			categoryId, productId
 		);
 
-		// Now test finding products by category ID
-		const products = await productManager.findBy({ "category_product.category_id": categoryId });
+		// Find products for the category using a custom query
+		const queryBuilder = db.createQueryBuilder();
+		const products = await queryBuilder
+			.select('p.*')
+			.from('products', 'p')
+			.innerJoin('category_product', 'cp', 'p.product_id = cp.product_id')
+			.where('cp.category_id = ?', categoryId)
+			.execute();
 
-		expect(products.length).toBeGreaterThan(0);
-		expect(products.some(p => p.title === uniqueProductName)).toBe(true);
+		expect(products.length).toBe(1);
+		expect(products[0].title).toBe(uniqueProductName);
 	});
 
 	test("should find free products", async () => {
-		// Generate test data with unique names and free products
-		const uniqueFreeProduct1 = uniqueName('free-product');
-		const uniqueFreeProduct2 = uniqueName('free-product');
-
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				Product: [
-					{
-						title: uniqueFreeProduct1,
-						pricing: 'free',
-						is_free: true,
-					},
-					{
-						title: uniqueFreeProduct2,
-						pricing: 'free trial',
-						is_free: true,
-					}
-				]
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const productManager = context.getEntityManager<Product>('Product');
 
+		// Create multiple products
+		const uniqueFreeProduct1 = faker.commerce.productName();
+		await productManager.create({
+			title: uniqueFreeProduct1,
+			pricing: 'free',
+			is_free: true,
+			credit_cost: 0
+		});
+
+		const uniqueFreeProduct2 = faker.commerce.productName();
+		await productManager.create({
+			title: uniqueFreeProduct2,
+			pricing: 'free trial',
+			is_free: true,
+			credit_cost: 0
+		});
+
+		const paidProduct = faker.commerce.productName();
+		await productManager.create({
+			title: paidProduct,
+			pricing: '$9.99',
+			is_free: false,
+			credit_cost: 10
+		});
+
 		// Find free products
 		const products = await productManager.findBy({ is_free: true });
 
-		expect(products.length).toBeGreaterThan(0);
-		expect(products.every(p => p.is_free)).toBe(true);
-		// Verify at least one of our test products is found
-		expect(products.some(p =>
-			p.title === uniqueFreeProduct1 || p.title === uniqueFreeProduct2
-		)).toBe(true);
+		expect(products.length).toBe(2);
+		expect(products.every(p => p.is_free === true)).toBe(true);
+
+		// Verify both our free products are found
+		const productTitles = products.map(p => p.title);
+		expect(productTitles).toContain(uniqueFreeProduct1);
+		expect(productTitles).toContain(uniqueFreeProduct2);
+		expect(productTitles).not.toContain(paidProduct);
 	});
 
 	test("should get product metadata for a user", async () => {
-		// Generate test data with unique names
-		const uniqueProductName = uniqueName('premium-product');
-		const uniqueUsername = uniqueName('test-user');
-
-		await generateTestData({
-			count: 1,
-			withRelations: true,
-			fixedValues: {
-				User: {
-					name: uniqueUsername,
-					email: `${uniqueUsername}@example.com`,
-					role: 'user'
-				},
-				Product: {
-					title: uniqueProductName,
-					pricing: 'premium content',
-					is_free: false,
-					credit_cost: 5
-				}
-			}
-		});
-
 		// Get framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
-		const db = context.getDatabase();
 		const userManager = context.getEntityManager('User');
 		const productManager = context.getEntityManager<Product>('Product');
+		const db = context.getDatabase();
 
-		// Find our test user and product
-		const users = await userManager.findBy({ name: uniqueUsername });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id;
+		// Create a user
+		const uniqueUsername = faker.internet.userName();
+		const userId = await userManager.create({
+			name: uniqueUsername,
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
-		const products = await productManager.findBy({ title: uniqueProductName });
-		expect(products.length).toBe(1);
-		const productId = products[0].product_id;
+		// Create a product
+		const uniqueProductName = faker.commerce.productName();
+		const productId = await productManager.create({
+			title: uniqueProductName,
+			pricing: 'premium content',
+			is_free: false,
+			credit_cost: 5
+		});
 
 		// Add resource access record for this user and product
 		await db.execute(
@@ -202,7 +183,7 @@ describe("Product Repository Operations", () => {
 			userId, 60, "test", new Date().toISOString(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
 		);
 
-		// Now use a query builder to get product with metadata for this user
+		// Use a query builder to get product with metadata for this user
 		const queryBuilder = db.createQueryBuilder();
 		const productWithMeta = await queryBuilder
 			.select([
@@ -227,30 +208,33 @@ describe("Product Repository Operations", () => {
 	});
 
 	test("should search products by text", async () => {
-		// Generate test data with a unique product name containing searchable text
-		const searchTerm = "Meaty";
-		const uniqueProductName = uniqueName(`${searchTerm}-chunks`);
-
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				Product: {
-					title: uniqueProductName,
-					pricing: 'premium',
-					is_free: false,
-					credit_cost: 5
-				}
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
-		const db = context.getDatabase();
 		const productManager = context.getEntityManager<Product>('Product');
 
+		// Generate test data with a unique product name containing searchable text
+		const searchTerm = "Meaty";
+		const uniqueProductName = `${searchTerm} ${faker.commerce.productName()}`;
+
+		// Create a product containing the search term
+		await productManager.create({
+			title: uniqueProductName,
+			pricing: 'premium',
+			is_free: false,
+			credit_cost: 5
+		});
+
+		// Create other products that don't contain the search term
+		await productManager.create({
+			title: faker.commerce.productName(),
+			pricing: 'standard',
+			is_free: false,
+			credit_cost: 3
+		});
+
 		// Run the search
+		const db = context.getDatabase();
 		const queryBuilder = db.createQueryBuilder();
 		const results = await queryBuilder
 			.select('*')
@@ -258,65 +242,55 @@ describe("Product Repository Operations", () => {
 			.whereLike('title', searchTerm)
 			.execute();
 
-		expect(results.length).toBeGreaterThan(0);
-		expect(results.some(p => p.title === uniqueProductName)).toBe(true);
+		expect(results.length).toBe(1);
+		expect(results[0].title).toBe(uniqueProductName);
 	});
 
 	test("should bookmark a product", async () => {
-		// Generate test data with unique names
-		const uniqueProductName = uniqueName('bookmark-product');
-		const uniqueUsername = uniqueName('bookmark-user');
-
-		await generateTestData({
-			count: 1,
-			withRelations: true,
-			fixedValues: {
-				User: {
-					name: uniqueUsername,
-					email: `${uniqueUsername}@example.com`,
-					role: 'user'
-				},
-				Product: {
-					title: uniqueProductName,
-					pricing: 'standard',
-					is_free: true,
-					bookmark_count: 0
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
-		const db = context.getDatabase();
 		const userManager = context.getEntityManager('User');
 		const productManager = context.getEntityManager<Product>('Product');
+		const bookmarkManager = context.getEntityManager('UserProductBookmark');
 
-		// Find our test user and product
-		const users = await userManager.findBy({ name: uniqueUsername });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id;
+		// Create a user
+		const uniqueUsername = faker.internet.userName();
+		const userId = await userManager.create({
+			name: uniqueUsername,
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
-		const products = await productManager.findBy({ title: uniqueProductName });
-		expect(products.length).toBe(1);
-		const productId = products[0].product_id;
+		// Create a product
+		const uniqueProductName = faker.commerce.productName();
+		const productId = await productManager.create({
+			title: uniqueProductName,
+			pricing: 'standard',
+			is_free: true,
+			bookmark_count: 0
+		});
 
 		// Create a bookmark
-		await db.execute(
-			"INSERT INTO user_product_bookmark (user_id, product_id, created_at, removed) VALUES (?, ?, ?, ?)",
-			userId, productId, new Date().toISOString(), 0
-		);
+		await bookmarkManager.create({
+			user_id: userId,
+			product_id: productId,
+			created_at: new Date().toISOString(),
+			removed: false
+		});
 
 		// Update the product bookmark count
 		await productManager.update(productId, { bookmark_count: 1 });
 
 		// Verify bookmark was created
-		const bookmark = await db.querySingle(
-			"SELECT * FROM user_product_bookmark WHERE user_id = ? AND product_id = ?",
-			userId, productId
-		);
-		expect(bookmark).toBeDefined();
-		expect((bookmark as any)?.removed).toBe(0);
+		const bookmarks = await bookmarkManager.findBy({
+			user_id: userId,
+			product_id: productId
+		});
+
+		expect(bookmarks.length).toBe(1);
+		expect(bookmarks[0].removed).toBe(false);
 
 		// Verify product bookmark count was updated
 		const updatedProduct = await productManager.findById(productId);
@@ -325,53 +299,44 @@ describe("Product Repository Operations", () => {
 	});
 
 	test("should update user data for a product", async () => {
-		// Generate test data with unique names
-		const uniqueProductName = uniqueName('user-data-product');
-		const uniqueUsername = uniqueName('user-data-user');
-
-		await generateTestData({
-			count: 1,
-			withRelations: true,
-			fixedValues: {
-				User: {
-					name: uniqueUsername,
-					email: `${uniqueUsername}@example.com`,
-					role: 'user'
-				},
-				Product: {
-					title: uniqueProductName,
-					pricing: 'standard',
-					is_free: true,
-					total_view_count: 0,
-					avg_view_time: 0
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
-		const db = context.getDatabase();
 		const userManager = context.getEntityManager('User');
 		const productManager = context.getEntityManager<Product>('Product');
+		const productDataManager = context.getEntityManager('UserProductData');
 
-		// Find our test user and product
-		const users = await userManager.findBy({ name: uniqueUsername });
-		expect(users.length).toBe(1);
-		const userId = users[0].user_id;
+		// Create a user
+		const uniqueUsername = faker.internet.userName();
+		const userId = await userManager.create({
+			name: uniqueUsername,
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
-		const products = await productManager.findBy({ title: uniqueProductName });
-		expect(products.length).toBe(1);
-		const productId = products[0].product_id;
+		// Create a product
+		const uniqueProductName = faker.commerce.productName();
+		const productId = await productManager.create({
+			title: uniqueProductName,
+			pricing: 'standard',
+			is_free: true,
+			total_view_count: 0,
+			avg_view_time: 0
+		});
 
 		// Add user data
 		const viewTime = 30;
 		const notes = "This is a test note";
 
-		await db.execute(
-			"INSERT INTO user_product_data (user_id, product_id, view_count, last_viewed, total_view_time, notes) VALUES (?, ?, ?, ?, ?, ?)",
-			userId, productId, 1, new Date().toISOString(), viewTime, notes
-		);
+		await productDataManager.create({
+			user_id: userId,
+			product_id: productId,
+			view_count: 1,
+			last_viewed: new Date().toISOString(),
+			total_view_time: viewTime,
+			notes: notes
+		});
 
 		// Update product stats
 		await productManager.update(productId, {
@@ -380,14 +345,15 @@ describe("Product Repository Operations", () => {
 		});
 
 		// Verify user data was created
-		const userData = await db.querySingle(
-			"SELECT * FROM user_product_data WHERE user_id = ? AND product_id = ?",
-			userId, productId
-		);
-		expect(userData).toBeDefined();
-		expect((userData as any)?.view_count).toBe(1);
-		expect((userData as any)?.total_view_time).toBe(viewTime);
-		expect((userData as any)?.notes).toBe(notes);
+		const userData = await productDataManager.findBy({
+			user_id: userId,
+			product_id: productId
+		});
+
+		expect(userData.length).toBe(1);
+		expect(userData[0].view_count).toBe(1);
+		expect(userData[0].total_view_time).toBe(viewTime);
+		expect(userData[0].notes).toBe(notes);
 
 		// Verify product stats were updated
 		const updatedProduct = await productManager.findById(productId);

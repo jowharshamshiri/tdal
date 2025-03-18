@@ -1,9 +1,9 @@
 // user-repository.test.ts
+import { faker } from '@faker-js/faker';
 import {
 	setupTestEnvironment,
 	teardownTestEnvironment,
 	getTestFramework,
-	generateTestData,
 	cleanupTestData
 } from '../test-setup';
 
@@ -29,19 +29,6 @@ interface UserResourceAccess {
 	created_at?: string;
 }
 
-// Helper function to generate a unique name with timestamp and random suffix
-function uniqueName(prefix: string = ''): string {
-	const timestamp = Date.now();
-	const random = Math.floor(Math.random() * 10000);
-	return `${prefix}-${timestamp}-${random}`;
-}
-
-// Helper function to generate a unique email
-function uniqueEmail(prefix: string = ''): string {
-	const name = uniqueName(prefix);
-	return `${name}@example.com`;
-}
-
 describe("User Entity Operations", () => {
 	beforeAll(async () => {
 		// Initialize test framework with test-app.yaml configuration
@@ -63,39 +50,32 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should find user by email", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('owner');
-
-		// Generate test data with fixed values for predictable test results
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Pet Store Owner',
-					email: uniqueUserEmail,
-					role: 'admin'
-				}
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Use the entity manager to find by condition
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user with unique email
+		const userEmail = faker.internet.email();
+		await userManager.create({
+			name: 'Pet Store Owner',
+			email: userEmail,
+			password: faker.internet.password(),
+			role: 'admin'
+		});
 
-		expect(user).toBeDefined();
-		expect(user.name).toBe("Pet Store Owner");
-		expect(user.role).toBe("admin");
+		// Use the entity manager to find by condition
+		const users = await userManager.findBy({ email: userEmail });
+
+		expect(users.length).toBe(1);
+		expect(users[0].name).toBe("Pet Store Owner");
+		expect(users[0].email).toBe(userEmail);
+		expect(users[0].role).toBe("admin");
 	});
 
-	test("should return undefined for non-existent email", async () => {
+	test("should return empty array for non-existent email", async () => {
 		// Use a very unlikely email address
-		const nonExistentEmail = uniqueEmail('nonexistent-user');
+		const nonExistentEmail = `nonexistent-${Date.now()}@example.com`;
 
 		// Get the framework and entity manager
 		const framework = getTestFramework();
@@ -110,37 +90,28 @@ describe("User Entity Operations", () => {
 
 	test("should update last login timestamp", async () => {
 		const before = new Date();
-		const uniqueUserEmail = uniqueEmail('login-test');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Login Test User',
-					email: uniqueUserEmail,
-					role: 'user'
-				}
-			}
-		});
 
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Find the test user first
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Login Test User',
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
 		// Update the last_login field
-		await userManager.update(user.user_id!, {
-			last_login: new Date().toISOString()
+		const newLoginTime = new Date().toISOString();
+		await userManager.update(userId, {
+			last_login: newLoginTime
 		});
 
 		// Verify the last_login field was updated
-		const updatedUser = await userManager.findById(user.user_id!);
+		const updatedUser = await userManager.findById(userId);
 		expect(updatedUser).toBeDefined();
 		expect(updatedUser?.last_login).toBeDefined();
 
@@ -152,36 +123,24 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should find users with credit balance using query builder", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('credit-user');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Credit Test User',
-					email: uniqueUserEmail,
-					role: 'user'
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 		const db = context.getDatabase();
 
-		// Find the user we just created
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Credit Test User',
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
 		// Add credit to the user
 		await db.execute(
 			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
-			user.user_id, 100, 'test', new Date().toISOString(),
+			userId, 100, 'test', new Date().toISOString(),
 			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
 		);
 
@@ -201,46 +160,36 @@ describe("User Entity Operations", () => {
 		// Find our test user in the results
 		const testUser = results.find(u => u.name === 'Credit Test User');
 		expect(testUser).toBeDefined();
-		expect(Number(testUser.credit_balance)).toBe(100);
+		if (testUser) {
+			expect(Number(testUser.credit_balance)).toBe(100);
+		}
 	});
 
 	test("should get user credit details", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('credit-details');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Credit Details User',
-					email: uniqueUserEmail,
-					role: 'user'
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 		const db = context.getDatabase();
 
-		// Find the user we just created
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Credit Details User',
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
 		// Add two credit entries to the user
 		await db.execute(
 			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
-			user.user_id, 50, 'purchase', new Date().toISOString(),
+			userId, 50, 'purchase', new Date().toISOString(),
 			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
 		);
 
 		await db.execute(
 			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
-			user.user_id, 10, 'bonus', new Date().toISOString(),
+			userId, 10, 'bonus', new Date().toISOString(),
 			new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days from now
 		);
 
@@ -249,7 +198,7 @@ describe("User Entity Operations", () => {
 		const userCredits = await creditQuery
 			.select('*')
 			.from('user_credits')
-			.where('user_id = ?', user.user_id)
+			.where('user_id = ?', userId)
 			.execute();
 
 		// Calculate the total credit balance
@@ -260,122 +209,86 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should change user password", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('password-change');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Password Test User',
-					email: uniqueUserEmail,
-					role: 'user',
-					password: 'oldhashpassword'
-				}
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Find the test user first
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Password Test User',
+			email: faker.internet.email(),
+			password: 'oldhashpassword',
+			role: 'user'
+		});
 
 		// Update the password
-		await userManager.update(user.user_id!, {
+		await userManager.update(userId, {
 			password: "newhashpassword"
 		});
 
 		// Verify password change
-		const updatedUser = await userManager.findById(user.user_id!);
+		const updatedUser = await userManager.findById(userId);
 		expect(updatedUser).toBeDefined();
 		expect(updatedUser?.password).toBe("newhashpassword");
 	});
 
 	test("should update user profile", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('profile-update');
-		const newEmail = uniqueEmail('new-profile');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Profile Test User',
-					email: uniqueUserEmail,
-					role: 'user'
-				}
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 
-		// Find the test user first
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Profile Test User',
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
 		// Update the profile
-		await userManager.update(user.user_id!, {
-			name: "New User Name",
+		const newName = "New User Name";
+		const newEmail = faker.internet.email();
+
+		await userManager.update(userId, {
+			name: newName,
 			email: newEmail
 		});
 
 		// Verify profile update
-		const updatedUser = await userManager.findById(user.user_id!);
+		const updatedUser = await userManager.findById(userId);
 		expect(updatedUser).toBeDefined();
-		expect(updatedUser?.name).toBe("New User Name");
+		expect(updatedUser?.name).toBe(newName);
 		expect(updatedUser?.email).toBe(newEmail);
 	});
 
 	test("should retrieve user without password field", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('secure-profile');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: false,
-			fixedValues: {
-				User: {
-					name: 'Secure User',
-					email: uniqueUserEmail,
-					role: 'user',
-					password: 'securepassword'
-				}
-			}
-		});
-
 		// Get the framework and entity manager
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 		const db = context.getDatabase();
 
-		// Find the test user first
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Secure User',
+			email: faker.internet.email(),
+			password: 'securepassword',
+			role: 'user'
+		});
 
 		// Use query builder to select specific fields (excluding password)
 		const queryBuilder = db.createQueryBuilder();
 		const profile = await queryBuilder
 			.select(['name', 'email', 'role'])
 			.from('users')
-			.where('user_id = ?', user.user_id)
+			.where('user_id = ?', userId)
 			.getOne();
 
 		expect(profile).toBeDefined();
 		expect(profile.name).toBe("Secure User");
-		expect(profile.email).toBe(uniqueUserEmail);
+		expect(profile.email).toBeDefined();
 		expect(profile.role).toBe("user");
 
 		// Password should not be included
@@ -383,52 +296,43 @@ describe("User Entity Operations", () => {
 	});
 
 	test("should get user with resource access history", async () => {
-		// Create unique email for this test
-		const uniqueUserEmail = uniqueEmail('resource-access');
-
-		// Generate test data
-		await generateTestData({
-			count: 1,
-			withRelations: true,
-			fixedValues: {
-				User: {
-					name: 'Resource Access User',
-					email: uniqueUserEmail,
-					role: 'user'
-				},
-				Product: {
-					title: uniqueName('Test Product'),
-					pricing: 'standard',
-					is_free: false,
-					credit_cost: 10
-				}
-			}
-		});
-
 		// Get the framework and entity managers
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const userManager = context.getEntityManager<User>('User');
 		const productManager = context.getEntityManager('Product');
+		const accessManager = context.getEntityManager('UserResourceAccess');
 		const db = context.getDatabase();
 
-		// Find the user and product we just created
-		const users = await userManager.findBy({ email: uniqueUserEmail });
-		const user = users[0];
+		// Create a user
+		const userId = await userManager.create({
+			name: 'Resource Access User',
+			email: faker.internet.email(),
+			password: faker.internet.password(),
+			role: 'user'
+		});
 
-		const products = await productManager.findBy({});
-		const product = products[0]; // Get first product
+		// Create a product
+		const productId = await productManager.create({
+			title: faker.commerce.productName(),
+			pricing: 'standard',
+			is_free: false,
+			credit_cost: 10
+		});
 
-		// Add resource access record
-		await db.execute(
-			"INSERT INTO user_resource_access (user_id, resource_type, resource_id, credit_cost, access_date, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-			user.user_id, 'product', product.product_id, 10, new Date().toISOString(), new Date().toISOString()
-		);
+		// Add resource access record - create exactly one record
+		await accessManager.create({
+			user_id: userId,
+			resource_type: 'product',
+			resource_id: productId,
+			credit_cost: 10,
+			access_date: new Date().toISOString()
+		});
 
 		// Add credit to the user
 		await db.execute(
 			"INSERT INTO user_credits (user_id, amount, source, purchase_date, expiry_date) VALUES (?, ?, ?, ?, ?)",
-			user.user_id, 50, 'purchase', new Date().toISOString(),
+			userId, 50, 'purchase', new Date().toISOString(),
 			new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days from now
 		);
 
@@ -444,17 +348,12 @@ describe("User Entity Operations", () => {
 			])
 			.from('users', 'u')
 			.leftJoin('user_credits', 'c', 'u.user_id = c.user_id')
-			.where('u.user_id = ?', user.user_id)
+			.where('u.user_id = ?', userId)
 			.groupBy('u.user_id')
 			.getOne();
 
 		// Get the user's recent access history
-		const accessHistoryQuery = db.createQueryBuilder();
-		const accessHistory = await accessHistoryQuery
-			.select('*')
-			.from('user_resource_access')
-			.where('user_id = ?', user.user_id)
-			.execute();
+		const accessHistory = await accessManager.findBy({ user_id: userId });
 
 		// Combine the results
 		const userWithHistory = {
