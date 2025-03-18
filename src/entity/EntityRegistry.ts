@@ -6,7 +6,7 @@
 
 import { EntityConfig } from './entity-config';
 import { EntityDao } from './entity-manager';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { DatabaseAdapter } from '../database/core/types';
 import { DatabaseContext } from '../database';
 import { ActionRegistry } from '../actions/action-registry';

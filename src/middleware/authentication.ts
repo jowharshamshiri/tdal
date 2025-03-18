@@ -6,10 +6,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AppContext } from '../core/app-context';
-import { Logger, AuthenticationOptions, AuthenticationResult } from '../core/types';
+import { AuthenticationOptions, AuthenticationResult } from '../core/types';
 import { EntityConfig } from '../entity/entity-config';
 import { createApiError } from '../core/types';
 import { StringValue } from 'ms';
+import { Logger } from '@/logging';
 
 /**
  * Authentication service

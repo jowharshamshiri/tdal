@@ -5,10 +5,11 @@
 
 import { ActionRegistry, ActionResult, ActionExecutionOptions } from './action-registry';
 import { AppContext } from '../core/app-context';
-import { Logger, HookContext } from '../core/types';
+import { HookContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
 import { createHookContext, HookError } from '../hooks/hook-context';
 import { EntityConfig } from '../entity';
+import { Logger } from '../logging';
 
 /**
  * Action executor

@@ -4,7 +4,7 @@
  */
 
 import { Router, RequestHandler } from 'express';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { AppContext } from '../core/app-context';
 
 /**

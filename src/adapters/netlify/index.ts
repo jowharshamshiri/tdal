@@ -3,7 +3,7 @@
  * Generates serverless function handlers for Netlify
  */
 
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { PlatformAdapter, HandlerGenerationOptions, GenerationResult } from '../types';
 import { EntityConfig } from '../../entity/entity-config';
 import { ActionRegistry } from '../../actions/action-registry';

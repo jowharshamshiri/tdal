@@ -6,8 +6,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { EntityConfig } from '../entity/entity-config';
 import { EntityDao } from '../entity/entity-manager';
-import { Logger, ControllerContext, ApiError } from '../core/types';
+import { ControllerContext, ApiError } from '../core/types';
 import { RelationOptions } from '@/database';
+import { Logger } from '@/logging';
 
 /**
  * Entity controller interface

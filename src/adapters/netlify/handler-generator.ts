@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { EntityConfig, EntityAction } from '../../entity/entity-config';
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { HandlerGenerationOptions, GenerationResult, GeneratedFile } from '../types';
 import { ActionRegistry } from '../../actions/action-registry';
 import { AppContext } from '../../core/app-context';

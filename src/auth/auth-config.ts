@@ -4,7 +4,7 @@
  */
 
 import { AuthConfig, Role } from '../core/types';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 
 /**
  * Default authentication configuration

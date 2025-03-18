@@ -5,9 +5,10 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AppContext } from '../core/app-context';
-import { HookContext, Logger } from '../core/types';
+import { HookContext } from '../core/types';
 import { DatabaseAdapter } from '../database';
 import { EntityDao } from '../entity';
+import { Logger } from '@/logging';
 
 /**
  * Hook error class

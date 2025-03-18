@@ -3,7 +3,8 @@
  * Central hook execution engine
  */
 
-import { HookContext, HookFunction, Logger } from '../core/types';
+import { Logger } from '@/logging';
+import { HookContext, HookFunction } from '../core/types';
 import { HookError } from './hook-context';
 
 /**

@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { EntityConfig, ColumnMapping } from '../entity/entity-config';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { DatabaseAdapter } from '../database/core/types';
 import { loadEntities } from './yaml-generator';
 import { mapDbTypeToTypeScript } from '../entity/entity-schema';

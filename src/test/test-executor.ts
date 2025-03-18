@@ -9,7 +9,8 @@ import * as yaml from 'js-yaml';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { expect } from 'chai';
 import * as jsonpath from 'jsonpath';
-import { AppContext, Logger } from '../core/types';
+import { AppContext } from '../core/types';
+import { Logger } from '@/logging';
 
 /**
  * Test definition

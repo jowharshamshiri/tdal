@@ -4,11 +4,12 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { Logger, RequestProcessorOptions, ControllerContext, HookContext } from '../core/types';
+import { RequestProcessorOptions, ControllerContext, HookContext } from '../core/types';
 import { createControllerContext } from '../entity/entity-manager';
 import { AppContext } from '../core/app-context';
 import { HookExecutor } from '../hooks';
 import { EntityConfig } from '../entity';
+import { Logger } from '@/logging';
 
 /**
  * Request Processor class

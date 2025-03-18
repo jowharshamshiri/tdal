@@ -3,7 +3,7 @@
  * Handles computed property definitions and processing
  */
 
-import { Logger } from "@/core/types";
+import { Logger } from "@/logging";
 import { ComputedProperty, EntityConfig } from "@/entity/entity-config";
 import { HookContext } from "@/core/types";
 

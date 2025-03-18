@@ -9,7 +9,7 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { Command } from 'commander';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { EntityConfig, ColumnMapping, EntityAction, EntityHook, ComputedProperty } from '../entity/entity-config';
 import { scaffoldEntity, writeEntityYaml } from '../generator/yaml-generator';
 import { DatabaseAdapter } from '../database/core/types';

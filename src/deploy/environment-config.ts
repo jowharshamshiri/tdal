@@ -7,8 +7,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 import * as yaml from 'js-yaml';
-import { AppConfig, Logger } from '../core/types';
+import { AppConfig } from '../core/types';
 import { StringValue } from 'ms';
+import { Logger } from '@/logging';
 
 /**
  * Environment types

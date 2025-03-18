@@ -6,7 +6,7 @@
 import { EntityConfig } from '../entity/entity-config';
 import { ActionRegistry } from '../actions/action-registry';
 import { AppContext } from '../core/app-context';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 
 /**
  * Platform adapter interface

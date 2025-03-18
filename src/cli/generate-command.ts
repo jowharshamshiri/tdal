@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import chalk from 'chalk';
 // Fix: Add types for inquirer
 import inquirer from 'inquirer';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { ConfigLoader } from '../core/config-loader';
 // Fix: Import correctly from the generator module
 import { scaffoldEntity, generateEntityFromTypeScript } from '../generator/entity-generator';

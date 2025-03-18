@@ -3,7 +3,7 @@
  * Adapts context objects to Netlify Functions
  */
 
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { ContextAdapter } from '../types';
 
 /**

@@ -3,13 +3,14 @@
  * Provides entity lifecycle management, DAO factory, and API operations
  */
 
-import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction, mapToEntity } from './entity-config';
+import { EntityHook, EntityConfig, EntityAction, getColumnsByType, mapColumnToPhysical, mapRecordToLogical, mapRecordToPhysical, getApiReadableColumns, getApiWritableColumns, findAction, mapToEntity, JunctionTableConfig } from './entity-config';
 import { DatabaseAdapter } from '../database/core/types';
 import { processComputedProperties, loadComputedPropertyImplementations, ComputedPropertyImplementations, createComputedPropertyFunction } from './computed-properties';
-import { HookContext, Logger, ControllerContext, ActionFunction, HookFunction, EntityHookHandler, ActionImplementations } from '../core/types';
+import { HookContext, ControllerContext, ActionFunction, HookFunction, EntityHookHandler, ActionImplementations } from '../core/types';
 import { AggregateOptions, DatabaseContext, DeleteOptions, FindOptions, findRelation, isRelationType, JoinOptions, ManyToManyRelation, ManyToOneRelation, OneToManyRelation, OneToOneRelation, QueryOptions, Relation, RelationOptions, TransactionIsolationLevel, UpdateOptions } from '../database';
 import { executeHookWithTimeout, HookExecutor, HookImplementation } from '../hooks/hooks-executor';
 import { HookError } from '../hooks/hook-context';
+import { Logger } from '@/logging';
 
 
 /**
@@ -1920,6 +1921,25 @@ export class EntityDao<T, IdType = string | number> {
 
 		try {
 			const junctionTable = relation.junctionTable;
+
+			// Ensure the junction table exists
+			const junctionTableExists = await this.db.tableExists(junctionTable);
+			if (!junctionTableExists) {
+				this.logger?.info(`Creating junction table ${junctionTable}`);
+
+				// Create junction table configuration
+				const junctionConfig: JunctionTableConfig = {
+					table: junctionTable,
+					sourceEntity: relation.sourceEntity,
+					targetEntity: relation.targetEntity,
+					sourceColumn: relation.junctionSourceColumn,
+					targetColumn: relation.junctionTargetColumn,
+					extraColumns: relation.junctionExtraColumns || []
+				};
+
+				// Create the junction table
+				await this.db.createJunctionTable(junctionConfig, true);
+			}
 
 			// Handle operation types
 			if (operation === 'set') {

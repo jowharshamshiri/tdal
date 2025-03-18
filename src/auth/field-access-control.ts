@@ -4,8 +4,9 @@
  */
 
 import { EntityConfig, ColumnMapping } from '../entity/entity-config';
-import { HookContext, Logger } from '../core/types';
+import { HookContext } from '../core/types';
 import { resolveRoleInheritance } from './auth-config';
+import { Logger } from '@/logging';
 
 /**
  * Field access control handler

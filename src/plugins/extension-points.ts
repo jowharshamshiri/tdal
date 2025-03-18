@@ -3,7 +3,7 @@
  * Defines the extension points where plugins can hook into the framework
  */
 
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 
 /**
  * Extension point identifiers

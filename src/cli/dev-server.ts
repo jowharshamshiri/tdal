@@ -14,7 +14,7 @@ import morgan from 'morgan';
 import bodyParser from 'body-parser';
 import compression from 'compression';
 import { Command } from 'commander';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { Framework } from '../core/framework';
 import { ConfigLoader } from '../core/config-loader';
 import { DatabaseAdapter } from '../database/core/types';
@@ -24,7 +24,7 @@ import { EntityConfig } from '../entity/entity-config';
 import { getAvailablePort } from '../utils/network-utils';
 // Fix: Add types for open
 import open from 'open';
-import { ConsoleLogger } from '../core/logger';
+import { ConsoleLogger } from '../logging';
 
 /**
  * Development server options

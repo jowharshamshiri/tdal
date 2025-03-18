@@ -3,7 +3,7 @@
  * Adapts authentication for Netlify Functions
  */
 
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { AuthAdapter } from '../types';
 
 /**

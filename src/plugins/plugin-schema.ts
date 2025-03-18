@@ -4,10 +4,11 @@
  */
 
 import { Express, Request, Response, NextFunction } from 'express';
-import { HookContext, Logger } from '../core/types';
+import { HookContext } from '../core/types';
 import { AppContext } from '../core/app-context';
 import { DatabaseAdapter } from '../database';
 import { EntityConfig } from 'src/entity';
+import { Logger } from '@/logging';
 
 export interface PluginManifest {
 	name: string;

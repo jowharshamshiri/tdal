@@ -97,7 +97,6 @@ describe("ProductCategoryRepository", () => {
 		const framework = getTestFramework();
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
-		const db = context.getDatabase();
 
 		// Create parent category
 		const parentName = "Dog Food";
@@ -121,6 +120,7 @@ describe("ProductCategoryRepository", () => {
 		});
 
 		// Use query builder instead of raw SQL
+		const db = context.getDatabase();
 		const queryBuilder = db.createQueryBuilder();
 		const categories = await queryBuilder
 			.select([
@@ -129,7 +129,7 @@ describe("ProductCategoryRepository", () => {
 				'c.description',
 				'c.parent_id',
 				'p.category_name as parent_name',
-				`(SELECT COUNT(*) FROM categories cc WHERE cc.parent_id = c.category_id) as child_count`
+				'(SELECT COUNT(*) FROM categories cc WHERE cc.parent_id = c.category_id) as child_count'
 			])
 			.from('categories', 'c')
 			.leftJoin('categories', 'p', 'c.parent_id = p.category_id')
@@ -172,7 +172,6 @@ describe("ProductCategoryRepository", () => {
 		const context = framework.getContext();
 		const productCategoryRepo = context.getEntityManager<ProductCategory>('ProductCategory');
 		const productRepo = context.getEntityManager('Product');
-		const db = context.getDatabase();
 
 		// Create parent category
 		const parentName = "Dog Food";
@@ -203,55 +202,42 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 5
 		});
 
-		// Set up category-product relationship using many-to-many relationship management
-		await productCategoryRepo.manageManyToMany(
-			parentId,
-			"products",
-			[productId],
-			"add"
-		);
+		// Add product to category using manageManyToMany
+		await productCategoryRepo.manageManyToMany(parentId, 'products', [productId], 'add');
 
-		// Get the category details
+		// Get category details using entity manager
 		const category = await productCategoryRepo.findById(parentId);
 
-		// Use query builder for child categories
-		const queryBuilder = db.createQueryBuilder();
-		const children = await queryBuilder
-			.select(['category_id', 'category_name', 'description', 'parent_id'])
-			.from('categories')
-			.where('parent_id = ?', parentId)
-			.execute();
+		// Get parent category details if needed
+		let parentCategory = null;
+		if (category?.parent_id) {
+			parentCategory = await productCategoryRepo.findById(category.parent_id);
+		}
 
-		// Use query builder for products
-		const productQueryBuilder = db.createQueryBuilder();
-		const products = await productQueryBuilder
-			.select(['p.product_id', 'p.title'])
-			.from('products', 'p')
-			.innerJoin('category_product', 'cp', 'p.product_id = cp.product_id')
-			.where('cp.category_id = ?', parentId)
-			.execute();
+		// Get children using entity manager
+		const children = await productCategoryRepo.findBy({ parent_id: parentId });
 
 		// Get descendant count
-		const descendantCountQueryBuilder = db.createQueryBuilder();
-		const descendantResult = await descendantCountQueryBuilder
-			.select(['COUNT(*) as descendant_count'])
-			.from('categories')
-			.where('parent_id = ?', parentId)
-			.getOne();
+		const descendantCount = children.length;
+
+		// Get products using findRelated
+		const products = await productCategoryRepo.findRelated<any>(parentId, 'products');
 
 		// Combine the results
 		const fullCategoryDetail = {
 			...category,
+			parent_category_id: category?.parent_id,
+			parent_category_name: parentCategory?.category_name,
+			descendant_count,
 			children,
-			products,
-			descendant_count: descendantResult?.descendant_count || 0
+			products
 		};
 
 		expect(fullCategoryDetail).toBeDefined();
 		expect(fullCategoryDetail.category_name).toBe("Dog Food");
 
 		// Should include parent (null for root category)
-		expect(fullCategoryDetail.parent_id).toBeNull();
+		expect(fullCategoryDetail.parent_category_id).toBeNull();
 
 		// Should include children
 		expect(fullCategoryDetail.children).toHaveLength(2);
@@ -290,22 +276,12 @@ describe("ProductCategoryRepository", () => {
 		});
 
 		// Add product to category using manageManyToMany
-		await productCategoryRepo.manageManyToMany(
-			categoryId,
-			"products",
-			[productId],
-			"add"
-		);
+		await productCategoryRepo.manageManyToMany(categoryId, 'products', [productId], 'add');
 
-		// Use query builder to verify product was added
-		const queryBuilder = context.getDatabase().createQueryBuilder();
-		const result = await queryBuilder
-			.select(['COUNT(*) as count'])
-			.from('category_product')
-			.where('category_id = ? AND product_id = ?', categoryId, productId)
-			.getOne();
-
-		expect(result.count).toBe(1);
+		// Verify product was added using findRelated
+		const products = await productCategoryRepo.findRelated<any>(categoryId, 'products');
+		expect(products.length).toBe(1);
+		expect(products[0].title).toBe("Premium Chow");
 	});
 
 	test("should remove a product from a category", async () => {
@@ -329,40 +305,19 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 10
 		});
 
-		// Add a product to a category
-		await productCategoryRepo.manageManyToMany(
-			categoryId,
-			"products",
-			[productId],
-			"add"
-		);
+		// Add product to category using manageManyToMany
+		await productCategoryRepo.manageManyToMany(categoryId, 'products', [productId], 'add');
 
-		// Use query builder to verify it was added
-		const queryBuilder = context.getDatabase().createQueryBuilder();
-		const beforeResult = await queryBuilder
-			.select(['COUNT(*) as count'])
-			.from('category_product')
-			.where('category_id = ? AND product_id = ?', categoryId, productId)
-			.getOne();
+		// Verify it was added
+		const beforeProducts = await productCategoryRepo.findRelated<any>(categoryId, 'products');
+		expect(beforeProducts.length).toBe(1);
 
-		expect(beforeResult.count).toBe(1);
+		// Remove the product using manageManyToMany
+		await productCategoryRepo.manageManyToMany(categoryId, 'products', [productId], 'remove');
 
-		// Remove the product
-		await productCategoryRepo.manageManyToMany(
-			categoryId,
-			"products",
-			[productId],
-			"remove"
-		);
-
-		// Use query builder to verify removal
-		const afterResult = await queryBuilder
-			.select(['COUNT(*) as count'])
-			.from('category_product')
-			.where('category_id = ? AND product_id = ?', categoryId, productId)
-			.getOne();
-
-		expect(afterResult.count).toBe(0);
+		// Verify removal
+		const afterProducts = await productCategoryRepo.findRelated<any>(categoryId, 'products');
+		expect(afterProducts.length).toBe(0);
 	});
 
 	test("should search categories by name", async () => {
@@ -383,8 +338,9 @@ describe("ProductCategoryRepository", () => {
 			parent_id: null
 		});
 
-		// Use query builder for search instead of raw SQL
-		const queryBuilder = context.getDatabase().createQueryBuilder();
+		// Use query builder instead of raw SQL
+		const db = context.getDatabase();
+		const queryBuilder = db.createQueryBuilder();
 		const categories = await queryBuilder
 			.select('*')
 			.from('categories')
@@ -423,7 +379,7 @@ describe("ProductCategoryRepository", () => {
 		// Get root categories using entity manager
 		const rootCategories = await productCategoryRepo.findBy({ parent_id: null });
 
-		// Build hierarchy using entity manager
+		// Get children for each root category
 		const hierarchy = [];
 		for (const root of rootCategories) {
 			const children = await productCategoryRepo.findBy({ parent_id: root.category_id });
@@ -483,39 +439,29 @@ describe("ProductCategoryRepository", () => {
 			credit_cost: 5
 		});
 
-		// Add products to categories using the entity manager
-		await productCategoryRepo.manageManyToMany(parentId, "products", [productId], "add");
-		await productCategoryRepo.manageManyToMany(childId1, "products", [productId], "add");
-		await productCategoryRepo.manageManyToMany(childId2, "products", [productId], "add");
+		// Add products to categories using manageManyToMany
+		await productCategoryRepo.manageManyToMany(parentId, 'products', [productId], 'add');
+		await productCategoryRepo.manageManyToMany(childId1, 'products', [productId], 'add');
+		await productCategoryRepo.manageManyToMany(childId2, 'products', [productId], 'add');
 
-		// Use query builder to get direct product count
-		const queryBuilder = context.getDatabase().createQueryBuilder();
-		const directCountResult = await queryBuilder
-			.select(['COUNT(*) as count'])
-			.from('category_product')
-			.where('category_id = ?', parentId)
-			.getOne();
+		// Get direct product count
+		const parentProducts = await productCategoryRepo.findRelated<any>(parentId, 'products');
+		const directCount = parentProducts.length;
 
-		// Get child categories using entity manager
+		// Get child category IDs
 		const childCategories = await productCategoryRepo.findBy({ parent_id: parentId });
 		const childIds = childCategories.map(c => c.category_id);
 
-		// Count products in child categories using query builder
+		// Count products in child categories
 		let childProductsCount = 0;
 		for (const childId of childIds) {
-			const childQueryBuilder = context.getDatabase().createQueryBuilder();
-			const result = await childQueryBuilder
-				.select(['COUNT(*) as count'])
-				.from('category_product')
-				.where('category_id = ?', childId)
-				.getOne();
-
-			childProductsCount += result.count;
+			const childProducts = await productCategoryRepo.findRelated<any>(childId, 'products');
+			childProductsCount += childProducts.length;
 		}
 
 		const counts = {
-			direct: directCountResult.count,
-			total: directCountResult.count + childProductsCount
+			direct: directCount,
+			total: directCount + childProductsCount
 		};
 
 		expect(counts).toBeDefined();

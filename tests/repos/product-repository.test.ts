@@ -81,25 +81,14 @@ describe("Product Repository Operations", () => {
 			credit_cost: 5
 		});
 
-		// Add the product to the category using the framework's relationship management
-		await categoryManager.manageManyToMany(
-			categoryId,
-			"products", // relationship name from ProductCategory entity
-			[productId],
-			"add"
-		);
+		// Add the product to the category using manageManyToMany
+		await categoryManager.manageManyToMany(categoryId, 'products', [productId], 'add');
 
-		// Find products for the category using a custom query
-		const queryBuilder = context.getDatabase().createQueryBuilder();
-		const products = await queryBuilder
-			.select('p.*')
-			.from('products', 'p')
-			.innerJoin('category_product', 'cp', 'p.product_id = cp.product_id')
-			.where('cp.category_id = ?', categoryId)
-			.execute();
+		// Find products for the category using findRelated
+		const relatedProducts = await categoryManager.findRelated<Product>(categoryId, 'products');
 
-		expect(products.length).toBe(1);
-		expect(products[0].title).toBe(uniqueProductName);
+		expect(relatedProducts.length).toBe(1);
+		expect(relatedProducts[0].title).toBe(uniqueProductName);
 	});
 
 	test("should find free products", async () => {

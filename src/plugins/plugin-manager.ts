@@ -5,9 +5,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { AppContext, Logger } from '../core/types';
+import { AppContext } from '../core/types';
 import { PluginConfig, PluginManifest } from './plugin-schema';
 import { ExtensionRegistry, ExtensionPoint } from './extension-points';
+import { Logger } from '@/logging';
 
 /**
  * Plugin instance interface

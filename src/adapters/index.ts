@@ -3,7 +3,7 @@
  * Central registry for platform adapters
  */
 
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { AdapterFactory, PlatformAdapter } from './types';
 import { createNetlifyAdapter } from './netlify';
 

@@ -6,7 +6,7 @@
 import jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import { AppContext } from '../core/app-context';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { StringValue } from 'ms';
 
 /**

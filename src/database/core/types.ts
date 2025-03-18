@@ -4,7 +4,7 @@
  */
 
 import { EntityConfig, JunctionTableConfig } from '../../entity';
-import { Logger, HookContext } from '../../core/types';
+import { HookContext } from '../../core/types';
 import { QueryBuilder } from '../query';
 import { DbConnection } from './connection-types';
 

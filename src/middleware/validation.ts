@@ -7,9 +7,10 @@ import { Request, Response, NextFunction } from 'express';
 import Ajv, { ValidateFunction, ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import { AppContext } from '../core/app-context';
-import { HookContext, Logger } from '../core/types';
+import { HookContext } from '../core/types';
 import { EntityConfig } from '../entity/entity-config';
 import { ValidationEngine, ValidationError, ValidationFunction } from '../logic/validation-engine';
+import { Logger } from '@/logging';
 
 /**
  * Validation options

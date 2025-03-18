@@ -170,6 +170,7 @@ export interface TestDataOptions {
 export class TestDataFactory {
 	private framework: Framework;
 	private generatedIds: Map<string, number[]> = new Map();
+	logger: any;
 
 	/**
 	 * Constructor
@@ -177,6 +178,7 @@ export class TestDataFactory {
 	 */
 	constructor(framework: Framework) {
 		this.framework = framework;
+		this.logger = framework.getContext().getLogger();
 	}
 
 	/**

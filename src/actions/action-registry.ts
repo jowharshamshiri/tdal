@@ -3,7 +3,7 @@
  * Manages entity actions and their execution
  */
 
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { EntityConfig, EntityAction } from '../entity/entity-config';
 import { HookContext } from '../core/types';
 import { DatabaseAdapter, TransactionIsolationLevel } from '../database';

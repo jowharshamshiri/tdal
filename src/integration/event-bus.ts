@@ -3,7 +3,7 @@
  * Provides event publishing and subscription capabilities
  */
 
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import { AppContext } from '../core/app-context';
 
 /**

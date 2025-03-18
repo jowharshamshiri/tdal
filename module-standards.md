@@ -41,7 +41,7 @@ Copy
 
 - Use absolute imports with path aliases for framework modules:
   ```typescript
-  import { Logger } from "@/core/types";
+  import { Logger } from "@/logging";
   import { EntityConfig } from "@/entity/entity-config";
   ```
 

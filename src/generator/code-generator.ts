@@ -8,7 +8,7 @@ import * as path from 'path';
 import { EntityConfig, ColumnMapping } from '../entity/entity-config';
 import { mapDbTypeToTypeScript } from '../entity/entity-schema';
 import { writeEntityYaml } from './yaml-generator';
-import { Logger } from '../core/types';
+import { Logger } from '../logging';
 import * as yaml from 'js-yaml';
 
 /**
@@ -157,7 +157,7 @@ export interface ${entityName} {
 
 import { EntityDao } from '../../entity/entity-manager';
 import { DatabaseAdapter } from '../../database/core/types';
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 import { ${entityName} } from '../models/${entityName.toLowerCase()}';
 import { entityConfigs } from '../entities';
 
@@ -306,7 +306,7 @@ entityConfigs.set('${entity.entity}', ${JSON.stringify(entity, null, 2)});
  */
 
 import { DatabaseAdapter } from '../../database/core/types';
-import { Logger } from '../../core/types';
+import { Logger } from '../../logging';
 
 `;
 
